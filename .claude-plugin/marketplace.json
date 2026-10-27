@@ -1,0 +1,17 @@
+{
+  "name": "noul",
+  "description": "Noul Search: evidence-based scientific literature search for Claude Code.",
+  "owner": {
+    "name": "Ernane Domingues",
+    "url": "https://github.com/ernaneDomingues"
+  },
+  "plugins": [
+    {
+      "name": "noul-search-agent",
+      "source": ".",
+      "description": "Scientific literature search with evidence levels, Evidence Meter, PDF download and research dossiers.",
+      "category": "research",
+      "tags": ["research", "science", "evidence", "mcp"]
+    }
+  ]
+}

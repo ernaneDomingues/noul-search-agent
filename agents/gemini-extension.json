@@ -1,0 +1,13 @@
+{
+  "name": "noul",
+  "version": "1.1.0",
+  "description": "Noul Search: multi-disciplinary scientific literature search with evidence levels, Evidence Meter (Noul Meter), cited synthesis, related/cited paper discovery, and Open Access PDF downloads.",
+  "contextFileName": "GEMINI.md",
+  "mcpServers": {
+    "noul": {
+      "command": "python3",
+      "args": ["__NOUL_DIR__/noul_mcp.py"],
+      "cwd": "__NOUL_DIR__"
+    }
+  }
+}

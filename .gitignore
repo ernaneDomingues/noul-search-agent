@@ -1,0 +1,77 @@
+# ---------------------------------------------------------------
+# Segredos e configuração local (chaves de API, e-mail, tokens)
+# ---------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ---------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Ambientes virtuais
+.venv/
+venv/
+env/
+ENV/
+
+# Build e empacotamento (PyPI, uv, MCP Bundles)
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+wheels/
+*.mcpb
+
+# Testes, cobertura e ferramentas de qualidade
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+
+# ---------------------------------------------------------------
+# Dados gerados pelo noul (cache SQLite, PDFs baixados, dossiês)
+# ---------------------------------------------------------------
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+.cache/
+/papers/
+/research/
+
+# Logs
+*.log
+
+# ---------------------------------------------------------------
+# Editores e sistema operacional
+# ---------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Node (npx launcher)
+node_modules/
+npm-debug.log*
+*.tgz

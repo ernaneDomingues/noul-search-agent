@@ -1,0 +1,4 @@
+## Noul Search (scientific evidence across all disciplines)
+
+For scientific, academic, medical, engineering, CS/AI, or economics research questions ("does X improve/outperform Y?", literature reviews, citations, paper exploration) use the `noul` MCP tools (`search_papers`, `get_paper`, `get_fulltext`, `query_fulltexts`, `related_papers`, `citation_graph`, `download_papers`, `save_research_dossier`, `export_papers`, `evidence_meter`, `configure_noul`) or, without MCP, `python3 __NOUL_DIR__/noul_cli.py search "<query>"`.
+Read and follow `__NOUL_DIR__/skills/noul-search/SKILL.md` for the workflow and answer format (Evidence Meter / Noul Meter, cited synthesis, study table, evidence quality, paper list, and follow-up PDF downloads / related paper discovery). Cite only retrieved papers.
