@@ -93,3 +93,15 @@ def seed_phase2_papers(core, keys=None):
         core.cache_set("paper:" + p["id"], p)
         ids.append(p["id"])
     return ids
+
+
+def seed_fulltext_paper(core, pid, text, **meta):
+    """Phase 3: cache a paper plus its open-access full text (`ft:<id>`) so tools never hit the network."""
+    paper = {"id": pid, "doi": pid.split(":", 1)[-1], "title": meta.pop("title", "Technical Fixture Paper"),
+             "authors": ["Ada Lovelace"], "year": 2024, "journal": "arXiv", "citations": 1, "evidence": "empirical",
+             "domain": "computer_science", "open_access": True, "abstract": meta.pop("abstract", ""),
+             "sources": ["arxiv"], **meta}
+    core.cache_set("paper:" + pid, paper)
+    if text is not None:
+        core.cache_set("ft:" + pid, {"text": text, "source": "test", "url": None})
+    return pid

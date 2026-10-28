@@ -257,6 +257,31 @@ def suggest_boolean_queries(query="", paper_ids=None):
     return _phase1("noul.tools.search_tools").suggest_boolean_queries(query=query, paper_ids=paper_ids)
 
 
+def extract_benchmark_tables(paper_id):
+    return _phase1("noul.tools.technical_tools").extract_benchmark_tables(paper_id)
+
+
+def estimate_hardware_specs(paper_id, total_params_b=None, active_params_b=None, context_length=8192):
+    return _phase1("noul.tools.hardware_tools").estimate_hardware_specs(
+        paper_id, total_params_b=total_params_b, active_params_b=active_params_b, context_length=context_length)
+
+
+def verify_paper_claims(paper_id, claims=None):
+    return _phase1("noul.tools.technical_tools").verify_paper_claims(paper_id, claims=claims)
+
+
+def extract_paper_math(paper_id, mode="latex"):
+    return _phase1("noul.tools.technical_tools").extract_paper_math(paper_id, mode=mode)
+
+
+def analyze_ablation_tables(paper_id):
+    return _phase1("noul.tools.technical_tools").analyze_ablation_tables(paper_id)
+
+
+def extract_prompts_and_decoding(paper_id):
+    return _phase1("noul.tools.technical_tools").extract_prompts_and_decoding(paper_id)
+
+
 def get_fulltext(id, question=""):
     p = _resolve(id)
     pid = p["id"]
@@ -706,6 +731,72 @@ TOOLS = {
         {"query": S, "paper_ids": {"type": "array", "items": S}},
         [],
         suggest_boolean_queries,
+    ),
+    "extract_benchmark_tables": (
+        "Benchmark table extractor: detects Markdown, LaTeX (tabular) and plain-text/PDF tables plus inline "
+        "`Benchmark: value` pairs in the paper's open-access full text (abstract fallback), keeps the exact "
+        "model-row x metric-column correspondence, normalizes metric names (gsm-8k -> GSM8K, human-eval -> "
+        "HumanEval, acc -> Accuracy, ppl -> Perplexity, ...) and converts values like '84.5%' or '84.5 ± 0.3' to "
+        "numbers. Returns `tables` and a cross-table `normalized_summary` (by_metric, best_by_metric).",
+        {"paper_id": S},
+        ["paper_id"],
+        extract_benchmark_tables,
+    ),
+    "estimate_hardware_specs": (
+        "Hardware feasibility / inference footprint: detects the model size (7B, 1.5B, 350M, 8x7B MoE, '671B "
+        "parameters with 37B activated', family defaults) and architecture (dense, moe, encoder_only, rnn_ssm), "
+        "then computes FP16/INT8/INT4 weights, KV cache (2 x layers x kv_heads x head_dim x context x bytes) and "
+        "recommended minimum VRAM (+15% overhead), extracts the authors' reported training hardware (e.g. '64 NVIDIA "
+        "A100 80GB GPUs', 'TPU v4-1024') and classifies the operational tier (edge_consumer_gpu <= 16 GB, "
+        "workstation <= 48 GB, datacenter_cluster) from the INT4 footprint. Override sizes with total_params_b / "
+        "active_params_b.",
+        {"paper_id": S,
+         "total_params_b": {"type": "number", "description": "Total parameters in billions (overrides detection)."},
+         "active_params_b": {"type": "number", "description": "Active parameters per token in billions (MoE)."},
+         "context_length": {"type": "integer", "default": 8192, "minimum": 1}},
+        ["paper_id"],
+        estimate_hardware_specs,
+    ),
+    "verify_paper_claims": (
+        "Evidence grounding with strict attribution: checks each claim (or, when `claims` is empty, the numeric/"
+        "comparative sentences auto-extracted from the abstract/text) against the paper's literal text, indexed by "
+        "page and table/section. Returns `status` verified (all numbers literally in the same passage), "
+        "partially_supported (topic found, some numbers diverge) or extrapolated, with a mandatory citation tag "
+        "'[pág. X, Tabela Y: \"...\"]' / '[pág. X, Seção Y: \"...\"]' or an explicit '[EXTRAPOLAÇÃO NÃO LITERAL ...]' "
+        "warning. Use it before stating numbers from a paper.",
+        {"paper_id": S, "claims": {"type": "array", "items": S}},
+        ["paper_id"],
+        verify_paper_claims,
+    ),
+    "extract_paper_math": (
+        "Math & pseudocode extractor: finds equations (\\begin{equation|align}, $$..$$, \\[..\\], inline $a = b$, "
+        "plain-text 'L_total = ...' / 'Attention(Q, K, V) = ...') and algorithms (\\begin{algorithm}, 'Algorithm N:' "
+        "blocks). mode='latex' returns clean delimited LaTeX; mode='python' returns typed Python functions "
+        "(`def equation_1(...) -> float` / `def algorithm_1(...) -> Any`, `import math`, original LaTeX in the "
+        "docstring), always validated with ast.parse; mode='both' returns both.",
+        {"paper_id": S, "mode": {"type": "string", "enum": ["latex", "python", "both"], "default": "latex"}},
+        ["paper_id"],
+        extract_paper_math,
+    ),
+    "analyze_ablation_tables": (
+        "Ablation analyzer: locates ablation tables/lists (rows 'Full model' / 'Ours' / 'Baseline' and variants "
+        "'w/o X', 'without X', '- X', '+ X', 'no X'), takes the full model (else baseline) as reference and computes, "
+        "per component and metric, delta and delta_percent, flags is_marginal (|Δ%| < 1%), ranks components by "
+        "|Δ%| and emits warnings_and_alerts for marginal components and for a single component accounting for >= 60% "
+        "of the total reported gain.",
+        {"paper_id": S},
+        ["paper_id"],
+        analyze_ablation_tables,
+    ),
+    "extract_prompts_and_decoding": (
+        "Prompt & inference protocol extractor: finds prompt templates (after 'System Prompt:', 'User Prompt:', "
+        "'Prompt Template:', 'Instruction:', in code fences/quotes, or text with {variable}, {{variable}}, <context>, "
+        "\"Let's think step by step\", \"You are an expert\") keeping placeholders verbatim and listing `variables`; "
+        "extracts decoding hyperparameters (temperature, top_p, top_k, max_tokens, repetition_penalty, beam_size, "
+        "seed, decoding_strategy) with literal evidence, and the JSON output schemas shown in the paper.",
+        {"paper_id": S},
+        ["paper_id"],
+        extract_prompts_and_decoding,
     ),
     "get_fulltext": (
         "Fetch open-access full text (via OpenAlex, EuropePMC, arXiv, Unpaywall) and return excerpts relevant to `question`.",

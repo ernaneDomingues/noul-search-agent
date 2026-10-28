@@ -7,9 +7,19 @@ from noul.schemas.analysis import (
     ThematicInsightsResult,
 )
 from noul.schemas.domain import ReviewVerdict, ScientificDomain
+from noul.schemas.hardware import HardwareFeasibility, PrecisionMemory
 from noul.schemas.paper import ArtifactStatus, PaperReference, UnifiedPaper
+from noul.schemas.technical import (
+    AblationEntry,
+    BenchmarkTable,
+    GroundedClaim,
+    MathItem,
+    PromptExtractionResult,
+)
 
 __all__ = [
     "PYDANTIC_AVAILABLE", "ScientificDomain", "ReviewVerdict", "ArtifactStatus", "PaperReference", "UnifiedPaper",
     "ComparisonDimension", "ComparativeMatrixResult", "ThematicInsightsResult", "BooleanQuerySuggestion",
+    "PrecisionMemory", "HardwareFeasibility", "BenchmarkTable", "GroundedClaim", "MathItem", "AblationEntry",
+    "PromptExtractionResult",
 ]

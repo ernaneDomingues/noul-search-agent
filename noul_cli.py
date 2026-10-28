@@ -11,6 +11,12 @@ Usage:
   noul_cli.py compare ID1 ID2 ID3 | ID1,ID2,ID3 [--fulltext] [--pretty]
   noul_cli.py insights ID1 ID2 ... | ID1,ID2 [--topic "..."] [--pretty]
   noul_cli.py expand ["query"] [--ids ID1,ID2] [--run 1|2|3] [--limit N] [--pretty]
+  noul_cli.py benchmarks ID_OR_DOI [--pretty]
+  noul_cli.py hardware ID_OR_DOI [--params-b F] [--active-params-b F] [--context-length N] [--pretty]
+  noul_cli.py ground ID_OR_DOI [--claims "claim 1; claim 2"] [--pretty]
+  noul_cli.py math ID_OR_DOI [--mode latex|python|both] [--pretty]
+  noul_cli.py ablation ID_OR_DOI [--pretty]
+  noul_cli.py prompts ID_OR_DOI [--pretty]
   noul_cli.py fulltext ID_OR_DOI [--question Q]
   noul_cli.py ask ID1,ID2 --question Q
   noul_cli.py graph ID_OR_DOI
@@ -159,6 +165,103 @@ def _format_pretty_insights(res):
     return "\n".join(lines)
 
 
+def _md_cell(value):
+    return "" if value is None else str(value).replace("|", "\\|").replace("\n", " ")
+
+
+def _format_pretty_benchmarks(res):
+    lines = [f"# Benchmark tables: {res.get('title') or res['paper_id']}", f"Source: {res['source']}"]
+    for tb in res["tables"]:
+        lines += ["", f"## {tb['label']} (page {tb['page']}, {tb['format']})"]
+        if tb["caption"]:
+            lines.append(f"_{tb['caption']}_")
+        lines += ["", "| " + " | ".join(_md_cell(h) for h in tb["headers"]) + " |",
+                  "|" + " --- |" * len(tb["headers"])]
+        lines += ["| " + " | ".join(_md_cell(row.get(h)) for h in tb["headers"]) + " |" for row in tb["rows"]]
+    best = res["normalized_summary"]["best_by_metric"]
+    if best:
+        lines += ["", "## Best per metric"] + [f"- {m}: {b['model']} = {b['value']}" for m, b in best.items()]
+    lines += [f"> {w}" for w in res.get("warnings", [])]
+    return "\n".join(lines)
+
+
+def _format_pretty_hardware(res):
+    active = f" ({res['active_parameters_billion']}B active)" if res.get("active_parameters_billion") else ""
+    lines = [f"# Hardware feasibility: {res.get('title') or res['paper_id']}",
+             f"Model: {res['total_parameters_billion']}B parameters{active} | Architecture: {res['architecture_type']}"
+             f" | Tier: **{res['operational_tier']}**",
+             f"Reported training hardware: {res.get('reported_training_hardware') or 'not reported'}", "",
+             f"| Precision | Weights (GB) | KV cache @ {res['context_length']} tokens (GB) | Min. VRAM (GB) |",
+             "| --- | --- | --- | --- |"]
+    for prec in ("fp16", "int8", "int4"):
+        m = res[prec]
+        lines.append(f"| {prec.upper()} | {m['weights_gb']} | {m['kv_cache_8k_context_gb']} | "
+                     f"{m['recommended_min_vram_gb']} |")
+    lines += [""] + [f"- {n}" for n in res["notes"]]
+    return "\n".join(lines)
+
+
+_STATUS_ICON = {"verified": "✅", "partially_supported": "⚠️", "extrapolated": "❌"}
+
+
+def _format_pretty_ground(res):
+    s = res["summary"]
+    lines = [f"# Claim grounding: {res.get('title') or res['paper_id']}",
+             f"Verified: {s['verified']} | Partially supported: {s['partially_supported']} | "
+             f"Extrapolated: {s['extrapolated']}", ""]
+    for cl in res["claims"]:
+        lines += [f"- {_STATUS_ICON.get(cl['status'], '')} **{cl['status']}** — {cl['claim']}",
+                  f"  {cl['citation_tag']}"]
+    lines += [f"> {w}" for w in res.get("warnings", [])]
+    return "\n".join(lines)
+
+
+def _format_pretty_math(res):
+    lines = [f"# Math & algorithms: {res.get('title') or res['paper_id']}",
+             f"Equations: {res['equation_count']} | Algorithms: {res['algorithm_count']} | Mode: {res['mode']}"]
+    for it in res["items"]:
+        lines += ["", f"## {it['index']}. {it['label']} ({it['kind']})"]
+        if it["latex"]:
+            lines += ["", it["latex"]]
+        if it["python_code"]:
+            lines += ["", "```python", it["python_code"].rstrip(), "```"]
+    lines += [f"> {w}" for w in res.get("warnings", [])]
+    return "\n".join(lines)
+
+
+def _format_pretty_ablation(res):
+    lines = [f"# Ablation analysis: {res.get('title') or res['paper_id']}"]
+    ref = res.get("reference")
+    if ref:
+        vals = ", ".join(f"{k} = {v}" for k, v in ref["values"].items())
+        lines.append(f"Reference: {ref['component']} ({vals})")
+    lines += ["", "| Component | Metric | Reference | Variant | Δ | Δ% | Marginal |",
+              "| --- | --- | --- | --- | --- | --- | --- |"]
+    lines += [f"| {_md_cell(e['component'])} | {_md_cell(e['metric'])} | {e['baseline_value']} | {e['variant_value']} "
+              f"| {e['delta']:+g} | {e['delta_percent']:+.2f}% | {'yes' if e['is_marginal'] else ''} |"
+              for e in res["ablations"]]
+    if res["warnings_and_alerts"]:
+        lines += ["", "## Alerts"] + [f"- {w}" for w in res["warnings_and_alerts"]]
+    lines += [f"> {w}" for w in res.get("warnings", [])]
+    return "\n".join(lines)
+
+
+def _format_pretty_prompts(res):
+    lines = [f"# Prompts & decoding: {res.get('title') or res['paper_id']}",
+             f"Variables: {', '.join(res['variables']) or 'none'}"]
+    for p in res["prompts"]:
+        lines += ["", f"## {p['index']}. {p['label']} ({p['type']}, page {p['page']})", "", "```text",
+                  p["text"], "```"]
+    if res["hyperparameters"]:
+        lines += ["", "## Decoding hyperparameters"] + [f"- {k}: {v}" for k, v in res["hyperparameters"].items()]
+    if res["json_schemas"]:
+        lines += ["", "## JSON schemas"]
+        for js in res["json_schemas"]:
+            lines += ["", "```json", js, "```"]
+    lines += [f"> {w}" for w in res.get("warnings", [])]
+    return "\n".join(lines)
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
     if argv and argv[0] == "mcp":
@@ -226,6 +329,32 @@ def main(argv=None):
     exp_p.add_argument("--run", type=int, choices=[1, 2, 3], help="run suggestion N with search_papers")
     exp_p.add_argument("--limit", type=int, default=10)
     exp_p.add_argument("--pretty", action="store_true")
+
+    bm_p = sub.add_parser("benchmarks", help="Extract and normalize the benchmark tables of a paper")
+    bm_p.add_argument("id")
+    bm_p.add_argument("--pretty", action="store_true")
+
+    hw_p = sub.add_parser("hardware", help="Estimate inference VRAM (FP16/INT8/INT4) and hardware tier of a paper")
+    hw_p.add_argument("id")
+    hw_p.add_argument("--params-b", type=float, help="total parameters in billions (overrides detection)")
+    hw_p.add_argument("--active-params-b", type=float, help="active parameters per token in billions (MoE)")
+    hw_p.add_argument("--context-length", type=int, default=8192)
+    hw_p.add_argument("--pretty", action="store_true")
+
+    gr_p = sub.add_parser("ground", help="Verify claims against the paper's literal text (strict citations)")
+    gr_p.add_argument("id")
+    gr_p.add_argument("--claims", help='semicolon-separated claims, e.g. "claim 1; claim 2" (default: auto-extract)')
+    gr_p.add_argument("--pretty", action="store_true")
+    ma_p = sub.add_parser("math", help="Extract equations/algorithms as LaTeX and/or typed Python functions")
+    ma_p.add_argument("id")
+    ma_p.add_argument("--mode", choices=["latex", "python", "both"], default="latex")
+    ma_p.add_argument("--pretty", action="store_true")
+    ab_p = sub.add_parser("ablation", help="Rank ablated components by impact (delta, delta %%, marginal/dominant)")
+    ab_p.add_argument("id")
+    ab_p.add_argument("--pretty", action="store_true")
+    pr_p = sub.add_parser("prompts", help="Extract prompt templates, decoding hyperparameters and JSON schemas")
+    pr_p.add_argument("id")
+    pr_p.add_argument("--pretty", action="store_true")
 
     for n in ("paper", "graph", "fulltext", "domain"):
         x = sub.add_parser(n)
@@ -358,6 +487,38 @@ def main(argv=None):
                     return 0
             elif a.pretty:
                 print(_format_pretty_expand(out))
+                return 0
+        elif a.cmd == "benchmarks":
+            out = t.extract_benchmark_tables(a.id)
+            if a.pretty:
+                print(_format_pretty_benchmarks(out))
+                return 0
+        elif a.cmd == "hardware":
+            out = t.estimate_hardware_specs(a.id, total_params_b=a.params_b, active_params_b=a.active_params_b,
+                                            context_length=a.context_length)
+            if a.pretty:
+                print(_format_pretty_hardware(out))
+                return 0
+        elif a.cmd == "ground":
+            claims = [x.strip() for x in a.claims.split(";") if x.strip()] if a.claims else None
+            out = t.verify_paper_claims(a.id, claims=claims)
+            if a.pretty:
+                print(_format_pretty_ground(out))
+                return 0
+        elif a.cmd == "math":
+            out = t.extract_paper_math(a.id, mode=a.mode)
+            if a.pretty:
+                print(_format_pretty_math(out))
+                return 0
+        elif a.cmd == "ablation":
+            out = t.analyze_ablation_tables(a.id)
+            if a.pretty:
+                print(_format_pretty_ablation(out))
+                return 0
+        elif a.cmd == "prompts":
+            out = t.extract_prompts_and_decoding(a.id)
+            if a.pretty:
+                print(_format_pretty_prompts(out))
                 return 0
         elif a.cmd == "artifacts":
             out = t.scan_paper_artifacts(a.id, verify_http=not a.no_verify, inspect_fulltext=a.fulltext)
