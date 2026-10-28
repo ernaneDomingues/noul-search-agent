@@ -55,6 +55,23 @@ def _safe_output_dir(requested_dir=None, default_subdir="papers") -> Path:
     return target
 
 
+def _reject_symlink_path(path, requested_dir=None):
+    """Refuse (HTTP 403) output paths with a symlink in any component below the workspace root, checking both the
+    resolved path and the path as requested (whose symlinks `_safe_output_dir` already followed)."""
+    workspace = Path(_cfg.get_config()["workspace"]).expanduser()
+    roots = {Path(os.path.abspath(workspace)), workspace.resolve()}
+    candidates = [Path(os.path.abspath(path))]
+    if requested_dir:
+        raw = Path(str(requested_dir)).expanduser()
+        candidates.append(Path(os.path.abspath(raw if raw.is_absolute() else workspace / raw)))
+    for cur in candidates:
+        while cur not in roots and any(r in cur.parents for r in roots):
+            if cur.is_symlink():
+                raise c.HTTPError(403, f"Refusing to write through symbolic link '{cur}'.")
+            cur = cur.parent
+    return Path(path)
+
+
 def _slim(p, idx=None, abstract_chars=1500):
     out = {
         k: p.get(k)
@@ -221,6 +238,23 @@ def scan_paper_artifacts(id, verify_http=True, inspect_fulltext=False):
 
 def get_paper_references(paper_id, limit=10, direction="both", sort_by="influential"):
     return _phase1("noul.tools.search_tools").get_paper_references(paper_id, limit, direction, sort_by)
+
+
+def compare_papers(paper_ids, inspect_fulltext=False):
+    return _phase1("noul.tools.comparative_tools").compare_papers(paper_ids, inspect_fulltext=inspect_fulltext)
+
+
+def get_thematic_insights(paper_ids, topic=None):
+    return _phase1("noul.tools.comparative_tools").get_thematic_insights(paper_ids, topic=topic)
+
+
+def export_obsidian_notes(paper_ids, vault_dir=None, include_related_wikilinks=True):
+    return _phase1("noul.tools.comparative_tools").export_obsidian_notes(
+        paper_ids, vault_dir=vault_dir, include_related_wikilinks=include_related_wikilinks)
+
+
+def suggest_boolean_queries(query="", paper_ids=None):
+    return _phase1("noul.tools.search_tools").suggest_boolean_queries(query=query, paper_ids=paper_ids)
 
 
 def get_fulltext(id, question=""):
@@ -633,6 +667,45 @@ TOOLS = {
          "sort_by": {"type": "string", "enum": ["influential", "citations", "year"], "default": "influential"}},
         ["paper_id"],
         get_paper_references,
+    ),
+    "compare_papers": (
+        "Comparative matrix of 1-10 papers (3-5 typical): for each paper extracts the core problem/hypothesis, "
+        "methodology (design + domain + method sentence), datasets/benchmarks/population, key results/metrics "
+        "(headline finding, %, p-values, AUC, F1, HR, ...) and declared limitations, then returns a Markdown table "
+        "plus convergence and divergence summaries. Set inspect_fulltext=true to also mine open-access full text.",
+        {"paper_ids": {"type": "array", "items": S}, "inspect_fulltext": {"type": "boolean", "default": False}},
+        ["paper_ids"],
+        compare_papers,
+    ),
+    "get_thematic_insights": (
+        "Thematic synthesis of 1-20 papers across 3 cross-cutting axes (no isolated per-paper summaries): "
+        "`consolidated_consensuses` (shared concepts, benchmarks and highest-level evidence), "
+        "`methodological_tensions` (evidence-pyramid gaps, dataset/scale differences, open-artifact asymmetry, "
+        "mixed results) and `emerging_future_work` (cross-referenced limitations and future work). Every statement "
+        "cites [Author et al., Year]; `citations_map` maps each tag to paper ids.",
+        {"paper_ids": {"type": "array", "items": S}, "topic": S},
+        ["paper_ids"],
+        get_thematic_insights,
+    ),
+    "export_obsidian_notes": (
+        "Export papers as atomic Obsidian/Markdown notes (`<Year> - <FirstAuthor> - <ShortTitle>.md`) into `vault_dir` "
+        "(inside the workspace; default ./obsidian): YAML frontmatter (title, paper_id, doi, year, authors, venue, "
+        "domain, evidence_level, citations, open_access, has_code, has_weights, tags), TL;DR, key findings & "
+        "methodology, open artifacts, [[wikilinks]] between the exported notes and a BibTeX block.",
+        {"paper_ids": {"type": "array", "items": S},
+         "vault_dir": {"type": "string", "description": "Vault folder inside the workspace (relative paths are "
+                       "workspace-relative). Default: ./obsidian."},
+         "include_related_wikilinks": {"type": "boolean", "default": True}},
+        ["paper_ids"],
+        export_obsidian_notes,
+    ),
+    "suggest_boolean_queries": (
+        "Dynamic search expansion: mine acronyms (e.g. LoRA, GPTQ) and emerging technical terms from `paper_ids` "
+        "(or from cached papers matching `query`) and return 3 ready-to-run boolean queries for search_papers: "
+        "[1] precision deepening (AND), [2] synonym/method expansion (OR + AND), [3] noise exclusion (NOT).",
+        {"query": S, "paper_ids": {"type": "array", "items": S}},
+        [],
+        suggest_boolean_queries,
     ),
     "get_fulltext": (
         "Fetch open-access full text (via OpenAlex, EuropePMC, arXiv, Unpaywall) and return excerpts relevant to `question`.",

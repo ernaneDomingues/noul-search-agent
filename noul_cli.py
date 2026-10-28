@@ -2,18 +2,21 @@
 """CLI for humans and agents without MCP support. Prints JSON (or formatted Markdown with --pretty).
 Usage:
   noul_cli.py search "query" [--year-min N] [--types rct,meta-analysis] [--sources a,b] [--limit N] [--offset N] [--domain D] [--pretty]
-                    [--interactive] [--skip-clarification | --skip-clarify]
+                    [--interactive] [--skip-clarification | --skip-clarify] [--export-obsidian ./vault]
   noul_cli.py clarify "query" [--domain D] [--answers '{"q1":"...","q2":2}']
   noul_cli.py paper ID_OR_DOI [--domain D]
   noul_cli.py domain ID_OR_DOI [--domain D]
   noul_cli.py artifacts ID_OR_DOI [--no-verify] [--fulltext]
   noul_cli.py references ID_OR_DOI [--limit 10] [--direction both|backward|forward] [--sort influential|citations|year]
+  noul_cli.py compare ID1 ID2 ID3 | ID1,ID2,ID3 [--fulltext] [--pretty]
+  noul_cli.py insights ID1 ID2 ... | ID1,ID2 [--topic "..."] [--pretty]
+  noul_cli.py expand ["query"] [--ids ID1,ID2] [--run 1|2|3] [--limit N] [--pretty]
   noul_cli.py fulltext ID_OR_DOI [--question Q]
   noul_cli.py ask ID1,ID2 --question Q
   noul_cli.py graph ID_OR_DOI
   noul_cli.py related ID_OR_DOI [--relation all|similar|references|citing] [--types ...] [--year-min N]
   noul_cli.py download ID1,ID2 [--dir ./papers]
-  noul_cli.py export ID1,ID2 [--format bibtex|ris|csv]
+  noul_cli.py export ID1,ID2 [--format bibtex|ris|csv|obsidian] [--vault-dir ./vault | --export-obsidian ./vault]
   noul_cli.py dossier save --topic "Topic" --file report.md [--ids ID1,ID2] [--dir ./research]
   noul_cli.py dossier list [--dir ./research]
   noul_cli.py dossier show SLUG [--dir ./research]
@@ -121,6 +124,41 @@ def _format_pretty_search(res):
     return "\n".join(lines)
 
 
+def _split_ids(values):
+    """`id1 id2` and/or `id1,id2` -> [id1, id2]."""
+    return [x.strip() for v in values or [] for x in str(v).split(",") if x.strip()]
+
+
+def _format_pretty_expand(res):
+    lines = [f"# Boolean query suggestions for: {res.get('original_query') or '(papers)'}", "",
+             f"Acronyms: {', '.join(res['extracted_acronyms']) or '-'}",
+             f"Emerging terms: {', '.join(res['emerging_terms']) or '-'}", ""]
+    for s in res["suggestions"]:
+        lines += [f"[{s['index']}] {s['strategy']}", f"    {s['boolean_query']}", f"    {s['rationale']}"]
+    lines += [f"> {w}" for w in res.get("warnings", [])]
+    return "\n".join(lines)
+
+
+def _format_pretty_compare(res):
+    lines = ["# Comparative matrix", "", res["markdown_table"], "",
+             "## Convergence", res["convergence_summary"], "", "## Divergence", res["divergence_summary"]]
+    if res.get("warnings"):
+        lines += ["", "> Warnings: " + "; ".join(res["warnings"])]
+    return "\n".join(lines)
+
+
+def _format_pretty_insights(res):
+    lines = [f"# Thematic insights: {res['topic']}"]
+    for title, key in (("Consolidated consensuses", "consolidated_consensuses"),
+                       ("Methodological tensions", "methodological_tensions"),
+                       ("Emerging future work", "emerging_future_work")):
+        lines += ["", f"## {title}"] + [f"- {x}" for x in res[key]]
+    lines += ["", "## References"] + [f"- {tag}: {', '.join(ids)}" for tag, ids in res["citations_map"].items()]
+    if res.get("warnings"):
+        lines += ["", "> Warnings: " + "; ".join(res["warnings"])]
+    return "\n".join(lines)
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
     if argv and argv[0] == "mcp":
@@ -153,6 +191,8 @@ def main(argv=None):
                    help="ask 2-3 scope questions on a terminal when the query is broad, then run the refined search")
     s.add_argument("--skip-clarification", "--skip-clarify", dest="skip_clarification", action="store_true",
                    help="never ask clarification questions (default for agents and non-interactive stdin)")
+    s.add_argument("--export-obsidian", metavar="VAULT_DIR",
+                   help="also export the returned papers as Obsidian notes into VAULT_DIR (inside the workspace)")
 
     cl = sub.add_parser("clarify")
     cl.add_argument("query")
@@ -169,6 +209,23 @@ def main(argv=None):
     rf.add_argument("--limit", type=int, default=10)
     rf.add_argument("--direction", choices=["both", "backward", "forward"], default="both")
     rf.add_argument("--sort", choices=["influential", "citations", "year"], default="influential")
+
+    cmp_p = sub.add_parser("compare", help="Comparative matrix of 1-10 papers")
+    cmp_p.add_argument("ids", nargs="+", help="Paper IDs/DOIs (space- or comma-separated)")
+    cmp_p.add_argument("--fulltext", action="store_true", help="also mine the open-access full text")
+    cmp_p.add_argument("--pretty", action="store_true")
+
+    ins_p = sub.add_parser("insights", help="Thematic insights (consensuses, tensions, future work) of 1-20 papers")
+    ins_p.add_argument("ids", nargs="+", help="Paper IDs/DOIs (space- or comma-separated)")
+    ins_p.add_argument("--topic")
+    ins_p.add_argument("--pretty", action="store_true")
+
+    exp_p = sub.add_parser("expand", help="Suggest 3 boolean queries (AND/OR/NOT) from a query and/or papers")
+    exp_p.add_argument("query", nargs="?", default="")
+    exp_p.add_argument("--ids", help="Paper IDs/DOIs (comma-separated) to mine terms from")
+    exp_p.add_argument("--run", type=int, choices=[1, 2, 3], help="run suggestion N with search_papers")
+    exp_p.add_argument("--limit", type=int, default=10)
+    exp_p.add_argument("--pretty", action="store_true")
 
     for n in ("paper", "graph", "fulltext", "domain"):
         x = sub.add_parser(n)
@@ -195,8 +252,11 @@ def main(argv=None):
     dl_p.add_argument("--dir", default=None, help="Inside the workspace (default: configured download_dir)")
 
     e = sub.add_parser("export")
-    e.add_argument("ids")
-    e.add_argument("--format", default="bibtex", choices=["bibtex", "ris", "csv"])
+    e.add_argument("ids", nargs="+", help="Paper IDs/DOIs (space- or comma-separated)")
+    e.add_argument("--format", default=None, choices=["bibtex", "ris", "csv", "obsidian"],
+                   help="default: bibtex (obsidian when --vault-dir/--export-obsidian is given)")
+    e.add_argument("--vault-dir", help="Obsidian vault folder inside the workspace (implies --format obsidian)")
+    e.add_argument("--export-obsidian", metavar="VAULT_DIR", help="alias of --vault-dir")
 
     dos = sub.add_parser("dossier")
     dos_sub = dos.add_subparsers(dest="dossier_cmd", required=True)
@@ -254,8 +314,15 @@ def main(argv=None):
             )
             if refined:
                 out["clarification"] = {k: refined[k] for k in ("refined_query", "recommended_filters", "applied_answers")}
+            if a.export_obsidian:
+                ids = [p["id"] for p in out["papers"] if p.get("id")]
+                out["obsidian_export"] = (t.export_obsidian_notes(ids, vault_dir=a.export_obsidian) if ids else
+                                          {"vault_dir": None, "exported_count": 0, "notes": []})
             if getattr(a, "pretty", False):
                 print(_format_pretty_search(out))
+                if a.export_obsidian:
+                    exp = out["obsidian_export"]
+                    print(f"\n> Exported {exp['exported_count']} Obsidian note(s) to {exp['vault_dir']}")
                 return 0
         elif a.cmd == "clarify":
             answers = None
@@ -269,6 +336,29 @@ def main(argv=None):
             out = t.get_paper(a.id, domain=a.domain_override)
         elif a.cmd == "references":
             out = t.get_paper_references(a.id, limit=a.limit, direction=a.direction, sort_by=a.sort)
+        elif a.cmd == "compare":
+            out = t.compare_papers(_split_ids(a.ids), inspect_fulltext=a.fulltext)
+            if a.pretty:
+                print(_format_pretty_compare(out))
+                return 0
+        elif a.cmd == "insights":
+            out = t.get_thematic_insights(_split_ids(a.ids), topic=a.topic)
+            if a.pretty:
+                print(_format_pretty_insights(out))
+                return 0
+        elif a.cmd == "expand":
+            out = t.suggest_boolean_queries(a.query, paper_ids=_split_ids([a.ids]) if a.ids else None)
+            if a.run:
+                chosen = out["suggestions"][a.run - 1]
+                res = t.search_papers(chosen["boolean_query"], limit=a.limit)
+                out = {"applied_suggestion": chosen, "expansion": out, "search": res}
+                if a.pretty:
+                    print(f"> Running [{a.run}] {chosen['boolean_query']}\n")
+                    print(_format_pretty_search(res))
+                    return 0
+            elif a.pretty:
+                print(_format_pretty_expand(out))
+                return 0
         elif a.cmd == "artifacts":
             out = t.scan_paper_artifacts(a.id, verify_http=not a.no_verify, inspect_fulltext=a.fulltext)
         elif a.cmd == "domain":
@@ -284,7 +374,11 @@ def main(argv=None):
         elif a.cmd == "download":
             out = t.download_papers(split(a.ids), a.dir)
         elif a.cmd == "export":
-            out = t.export_papers(split(a.ids), a.format)
+            vault = a.vault_dir or a.export_obsidian
+            if a.format == "obsidian" or vault:
+                out = t.export_obsidian_notes(_split_ids(a.ids), vault_dir=vault)
+            else:
+                out = t.export_papers(_split_ids(a.ids), a.format or "bibtex")
         elif a.cmd == "dossier":
             if a.dossier_cmd == "save":
                 md = Path(a.file).read_text(encoding="utf-8") if a.file else a.text

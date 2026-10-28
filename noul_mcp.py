@@ -20,7 +20,7 @@ from noul_core import __version__ as VERSION
 
 SUPPORTED_PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
 PROTOCOL = SUPPORTED_PROTOCOLS[0]
-WRITE_TOOLS = frozenset({"download_papers", "save_research_dossier", "configure_noul"})
+WRITE_TOOLS = frozenset({"download_papers", "save_research_dossier", "export_obsidian_notes", "configure_noul"})
 MAX_BODY_BYTES = 1024 * 1024
 DEFAULT_PORT = 8765
 
