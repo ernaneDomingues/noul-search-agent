@@ -323,6 +323,47 @@ def _paper_id(doi=None, openalex_id=None, pmid=None, s2_id=None, arxiv_id=None, 
     return f"id:{h}"
 
 
+_PROVIDERS = {}
+
+
+def _provider(name):
+    """Lazily import an optional `noul.providers.<name>` module (None when the package is unavailable,
+    e.g. when only the single-file modules are deployed or an external NOUL_APP_DIR core is used)."""
+    if name not in _PROVIDERS:
+        try:
+            import importlib
+
+            _PROVIDERS[name] = importlib.import_module(f"noul.providers.{name}")
+        except Exception:
+            _PROVIDERS[name] = None
+    return _PROVIDERS[name]
+
+
+def _unique(items):
+    out = []
+    for x in items or []:
+        if x and x not in out:
+            out.append(x)
+    return out
+
+
+def _annotate_paper(p):
+    """Attach the scientific domain (#19) and offline artifact flags (#02). Enrichment must never break a search."""
+    dc = _provider("domain_classifier")
+    if dc is not None:
+        try:
+            p["domain"] = dc.resolve_domain(paper=p).value
+        except Exception:
+            pass
+    radar = _provider("artifact_radar")
+    if radar is not None:
+        try:
+            radar.scan_artifacts_from_paper(p, verify_http=False)
+        except Exception:
+            pass
+    return p
+
+
 NEG_PATTERNS = re.compile(
     r"\b(?:"
     r"(?:non|not|un)[-\s]?randomi[sz]ed(?:\s+(?:controlled\s+)?(?:clinical\s+)?(?:trials?|stud(?:y|ies)))?|"
@@ -488,7 +529,13 @@ def _parse_openalex_work(w):
     ev = classify_evidence(title, abstract, pub_types)
     impact, tier = _estimate_impact(citations, year, journal)
     pid = _paper_id(doi=doi, openalex_id=oa_id, pmid=pmid, title=title)
-    return {
+    topic = w.get("primary_topic") or {}
+    fields = _unique([(topic.get(k) or {}).get("display_name") for k in ("field", "domain")])
+    if not fields:
+        fields = _unique([cn.get("display_name") for cn in (w.get("concepts") or [])
+                          if cn.get("level") == 0 and float(cn.get("score") or 0) >= 0.3])
+    primary_category = (topic.get("subfield") or {}).get("display_name") or (fields[0] if fields else None)
+    return _annotate_paper({
         "id": pid,
         "title": title,
         "authors": authors,
@@ -506,8 +553,10 @@ def _parse_openalex_work(w):
         "pdf_url": pdf_url,
         "referenced_works": [x.rstrip("/").split("/")[-1] for x in (w.get("referenced_works") or [])[:40]],
         "related_works": [x.rstrip("/").split("/")[-1] for x in (w.get("related_works") or [])[:40]],
+        "primary_category": primary_category,
+        "fields_of_study": fields,
         "sources": ["openalex"],
-    }
+    })
 
 
 def _search_openalex(query, limit=25, year_min=None, open_access=False):
@@ -529,9 +578,12 @@ def _search_openalex(query, limit=25, year_min=None, open_access=False):
     return out
 
 
+S2_PAPER_FIELDS = ("paperId,externalIds,title,abstract,year,venue,authors,citationCount,isOpenAccess,openAccessPdf,"
+                   "publicationTypes,fieldsOfStudy,s2FieldsOfStudy")
+
+
 def _search_s2(query, limit=20, year_min=None, open_access=False):
-    fields = "paperId,externalIds,title,abstract,year,venue,authors,citationCount,isOpenAccess,openAccessPdf,publicationTypes"
-    params = {"query": query, "limit": min(limit, 40), "fields": fields}
+    params = {"query": query, "limit": min(limit, 40), "fields": S2_PAPER_FIELDS}
     if year_min:
         params["year"] = f"{int(year_min)}-"
     if open_access:
@@ -569,7 +621,9 @@ def _parse_s2_paper(item):
     ev = classify_evidence(title, abstract, item.get("publicationTypes") or [])
     impact, tier = _estimate_impact(citations, year, journal)
     pid = _paper_id(doi=doi, pmid=pmid, s2_id=s2_id, arxiv_id=arxiv_id, title=title)
-    return {
+    fields = _unique(list(item.get("fieldsOfStudy") or [])
+                     + [f.get("category") for f in (item.get("s2FieldsOfStudy") or []) if isinstance(f, dict)])
+    return _annotate_paper({
         "id": pid,
         "title": title,
         "authors": authors,
@@ -586,8 +640,10 @@ def _parse_s2_paper(item):
         "tier": tier,
         "open_access": is_oa,
         "pdf_url": oa_pdf,
+        "primary_category": fields[0] if fields else None,
+        "fields_of_study": fields,
         "sources": ["s2"],
-    }
+    })
 
 
 def _eutils_params(params):
@@ -655,11 +711,12 @@ def _parse_pubmed_xml(xml_txt):
             elif id_type == "pmc" and aid.text:
                 pmc_id = aid.text.strip()
         pub_types = [pt.text for pt in art.findall(".//PublicationTypeList/PublicationType") if pt.text]
+        mesh_terms = _unique([d.text for d in art.findall(".//MeshHeadingList/MeshHeading/DescriptorName")])[:15]
         ev = classify_evidence(title, abstract, pub_types)
         impact, tier = _estimate_impact(0, year, journal)
         pdf_url = _europepmc_pdf_url(pmc_id) if pmc_id else None
         pid = _paper_id(doi=doi, pmid=pmid, title=title)
-        out.append({
+        out.append(_annotate_paper({
             "id": pid,
             "title": title,
             "authors": authors,
@@ -675,8 +732,9 @@ def _parse_pubmed_xml(xml_txt):
             "tier": tier,
             "open_access": bool(pmc_id),
             "pdf_url": pdf_url,
+            "mesh_terms": mesh_terms,
             "sources": ["pubmed"],
-        })
+        }))
     return out
 
 
@@ -717,7 +775,8 @@ def _search_crossref(query, limit=15, year_min=None):
         ev = classify_evidence(title, abstract, [it.get("type")])
         impact, tier = _estimate_impact(citations, yr, journal)
         pid = _paper_id(doi=doi, title=title)
-        out.append({
+        subjects = _unique(it.get("subject") or [])
+        out.append(_annotate_paper({
             "id": pid,
             "title": title,
             "authors": authors,
@@ -731,8 +790,10 @@ def _search_crossref(query, limit=15, year_min=None):
             "tier": tier,
             "open_access": bool(pdf_url),
             "pdf_url": pdf_url,
+            "primary_category": subjects[0] if subjects else None,
+            "fields_of_study": subjects,
             "sources": ["crossref"],
-        })
+        }))
     return out
 
 
@@ -767,10 +828,13 @@ def _search_arxiv(query, limit=15, year_min=None):
             if a.findtext("a:name", "", ns)
         ]
         pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf" if arxiv_id else None
+        prim = entry.find("arxiv:primary_category", ns)
+        primary_category = prim.attrib.get("term") if prim is not None else None
+        categories = _unique([primary_category] + [cat.attrib.get("term") for cat in entry.findall("a:category", ns)])
         ev = classify_evidence(title, abstract, ["preprint"])
         impact, tier = _estimate_impact(0, year, "arXiv")
         pid = _paper_id(doi=doi, arxiv_id=arxiv_id, title=title)
-        out.append({
+        out.append(_annotate_paper({
             "id": pid,
             "title": title,
             "authors": authors,
@@ -785,8 +849,10 @@ def _search_arxiv(query, limit=15, year_min=None):
             "tier": tier,
             "open_access": True,
             "pdf_url": pdf_url,
+            "primary_category": primary_category or (categories[0] if categories else None),
+            "categories": categories,
             "sources": ["arxiv"],
-        })
+        }))
     return out
 
 
@@ -836,7 +902,9 @@ def _parse_europepmc_result(it):
     ev = classify_evidence(title, abstract, pub_types)
     impact, tier = _estimate_impact(citations, year, journal)
     pid = _paper_id(doi=doi, pmid=pmid, title=title)
-    return {
+    mesh_terms = _unique([m.get("descriptorName") for m in
+                          ((it.get("meshHeadingList") or {}).get("meshHeading") or []) if isinstance(m, dict)])[:15]
+    return _annotate_paper({
         "id": pid,
         "title": title,
         "authors": authors,
@@ -852,8 +920,9 @@ def _parse_europepmc_result(it):
         "tier": tier,
         "open_access": bool(is_oa or pdf_url),
         "pdf_url": pdf_url,
+        "mesh_terms": mesh_terms,
         "sources": ["europepmc"],
-    }
+    })
 
 
 def _search_europepmc(query, limit=20, year_min=None, open_access=False):
@@ -893,13 +962,18 @@ def _merge_papers(lists):
                 cur["citations"] = int(p["citations"])
                 cur["impact"], cur["tier"] = _estimate_impact(cur["citations"], cur.get("year"), cur.get("journal"))
             # Keep identifiers and open access URLs
-            for field in ("doi", "pmid", "pmc_id", "openalex_id", "s2_id", "arxiv_id", "pdf_url", "journal", "year"):
+            for field in ("doi", "pmid", "pmc_id", "openalex_id", "s2_id", "arxiv_id", "pdf_url", "journal", "year",
+                          "primary_category"):
                 if not cur.get(field) and p.get(field):
                     cur[field] = p[field]
+            for field in ("categories", "fields_of_study", "mesh_terms"):
+                if p.get(field):
+                    cur[field] = _unique((cur.get(field) or []) + list(p[field]))
             if p.get("open_access"):
                 cur["open_access"] = True
             if EV_W.get(p.get("evidence"), 0) > EV_W.get(cur.get("evidence"), 0):
                 cur["evidence"] = p["evidence"]
+            by_key[dedup_key] = _annotate_paper(cur)
     return list(by_key.values())
 
 
@@ -1019,11 +1093,10 @@ def resolve_paper(identifier):
 
     # 3. Fetch on demand from OpenAlex or Semantic Scholar
     fetched = None
-    s2_fields = "paperId,externalIds,title,abstract,year,venue,authors,citationCount,isOpenAccess,openAccessPdf,publicationTypes"
     try:
         if is_arxiv:
             ax = ident.split(":", 1)[-1].strip()
-            url = f"https://api.semanticscholar.org/graph/v1/paper/ARXIV:{urllib.parse.quote(ax, safe='/.')}?fields={s2_fields}"
+            url = f"https://api.semanticscholar.org/graph/v1/paper/ARXIV:{urllib.parse.quote(ax, safe='/.')}?fields={S2_PAPER_FIELDS}"
             fetched = _parse_s2_paper(_http_json(url))
         elif norm:
             url = f"https://api.openalex.org/works/https://doi.org/{urllib.parse.quote(norm, safe='')}{_mailto_qs()}"
@@ -1038,7 +1111,7 @@ def resolve_paper(identifier):
             fetched = _parse_openalex_work(_http_json(url))
         elif ident.startswith("s2:") or re.match(r"^[0-9a-f]{40}$", ident, flags=re.I):
             s2_id = ident.split(":", 1)[-1]
-            url = f"https://api.semanticscholar.org/graph/v1/paper/{urllib.parse.quote(s2_id, safe='')}?fields={s2_fields}"
+            url = f"https://api.semanticscholar.org/graph/v1/paper/{urllib.parse.quote(s2_id, safe='')}?fields={S2_PAPER_FIELDS}"
             fetched = _parse_s2_paper(_http_json(url))
     except Exception:
         fetched = None
@@ -1304,10 +1377,9 @@ def related_papers(id, relation="all", study_types=None, year_min=None, limit=15
             ident_for_s2 = f"ARXIV:{p['arxiv_id']}"
         if ident_for_s2:
             try:
-                fields = "paperId,externalIds,title,abstract,year,venue,authors,citationCount,isOpenAccess,openAccessPdf,publicationTypes"
                 url = (
                     f"https://api.semanticscholar.org/recommendations/v1/papers/forpaper/"
-                    f"{urllib.parse.quote(ident_for_s2, safe=':')}?fields={fields}&limit={min(limit, 20)}"
+                    f"{urllib.parse.quote(ident_for_s2, safe=':')}?fields={S2_PAPER_FIELDS}&limit={min(limit, 20)}"
                 )
                 data = _http_json(url, timeout=12)
                 for item in data.get("recommendedPapers") or []:

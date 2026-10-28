@@ -24,6 +24,8 @@
     "noul_mcp.py",
     "noul_cli.py",
     "install.py",
+    "noul/",
+    "plugin.json",
     "skills/",
     "agents/",
     "commands/",

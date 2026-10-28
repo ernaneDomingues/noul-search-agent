@@ -60,7 +60,8 @@ def _slim(p, idx=None, abstract_chars=1500):
         k: p.get(k)
         for k in (
             "id", "title", "authors", "year", "journal", "doi", "pmid", "arxiv_id",
-            "citations", "evidence", "impact", "tier", "open_access", "pdf_url", "sources",
+            "citations", "evidence", "impact", "tier", "open_access", "pdf_url", "sources", "domain",
+            "has_code", "has_weights", "has_dataset", "artifacts",
         )
         if p.get(k) is not None or k in ("id", "title", "authors", "year", "journal", "doi", "citations", "evidence", "open_access")
     }
@@ -69,6 +70,36 @@ def _slim(p, idx=None, abstract_chars=1500):
     if idx is not None:
         out["n"] = idx
     return out
+
+
+def _phase1(module):
+    """Import a Phase 1 module from the local `noul` package (HTTP 501 when it is not deployed)."""
+    import importlib
+
+    try:
+        return importlib.import_module(module)
+    except ImportError as e:
+        raise c.HTTPError(501, f"Feature unavailable: module '{module}' could not be imported ({e})")
+
+
+def _domain_override(domain):
+    """Validate a user-supplied domain ('cs', 'bio', 'econ', 'stem', ...) -> canonical value or None."""
+    if domain is None or not str(domain).strip():
+        return None
+    dc = _phase1("noul.providers.domain_classifier")
+    try:
+        return dc.resolve_domain(override_domain=domain).value
+    except ValueError as e:
+        raise c.HTTPError(400, str(e))
+
+
+def _paper_domain(p):
+    if p.get("domain"):
+        return p["domain"]
+    try:
+        return _phase1("noul.providers.domain_classifier").resolve_domain(paper=p).value
+    except Exception:
+        return None
 
 
 def _resolve(id_or_doi):
@@ -81,7 +112,8 @@ def _resolve(id_or_doi):
 
 
 def search_papers(query, sources=None, year_min=None, study_types=None, min_citations=None,
-                  open_access=False, sort=None, limit=15, offset=0, exclude_ids=None):
+                  open_access=False, sort=None, limit=15, offset=0, exclude_ids=None, domain=None, clarify=False):
+    wanted_domain = _domain_override(domain)
     f = {"open_access": bool(open_access)}
     if year_min:
         f["year_min"] = int(year_min)
@@ -96,10 +128,12 @@ def search_papers(query, sources=None, year_min=None, study_types=None, min_cita
     if exclude_ids:
         excl = set(exclude_ids)
         all_papers = [p for p in all_papers if p.get("id") not in excl and p.get("doi") not in excl]
+    if wanted_domain:
+        all_papers = [p for p in all_papers if _paper_domain(p) == wanted_domain]
     start = max(0, int(offset or 0))
     lim = max(1, min(int(limit or 15), 40))
     papers = all_papers[start : start + lim]
-    return {
+    out = {
         "query": query,
         "total_found": len(all_papers),
         "offset": start,
@@ -107,11 +141,86 @@ def search_papers(query, sources=None, year_min=None, study_types=None, min_cita
         "warnings": r["warnings"],
         "papers": [_slim(p, i + 1 + start) for i, p in enumerate(papers)],
     }
+    if wanted_domain:
+        out["domain"] = wanted_domain
+    if clarify:
+        try:
+            scope = _phase1("noul.tools.search_tools").clarify_search_scope(query, domain=wanted_domain)
+            if scope["needs_clarification"]:
+                out["clarification_suggested"] = {k: scope[k] for k in ("reason", "domain", "questions", "next_step")}
+        except Exception:
+            pass
+    return out
 
 
-def get_paper(id):
+def clarify_search_scope(query, answers=None, domain=None):
+    return _phase1("noul.tools.search_tools").clarify_search_scope(query, answers=answers, domain=domain)
+
+
+def get_paper(id, domain=None):
+    forced = _domain_override(domain)
     p = _resolve(id)
-    return _slim(p, abstract_chars=10000)
+    out = _slim(p, abstract_chars=10000)
+    if forced:
+        out["domain"] = forced
+        out["domain_overridden"] = True
+    elif not out.get("domain"):
+        dom = _paper_domain(p)
+        if dom:
+            out["domain"] = dom
+    return out
+
+
+def detect_paper_domain(paper_id, domain=None):
+    """Classify a paper into computer_science | biomedical | economics | general_stem and explain why."""
+    dc = _phase1("noul.providers.domain_classifier")
+    p = _resolve(paper_id)
+    try:
+        info = dc.explain_domain(paper=p, override_domain=domain)
+    except ValueError as e:
+        raise c.HTTPError(400, str(e))
+    return {
+        "id": p.get("id"),
+        "title": p.get("title"),
+        "domain": info["domain"].value,
+        "method": info["method"],
+        "signals": info["signals"],
+        "text_scores": info["text_scores"],
+        "primary_category": p.get("primary_category") or "general",
+        "categories": p.get("categories") or [],
+        "fields_of_study": p.get("fields_of_study") or [],
+        "overridden": info["method"] == "override",
+    }
+
+
+def scan_paper_artifacts(id, verify_http=True, inspect_fulltext=False):
+    """Detect code repositories, model weights and datasets linked from a paper and check they are reachable."""
+    radar = _phase1("noul.providers.artifact_radar")
+    p = _resolve(id)
+    pid = p["id"]
+    text, warnings = "", []
+    if inspect_fulltext:
+        try:
+            if c.fulltext(pid).get("available"):
+                text = (c.cache_get("ft:" + pid) or {}).get("text") or ""
+            else:
+                warnings.append("Full text not available; scanned title/abstract only.")
+        except Exception as e:
+            warnings.append(f"Full text unavailable ({type(e).__name__}); scanned title/abstract only.")
+    res = radar.scan_artifacts_from_paper(p, fulltext=text, verify_http=bool(verify_http),
+                                          max_urls=radar.MAX_VERIFY_URLS)
+    c.cache_set("paper:" + pid, p)
+    out = {"id": pid, "title": p.get("title"), "verified_http": bool(verify_http),
+           "scanned_fulltext": bool(text), **res}
+    if res["evasive_availability_statement"]:
+        warnings.append("Paper states artifacts are only available on request/after publication (evasive statement).")
+    if warnings:
+        out["warnings"] = warnings
+    return out
+
+
+def get_paper_references(paper_id, limit=10, direction="both", sort_by="influential"):
+    return _phase1("noul.tools.search_tools").get_paper_references(paper_id, limit, direction, sort_by)
 
 
 def get_fulltext(id, question=""):
@@ -452,12 +561,15 @@ _OUT_PAPERS = {"type": "string", "description": "Folder inside the workspace (re
                "Default: configured download_dir (./papers)."}
 _OUT_RESEARCH = {"type": "string", "description": "Folder inside the workspace (relative paths are workspace-relative). "
                  "Default: configured research_dir (./research)."}
+_DOMAIN = {"type": "string", "description": "Scientific domain: computer_science (cs), biomedical (bio, med), "
+           "economics (econ) or general_stem (stem). Filters search results / overrides the detected domain."}
 TOOLS = {
     "search_papers": (
         "Search peer-reviewed and preprint literature across all scientific disciplines (OpenAlex, PubMed, Semantic Scholar, "
         "Crossref, arXiv, Europe PMC), deduplicated and ranked by study design and citations. Returns abstracts, evidence level "
         "(meta-analysis, systematic-review, rct, review, cohort, empirical, preclinical, other) and a citation/venue band "
-        "(`tier`: top, high, standard, emerging — not a JCR quartile). YOU classify each paper's stance and synthesize.",
+        "(`tier`: top, high, standard, emerging — not a JCR quartile) and scientific `domain`. YOU classify each paper's "
+        "stance and synthesize.",
         {
             "query": S,
             "sources": {"type": "array", "items": {"type": "string", "enum": list(c.SOURCES)}},
@@ -469,15 +581,58 @@ TOOLS = {
             "limit": {"type": "integer", "default": 15},
             "offset": {"type": "integer", "default": 0},
             "exclude_ids": {"type": "array", "items": S},
+            "domain": _DOMAIN,
+            "clarify": {"type": "boolean", "default": False,
+                        "description": "If the query is broad, add `clarification_suggested` questions to the response."},
         },
         ["query"],
         search_papers,
     ),
+    "clarify_search_scope": (
+        "Clarification loop for broad queries: says whether a query is too broad (needs >= 2 of: 5+ meaningful words, "
+        "boolean operators/quoted phrase, time constraint, method + outcome) and returns 3 domain-specific "
+        "multiple-choice questions. Ask the user, then call again with `answers` ({\"q1\": option label or 1-based "
+        "index, ...}) to get `refined_query` and `recommended_filters` (year_min, study_types, sources, sort) for "
+        "search_papers. Skip it when the user already gave a precise query.",
+        {"query": S, "answers": {"type": "object"}, "domain": _DOMAIN},
+        ["query"],
+        clarify_search_scope,
+    ),
     "get_paper": (
-        "Get full record and abstract of a paper by cached ID, DOI, PMID, OpenAlex ID, arXiv ID, or Semantic Scholar ID.",
-        {"id": S},
+        "Get full record and abstract of a paper by cached ID, DOI, PMID, OpenAlex ID, arXiv ID, or Semantic Scholar ID. "
+        "Includes its scientific `domain`; pass `domain` to override it.",
+        {"id": S, "domain": _DOMAIN},
         ["id"],
         get_paper,
+    ),
+    "detect_paper_domain": (
+        "Detect a paper's scientific macro-domain (computer_science, biomedical, economics, general_stem) from arXiv "
+        "categories, fields of study, PubMed indexing and title/abstract vocabulary, explaining the signals used. "
+        "Use it to pick domain-appropriate evaluation criteria.",
+        {"paper_id": S, "domain": _DOMAIN},
+        ["paper_id"],
+        detect_paper_domain,
+    ),
+    "scan_paper_artifacts": (
+        "Open-artifact radar: find code repositories (GitHub/GitLab/...), model weights (Hugging Face, Civitai, "
+        "Kaggle, PyTorch Hub) and datasets (Zenodo, Figshare, OSF, Dataverse, HF datasets) linked from a paper, "
+        "verify that the links are alive (HEAD, 5s timeout, max 20 URLs) and flag evasive 'available on request' "
+        "statements. Set inspect_fulltext=true to also scan the open-access full text.",
+        {"id": S, "verify_http": {"type": "boolean", "default": True},
+         "inspect_fulltext": {"type": "boolean", "default": False}},
+        ["id"],
+        scan_paper_artifacts,
+    ),
+    "get_paper_references": (
+        "Citation graph with influence ranking: papers this paper cites (`backward_citations`) and papers citing it "
+        "(`forward_citations`), with title, year, venue, citation_count and Semantic Scholar's `is_influential` flag "
+        "(OpenAlex fallback: >= 50 citations). Every returned `paper_id` is cached, so you can chain get_paper, "
+        "get_paper_references or download_papers on it.",
+        {"paper_id": S, "limit": {"type": "integer", "default": 10, "minimum": 1, "maximum": 50},
+         "direction": {"type": "string", "enum": ["both", "backward", "forward"], "default": "both"},
+         "sort_by": {"type": "string", "enum": ["influential", "citations", "year"], "default": "influential"}},
+        ["paper_id"],
+        get_paper_references,
     ),
     "get_fulltext": (
         "Fetch open-access full text (via OpenAlex, EuropePMC, arXiv, Unpaywall) and return excerpts relevant to `question`.",

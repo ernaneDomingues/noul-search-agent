@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """CLI for humans and agents without MCP support. Prints JSON (or formatted Markdown with --pretty).
 Usage:
-  noul_cli.py search "query" [--year-min N] [--types rct,meta-analysis] [--sources a,b] [--limit N] [--offset N] [--pretty]
-  noul_cli.py paper ID_OR_DOI
+  noul_cli.py search "query" [--year-min N] [--types rct,meta-analysis] [--sources a,b] [--limit N] [--offset N] [--domain D] [--pretty]
+                    [--interactive] [--skip-clarification | --skip-clarify]
+  noul_cli.py clarify "query" [--domain D] [--answers '{"q1":"...","q2":2}']
+  noul_cli.py paper ID_OR_DOI [--domain D]
+  noul_cli.py domain ID_OR_DOI [--domain D]
+  noul_cli.py artifacts ID_OR_DOI [--no-verify] [--fulltext]
+  noul_cli.py references ID_OR_DOI [--limit 10] [--direction both|backward|forward] [--sort influential|citations|year]
   noul_cli.py fulltext ID_OR_DOI [--question Q]
   noul_cli.py ask ID1,ID2 --question Q
   noul_cli.py graph ID_OR_DOI
@@ -36,6 +41,40 @@ CONFIG_KEYS = {
     "research-dir": "research_dir",
     "research": "research_dir",
 }
+
+
+DOMAIN_HELP = "computer_science|biomedical|economics|general_stem (aliases: cs, bio, med, econ, stem)"
+
+
+def _stdin_is_tty():
+    try:
+        return sys.stdin is not None and sys.stdin.isatty()
+    except (AttributeError, ValueError):
+        return False
+
+
+def _interactive_clarification(query, domain=None):
+    """Ask the clarification questions on stderr and read answers from stdin. Returns the refined scope or None
+    when the query is already specific. Only called on an interactive terminal."""
+    scope = t.clarify_search_scope(query, domain=domain)
+    if not scope["needs_clarification"]:
+        return None
+    print(f"Your query looks broad ({scope['domain']}). Answer to refine it (Enter to skip):", file=sys.stderr)
+    answers = {}
+    for q in scope["questions"]:
+        print(f"\n{q['question']}", file=sys.stderr)
+        for i, opt in enumerate(q["options"], 1):
+            print(f"  {i}. {opt}", file=sys.stderr)
+        sys.stderr.write("> ")
+        sys.stderr.flush()
+        line = sys.stdin.readline()
+        if not line:  # EOF
+            break
+        if line.strip():
+            answers[q["id"]] = line.strip()
+    if not answers:
+        return None
+    return t.clarify_search_scope(query, answers=answers, domain=domain)
 
 
 def _parse_config_pairs(pairs):
@@ -75,7 +114,7 @@ def _format_pretty_search(res):
         lines.append(
             f"[{p.get('n', '?')}] **{p.get('title')}** ({p.get('year') or 'n.d.'}){oa}\n"
             f"    - ID: `{p.get('id')}` | DOI: `{p.get('doi') or 'N/A'}` | Design: `{p.get('evidence')}` | "
-            f"Citations: {p.get('citations', 0)} | Venue: {p.get('journal') or 'N/A'}\n"
+            f"Citations: {p.get('citations', 0)} | Venue: {p.get('journal') or 'N/A'} | Domain: {p.get('domain') or 'N/A'}\n"
             f"    - Authors: {authors}\n"
             f"    - Abstract: {(p.get('abstract') or '')[:320]}..."
         )
@@ -108,13 +147,36 @@ def main(argv=None):
     s.add_argument("--sort", choices=["relevance", "date", "citations"])
     s.add_argument("--limit", type=int, default=15)
     s.add_argument("--offset", type=int, default=0)
+    s.add_argument("--domain", help=DOMAIN_HELP)
     s.add_argument("--pretty", action="store_true")
+    s.add_argument("--interactive", action="store_true",
+                   help="ask 2-3 scope questions on a terminal when the query is broad, then run the refined search")
+    s.add_argument("--skip-clarification", "--skip-clarify", dest="skip_clarification", action="store_true",
+                   help="never ask clarification questions (default for agents and non-interactive stdin)")
 
-    for n in ("paper", "graph", "fulltext"):
+    cl = sub.add_parser("clarify")
+    cl.add_argument("query")
+    cl.add_argument("--domain", help=DOMAIN_HELP)
+    cl.add_argument("--answers", help='JSON object, e.g. \'{"q1":"Benchmarks e avaliação empírica","q3":1}\'')
+
+    ar = sub.add_parser("artifacts")
+    ar.add_argument("id")
+    ar.add_argument("--no-verify", action="store_true", help="skip the HTTP liveness check")
+    ar.add_argument("--fulltext", action="store_true", help="also scan the open-access full text")
+
+    rf = sub.add_parser("references")
+    rf.add_argument("id")
+    rf.add_argument("--limit", type=int, default=10)
+    rf.add_argument("--direction", choices=["both", "backward", "forward"], default="both")
+    rf.add_argument("--sort", choices=["influential", "citations", "year"], default="influential")
+
+    for n in ("paper", "graph", "fulltext", "domain"):
         x = sub.add_parser(n)
         x.add_argument("id")
         if n == "fulltext":
             x.add_argument("--question", default="")
+        if n in ("paper", "domain"):
+            x.add_argument("--domain", dest="domain_override", help=DOMAIN_HELP)
 
     ask_p = sub.add_parser("ask")
     ask_p.add_argument("ids", help="Comma-separated paper IDs or DOIs")
@@ -171,15 +233,46 @@ def main(argv=None):
 
     try:
         if a.cmd == "search":
+            query, year_min, types, sources, sort = a.query, a.year_min, split(a.types), split(a.sources), a.sort
+            refined = None
+            if a.interactive and not a.skip_clarification:
+                if _stdin_is_tty():
+                    refined = _interactive_clarification(a.query, domain=a.domain)
+                else:
+                    print("note: --interactive ignored (stdin is not a terminal)", file=sys.stderr)
+            if refined:
+                # Explicit command-line filters always win over the clarification answers.
+                f = refined["recommended_filters"]
+                query = refined["refined_query"]
+                year_min = year_min or f.get("year_min")
+                types = types or f.get("study_types")
+                sources = sources or f.get("sources")
+                sort = sort or f.get("sort")
             out = t.search_papers(
-                a.query, split(a.sources), a.year_min, split(a.types), a.min_citations,
-                a.open_access, a.sort, a.limit, a.offset
+                query, sources, year_min, types, a.min_citations,
+                a.open_access, sort, a.limit, a.offset, domain=a.domain
             )
+            if refined:
+                out["clarification"] = {k: refined[k] for k in ("refined_query", "recommended_filters", "applied_answers")}
             if getattr(a, "pretty", False):
                 print(_format_pretty_search(out))
                 return 0
+        elif a.cmd == "clarify":
+            answers = None
+            if a.answers:
+                try:
+                    answers = json.loads(a.answers)
+                except json.JSONDecodeError as e:
+                    raise ValueError(f"--answers must be a JSON object: {e}")
+            out = t.clarify_search_scope(a.query, answers=answers, domain=a.domain)
         elif a.cmd == "paper":
-            out = t.get_paper(a.id)
+            out = t.get_paper(a.id, domain=a.domain_override)
+        elif a.cmd == "references":
+            out = t.get_paper_references(a.id, limit=a.limit, direction=a.direction, sort_by=a.sort)
+        elif a.cmd == "artifacts":
+            out = t.scan_paper_artifacts(a.id, verify_http=not a.no_verify, inspect_fulltext=a.fulltext)
+        elif a.cmd == "domain":
+            out = t.detect_paper_domain(a.id, domain=a.domain_override)
         elif a.cmd == "graph":
             out = t.citation_graph(a.id)
         elif a.cmd == "fulltext":

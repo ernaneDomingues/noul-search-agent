@@ -1,0 +1,27 @@
+{
+  "name": "noul-search-agent",
+  "displayName": "Noul Search",
+  "version": "1.1.0",
+  "description": "Scientific literature search across all disciplines with study-design evidence levels, scientific-domain detection, open-artifact radar (code, weights, datasets), influential citation graphs, scope clarification, a deterministic Evidence Meter, Open Access PDF download and research dossiers.",
+  "author": {
+    "name": "Ernane Domingues",
+    "url": "https://github.com/ernaneDomingues"
+  },
+  "homepage": "https://github.com/ernaneDomingues/noul-search-agent",
+  "repository": "https://github.com/ernaneDomingues/noul-search-agent",
+  "license": "Apache-2.0",
+  "keywords": ["research", "scientific-literature", "evidence", "pubmed", "openalex", "arxiv", "mcp"],
+  "mcpServers": {
+    "noul": {
+      "command": "uvx",
+      "args": ["noul-search-agent", "mcp"]
+    }
+  },
+  "suggestedPrompts": [
+    "Does creatine supplementation improve working memory in healthy adults?",
+    "Help me narrow down a literature search on LLM quantization before searching.",
+    "Which recent papers on 4-bit quantization released their code and weights?",
+    "Show the most influential references and citations of arXiv 2305.14314.",
+    "Which scientific domain does this paper belong to: doi:10.1038/s41586-021-03819-2?"
+  ]
+}

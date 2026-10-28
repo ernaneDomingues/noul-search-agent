@@ -8,9 +8,10 @@ Zero chaves de API obrigatórias e zero dependências externas (usa apenas a bib
 | Arquivo | Função |
 |---|---|
 | `noul_core.py` | Motor de busca (`OpenAlex`, `PubMed`, `Semantic Scholar`, `Crossref`, `arXiv`, `Europe PMC`, `Unpaywall`), deduplicação, classificação de desenho de estudo, faixas de impacto, grafo de citações, download de PDFs com proteção SSRF e configuração persistente |
-| `noul_tools.py` | Ferramentas compartilhadas (`search_papers`, `get_paper`, `get_fulltext`, `query_fulltexts`, `citation_graph`, `related_papers`, `download_papers`, `save_research_dossier`, `list_research_dossiers`, `get_research_dossier`, `export_papers`, `evidence_meter`, `configure_noul`) com validação de argumentos e confinamento de caminhos ao workspace |
+| `noul_tools.py` | Ferramentas compartilhadas (`search_papers`, `get_paper`, `clarify_search_scope`, `detect_paper_domain`, `get_paper_references`, `scan_paper_artifacts`, `get_fulltext`, `query_fulltexts`, `citation_graph`, `related_papers`, `download_papers`, `save_research_dossier`, `list_research_dossiers`, `get_research_dossier`, `export_papers`, `evidence_meter`, `configure_noul`) com validação de argumentos e confinamento de caminhos ao workspace |
+| `noul/` | Pacote da Fase 1 (somente stdlib; Pydantic opcional via extra `pro`): schemas, classificador de domínio científico, radar de artefatos abertos (código/pesos/datasets), grafo de referências Semantic Scholar com fallback OpenAlex e loop de clarificação de escopo |
 | `noul_mcp.py` | Servidor MCP (`stdio`) e servidor HTTP endurecido (`--http`) com MCP em `/mcp`, OpenAPI em `/openapi.json`, `/healthz` e MCP Resources (`noul://dossier/<slug>`) |
-| `noul_cli.py` | CLI (`noul`) para terminal (`--pretty`) ou agentes sem MCP; também expõe `mcp` e `install` |
+| `noul_cli.py` | CLI (`noul`) para terminal (`--pretty`, `search --interactive`) ou agentes sem MCP (inclui `clarify`, `domain`, `references`, `artifacts`); também expõe `mcp` e `install` |
 | `skills/noul-search/SKILL.md` | Fluxo de pesquisa e conversa sobre os artigos (Evidence Meter, tabela de estudos, síntese citada, limitações) |
 | `agents/`, `commands/` | Subagentes/extensões (Claude, Copilot, Codex, Gemini) e o comando `/noul-search-config` |
 | `install.py` | Instalador idempotente em nível de usuário (`noul-install`) |

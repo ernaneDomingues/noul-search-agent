@@ -12,6 +12,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /src
 COPY pyproject.toml README.md LICENSE noul_core.py noul_tools.py noul_mcp.py noul_cli.py install.py ./
+COPY noul ./noul
 COPY skills ./skills
 COPY agents ./agents
 COPY commands ./commands
