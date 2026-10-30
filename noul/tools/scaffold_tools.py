@@ -319,7 +319,7 @@ Extracted Variables: {", ".join(vars_list)}
 from dataclasses import dataclass
 import math
 import random
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -602,7 +602,7 @@ Paper ID: {pid} | Domain: {dom.value} | Evidence Design: {evidence_lvl}
 from dataclasses import dataclass
 import math
 import random
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 
 @dataclass

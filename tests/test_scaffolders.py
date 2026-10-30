@@ -122,6 +122,9 @@ class ScaffolderTests(unittest.TestCase):
         # Execute the generated pure-Python fallback of the econometric scaffold to verify runtime behavior
         ns = {}
         exec(sm_res["source_code"], ns)
+        for obj in list(ns.values()):
+            if callable(obj) and hasattr(obj, "__annotations__"):
+                self.assertIsInstance(obj.__annotations__, dict)
         matrix = ns["run_robustness_matrix"]()
         self.assertIn("baseline_spec", matrix)
         self.assertIn("placebo_pretrend", matrix)
@@ -147,6 +150,9 @@ class ScaffolderTests(unittest.TestCase):
 
         ns = {}
         exec(code, ns)
+        for obj in list(ns.values()):
+            if callable(obj) and hasattr(obj, "__annotations__"):
+                self.assertIsInstance(obj.__annotations__, dict)
         cohort = ns["generate_synthetic_cohort"]()
         analysis = ns["run_protocol_analysis"](cohort)
         self.assertEqual(analysis["n_total"], 160.0)
