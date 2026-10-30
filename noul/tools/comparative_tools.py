@@ -757,3 +757,264 @@ def export_obsidian_notes(paper_ids, vault_dir=None, include_related_wikilinks=T
     if warnings:
         out["warnings"] = warnings
     return out
+
+
+# --------------------------------------------------------------------------- #18 autonomous research gap & hypothesis engine
+
+MAX_HYPOTHESIS_PAPERS = 15
+
+_DEFAULT_METRICS_BY_DOMAIN = {
+    "computer_science": ["Accuracy / Pass@1", "Latency (ms/token)", "Peak VRAM (GB)", "OOD Generalization Delta (%)"],
+    "biomedical": ["Primary Clinical Endpoint (95% CI)", "Hazard / Odds Ratio (p-value)", "Adverse Event Rate (CTCAE >= 2)", "Intention-to-Treat Attrition (%)"],
+    "economics": ["Average Treatment Effect (ATE / ATT)", "Cluster-Robust Standard Error", "Pre-Trend Placebo F-Statistic", "Welfare / Elasticity Magnitude"],
+    "general_stem": ["Primary Quantitative Effect Size", "95% Confidence / Uncertainty Interval", "Replication Concordance Rate", "Computational / Experimental Cost"],
+}
+
+_DEFAULT_DATASETS_BY_DOMAIN = {
+    "computer_science": ["MMLU", "GSM8K", "LongBench / 32k+ Context Stress Suite"],
+    "biomedical": ["Multi-center randomized clinical cohort (N >= 200)", "External registry validation cohort"],
+    "economics": ["Balanced longitudinal firm/household panel dataset", "Out-of-sample regional holdout panel"],
+    "general_stem": ["Standardized multi-site benchmark dataset", "Controlled out-of-distribution testbed"],
+}
+
+
+def _short_method_label(dim):
+    title_words = [w for w in re.findall(r"[A-Za-z0-9][-A-Za-z0-9]+", dim.paper_title or "") if w.lower() not in STOPWORDS]
+    short = " ".join(title_words[:3]) or dim.paper_id
+    return f"{short} ({dim.evidence_level})"
+
+
+def _format_gap_markdown(report, topic_label):
+    lines = [
+        f"# Autonomous Research Gap & Hypothesis Report: {topic_label}",
+        "",
+        f"- **Papers Cross-Analyzed ({len(report.paper_ids)}):** {', '.join(f'`{pid}`' for pid in report.paper_ids)}",
+        "",
+        "## 1. Contradictions & Methodological Tensions Found",
+    ]
+    for c in report.contradictions_found:
+        lines.append(f"- {c}")
+    lines += ["", "## 2. Unexplored Complementarities"]
+    for comp in report.unexplored_complementarities:
+        lines.append(f"- {comp}")
+    lines += ["", "## 3. Testable Research Hypotheses"]
+    for h in report.hypotheses:
+        lines += [
+            "",
+            f"### Hypothesis {h.index}: {h.title}",
+            f"- **Source Papers:** {', '.join(f'`{p}`' for p in h.source_papers)}",
+            f"- **Rationale:** {h.rationale}",
+            f"- **Proposed Methodology:** {h.proposed_methodology}",
+            f"- **Required Baselines:** {'; '.join(h.required_baselines)}",
+            f"- **Target Datasets / Population:** {'; '.join(h.target_datasets_or_population)}",
+            f"- **Evaluation Metrics:** {'; '.join(h.evaluation_metrics)}",
+        ]
+    return "\n".join(lines)
+
+
+def generate_research_hypotheses(paper_ids, topic=None, max_hypotheses=3):
+    """Cross-analyze 2-15 papers (#18) to detect methodological contradictions, unexplored complementarities,
+    and formulate structured, testable research hypotheses with baselines, datasets/populations, and metrics."""
+    from noul.schemas.analysis import ResearchGapReport, ResearchHypothesis
+    from noul.tools import technical_tools
+
+    core = _core()
+    if isinstance(paper_ids, str):
+        paper_ids = [x.strip() for x in paper_ids.split(",") if x.strip()]
+    if not isinstance(paper_ids, (list, tuple)) or any(not isinstance(x, str) for x in paper_ids):
+        raise core.HTTPError(400, "Provide at least 2 paper_ids to cross-analyze research gaps and generate hypotheses")
+    ids = list(dict.fromkeys(x.strip() for x in paper_ids if x.strip()))
+    if len(ids) < 2:
+        raise core.HTTPError(400, "Provide at least 2 paper_ids to cross-analyze research gaps and generate hypotheses")
+    if len(ids) > MAX_HYPOTHESIS_PAPERS:
+        raise core.HTTPError(400, f"paper_ids accepts at most {MAX_HYPOTHESIS_PAPERS} IDs (got {len(ids)})")
+
+    try:
+        max_h = max(1, min(int(max_hypotheses or 3), 10))
+    except (TypeError, ValueError):
+        raise core.HTTPError(400, "max_hypotheses must be an integer between 1 and 10")
+
+    records, warnings = _resolve_all(ids, inspect_fulltext=True)
+    if len(records) < 2:
+        raise core.HTTPError(400, "Provide at least 2 paper_ids to cross-analyze research gaps and generate hypotheses")
+
+    rows = _disambiguate([analyze_paper(p, text) for p, text in records])
+    clusters = _concept_clusters(rows)
+    topic_label = str(topic).strip() if topic and str(topic).strip() else _derive_topic(rows, clusters)
+
+    failures_by_id = {}
+    for d, _ in rows:
+        try:
+            failures_by_id[d.paper_id] = technical_tools.detect_failure_modes(d.paper_id, inspect_fulltext=True)
+        except Exception:
+            failures_by_id[d.paper_id] = {
+                "failure_modes": [],
+                "critical_assumptions": [],
+                "baseline_superiority_scenarios": [],
+                "operational_limits": {},
+            }
+
+    # 1. Contradictions & Methodological Tensions across pairs (A, B)
+    contradictions = []
+    for t_line in _tensions(rows, clusters):
+        if not t_line.startswith("No methodological tension detected"):
+            contradictions.append(t_line)
+
+    for i in range(len(rows)):
+        for j in range(i + 1, len(rows)):
+            d_a, ex_a = rows[i]
+            d_b, ex_b = rows[j]
+            tag_a, tag_b = ex_a["tag"], ex_b["tag"]
+            fm_a = failures_by_id.get(d_a.paper_id) or {}
+            fm_b = failures_by_id.get(d_b.paper_id) or {}
+
+            assump_a = (fm_a.get("critical_assumptions") or [None])[0]
+            assump_b = (fm_b.get("critical_assumptions") or [None])[0]
+            if assump_a or assump_b:
+                a_txt = _clip(assump_a or d_a.reported_limitations[0], 130)
+                b_txt = _clip(assump_b or d_b.reported_limitations[0], 130)
+                contradictions.append(
+                    f"Divergent modeling assumptions & trade-offs between {tag_a} ('{a_txt}') and {tag_b} ('{b_txt}')."
+                )
+            else:
+                contradictions.append(
+                    f"Methodological trade-off between {tag_a} ({_clip(d_a.methodology, 110)}) and "
+                    f"{tag_b} ({_clip(d_b.methodology, 110)}) on target scope/evaluation."
+                )
+
+    contradictions = list(dict.fromkeys(contradictions))[:8]
+
+    # 2. Unexplored Complementarities across pairs (A, B)
+    complementarities = []
+    for i in range(len(rows)):
+        for j in range(len(rows)):
+            if i == j:
+                continue
+            d_a, ex_a = rows[i]
+            d_b, ex_b = rows[j]
+            tag_a, tag_b = ex_a["tag"], ex_b["tag"]
+            fm_b = failures_by_id.get(d_b.paper_id) or {}
+            b_modes = fm_b.get("failure_modes") or []
+            b_lim = (
+                _clip(b_modes[0]["description"], 140)
+                if b_modes
+                else _clip(d_b.reported_limitations[0], 140)
+            )
+            a_strength = _headline(d_a)
+            complementarities.append(
+                f"Unexplored synergy ({tag_a} -> {tag_b}): {tag_a}'s mechanism ('{a_strength}') can mitigate "
+                f"the limitation/failure mode identified in {tag_b} ('{b_lim}')."
+            )
+            if len(complementarities) >= 6:
+                break
+        if len(complementarities) >= 6:
+            break
+
+    # 3. Formulate 1..max_h testable ResearchHypothesis items crossing >= 2 papers
+    pair_candidates = []
+    for i in range(len(rows)):
+        for j in range(i + 1, len(rows)):
+            pair_candidates.append((rows[i], rows[j]))
+    if len(rows) >= 3 and len(pair_candidates) < max_h:
+        pair_candidates.append((rows[0], rows[-1]))
+
+    hypotheses = []
+    for idx in range(1, max_h + 1):
+        (d_a, ex_a), (d_b, ex_b) = pair_candidates[(idx - 1) % len(pair_candidates)]
+        tag_a, tag_b = ex_a["tag"], ex_b["tag"]
+        fm_a = failures_by_id.get(d_a.paper_id) or {}
+        fm_b = failures_by_id.get(d_b.paper_id) or {}
+
+        source_ids = [d_a.paper_id, d_b.paper_id]
+        if idx == 3 and len(rows) >= 3:
+            third_id = rows[2][0].paper_id
+            if third_id not in source_ids:
+                source_ids.append(third_id)
+
+        lim_b = (
+            _clip(fm_b["failure_modes"][0]["description"], 140)
+            if fm_b.get("failure_modes")
+            else _clip(d_b.reported_limitations[0], 140)
+        )
+        lim_a = (
+            _clip(fm_a["failure_modes"][0]["description"], 140)
+            if fm_a.get("failure_modes")
+            else _clip(d_a.reported_limitations[0], 140)
+        )
+
+        dom = d_a.domain if d_a.domain != "general_stem" else d_b.domain
+        shared_benches = list(dict.fromkeys(_real_benchmarks(d_a) + _real_benchmarks(d_b)))
+        datasets = shared_benches[:4] or list(_DEFAULT_DATASETS_BY_DOMAIN.get(dom, _DEFAULT_DATASETS_BY_DOMAIN["general_stem"]))
+
+        extracted_metrics = [
+            k for d in (d_a, d_b) for k in d.primary_metrics.keys()
+            if k not in ("headline_finding", "percentages", "p_values", "confidence_intervals")
+        ]
+        default_metrics = _DEFAULT_METRICS_BY_DOMAIN.get(dom, _DEFAULT_METRICS_BY_DOMAIN["general_stem"])
+        metrics = list(dict.fromkeys(extracted_metrics + default_metrics))[:5]
+
+        baselines = [
+            f"{_short_method_label(d_a)} {tag_a}",
+            f"{_short_method_label(d_b)} {tag_b}",
+            f"Ablated single-mechanism baseline (without {tag_a} + {tag_b} coupling)",
+        ]
+
+        if idx % 3 == 1:
+            h_title = f"Hybrid Integration of {_short_method_label(d_a)} and {_short_method_label(d_b)} for {topic_label}"
+            rationale = (
+                f"While {tag_a} demonstrates '{_headline(d_a)}', it exhibits vulnerability to '{lim_a}'. "
+                f"Conversely, {tag_b} addresses complementary structural constraints but suffers from '{lim_b}'. "
+                f"Coupling {tag_a} and {tag_b} directly tests whether their combined inductive biases eliminate both failure modes."
+            )
+            methodology = (
+                f"Construct a unified two-stage pipeline integrating {tag_a}'s core mechanism with {tag_b}'s "
+                f"regularization/identification design; evaluate under identical splits and conducts a 2x2 factorial "
+                f"ablation across {', '.join(datasets[:2])}."
+            )
+        elif idx % 3 == 2:
+            h_title = f"Stress-Testing & Boundary Reconciliation Between {tag_a} and {tag_b}"
+            rationale = (
+                f"{tag_a} and {tag_b} operate under divergent assumptions and evaluation scales, leaving an open gap "
+                f"when transitioning from {tag_a}'s regime to {tag_b}'s failure boundary ('{lim_b}')."
+            )
+            methodology = (
+                f"Benchmark {tag_a} and {tag_b} on a standardized cross-regime evaluation protocol with controlled "
+                f"perturbation sweeps (noise, scale, and out-of-distribution shift) over {', '.join(datasets[:2])}."
+            )
+        else:
+            h_title = f"Adaptive Gating / Meta-Selection Across {tag_a} and {tag_b} Regimes"
+            rationale = (
+                f"Neither {tag_a} nor {tag_b} dominates across all operational regimes ('{lim_a}' vs '{lim_b}'). "
+                f"An adaptive routing or regime-switching protocol can achieve Pareto-superior trade-offs."
+            )
+            methodology = (
+                f"Implement a lightweight regime selector conditioned on input/cohort diagnostics that dynamically "
+                f"allocates between {tag_a} and {tag_b}, validating efficiency and robustness gains."
+            )
+
+        hypotheses.append(
+            ResearchHypothesis(
+                index=idx,
+                title=h_title,
+                rationale=rationale,
+                source_papers=source_ids,
+                proposed_methodology=methodology,
+                required_baselines=baselines,
+                target_datasets_or_population=datasets,
+                evaluation_metrics=metrics,
+            )
+        )
+
+    report = ResearchGapReport(
+        paper_ids=[d.paper_id for d, _ in rows],
+        contradictions_found=contradictions,
+        unexplored_complementarities=complementarities,
+        hypotheses=hypotheses,
+        markdown_report="",
+    )
+    report.markdown_report = _format_gap_markdown(report, topic_label)
+    out = report.model_dump(mode="json")
+    if warnings:
+        out["warnings"] = warnings
+    return out
+

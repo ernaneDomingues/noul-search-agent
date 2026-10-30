@@ -354,6 +354,12 @@ def main(argv=None):
     ins_p.add_argument("--topic")
     ins_p.add_argument("--pretty", action="store_true")
 
+    hyp_p = sub.add_parser("hypotheses", help="Cross-analyze >= 2 papers to detect research gaps and generate hypotheses")
+    hyp_p.add_argument("ids", nargs="+", help="Paper IDs/DOIs (space- or comma-separated, at least 2)")
+    hyp_p.add_argument("--topic")
+    hyp_p.add_argument("--max", dest="max_hypotheses", type=int, default=3, help="maximum hypotheses to generate (default: 3)")
+    hyp_p.add_argument("--pretty", action="store_true")
+
     exp_p = sub.add_parser("expand", help="Suggest 3 boolean queries (AND/OR/NOT) from a query and/or papers")
     exp_p.add_argument("query", nargs="?", default="")
     exp_p.add_argument("--ids", help="Paper IDs/DOIs (comma-separated) to mine terms from")
@@ -395,6 +401,18 @@ def main(argv=None):
     df_p.add_argument("--from", dest="from_version", default="v1", help="source version (default: v1)")
     df_p.add_argument("--to", dest="to_version", default="v2", help="target version (default: v2)")
     df_p.add_argument("--pretty", action="store_true")
+
+    rev_p = sub.add_parser("review", help="Multi-persona domain-adaptive peer review of a paper")
+    rev_p.add_argument("id")
+    rev_p.add_argument("--domain", help=DOMAIN_HELP)
+    rev_p.add_argument("--no-fulltext", action="store_true", help="analyse title/abstract only")
+    rev_p.add_argument("--pretty", action="store_true")
+
+    sc_p = sub.add_parser("scaffold", help="Generate PyTorch, Statsmodels/R, or Clinical Protocol scaffold + unit tests")
+    sc_p.add_argument("id")
+    sc_p.add_argument("--target", help="pytorch|statsmodels|r|protocol (default: auto from domain)")
+    sc_p.add_argument("--domain", help=DOMAIN_HELP)
+    sc_p.add_argument("--pretty", action="store_true")
 
     for n in ("paper", "graph", "fulltext", "domain"):
         x = sub.add_parser(n)
@@ -515,6 +533,11 @@ def main(argv=None):
             if a.pretty:
                 print(_format_pretty_insights(out))
                 return 0
+        elif a.cmd == "hypotheses":
+            out = t.generate_research_hypotheses(_split_ids(a.ids), topic=a.topic, max_hypotheses=a.max_hypotheses)
+            if a.pretty:
+                print(out["markdown_report"])
+                return 0
         elif a.cmd == "expand":
             out = t.suggest_boolean_queries(a.query, paper_ids=_split_ids([a.ids]) if a.ids else None)
             if a.run:
@@ -569,6 +592,31 @@ def main(argv=None):
             out = t.diff_arxiv_versions(a.arxiv_id, from_version=a.from_version, to_version=a.to_version)
             if a.pretty:
                 print(out["markdown_diff"])
+                return 0
+        elif a.cmd == "review":
+            out = t.review_paper(a.id, domain=a.domain, inspect_fulltext=not a.no_fulltext)
+            if a.pretty:
+                print(out["markdown_report"])
+                return 0
+        elif a.cmd == "scaffold":
+            out = t.scaffold_implementation(a.id, target=a.target, domain=a.domain)
+            if a.pretty:
+                lang = out.get("language", "python")
+                lines = [
+                    f"# Code & Protocol Scaffold: {out.get('title') or out['paper_id']}",
+                    f"Domain: `{out['domain']}` | Target: `{out['target']}` | Framework: `{out['framework']}` | Syntax valid: `{out['syntax_valid']}`",
+                    "",
+                    "## Source Code",
+                    f"```{lang}",
+                    out["source_code"].rstrip(),
+                    "```",
+                    "",
+                    "## Unit Tests",
+                    f"```{lang}",
+                    out["unit_tests"].rstrip(),
+                    "```",
+                ]
+                print("\n".join(lines))
                 return 0
         elif a.cmd == "artifacts":
             out = t.scan_paper_artifacts(a.id, verify_http=not a.no_verify, inspect_fulltext=a.fulltext)

@@ -38,3 +38,23 @@ class BooleanQuerySuggestion(BaseModel):
     boolean_query: str
     rationale: str
     target_terms: List[str] = Field(default_factory=list)
+
+
+class ResearchHypothesis(BaseModel):
+    index: int
+    title: str
+    rationale: str
+    source_papers: List[str] = Field(default_factory=list)
+    proposed_methodology: str
+    required_baselines: List[str] = Field(default_factory=list)
+    target_datasets_or_population: List[str] = Field(default_factory=list)
+    evaluation_metrics: List[str] = Field(default_factory=list)
+
+
+class ResearchGapReport(BaseModel):
+    paper_ids: List[str] = Field(default_factory=list)
+    contradictions_found: List[str] = Field(default_factory=list)
+    unexplored_complementarities: List[str] = Field(default_factory=list)
+    hypotheses: List[ResearchHypothesis] = Field(default_factory=list)
+    markdown_report: str = ""
+

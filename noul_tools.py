@@ -248,6 +248,12 @@ def get_thematic_insights(paper_ids, topic=None):
     return _phase1("noul.tools.comparative_tools").get_thematic_insights(paper_ids, topic=topic)
 
 
+def generate_research_hypotheses(paper_ids, topic=None, max_hypotheses=3):
+    return _phase1("noul.tools.comparative_tools").generate_research_hypotheses(
+        paper_ids, topic=topic, max_hypotheses=max_hypotheses)
+
+
+
 def export_obsidian_notes(paper_ids, vault_dir=None, include_related_wikilinks=True):
     return _phase1("noul.tools.comparative_tools").export_obsidian_notes(
         paper_ids, vault_dir=vault_dir, include_related_wikilinks=include_related_wikilinks)
@@ -290,6 +296,28 @@ def detect_failure_modes(paper_id, inspect_fulltext=True):
 def diff_arxiv_versions(arxiv_id, from_version="v1", to_version="v2"):
     return _phase1("noul.tools.technical_tools").diff_arxiv_versions(
         arxiv_id, from_version=from_version, to_version=to_version)
+
+
+def review_paper(paper_id, domain=None, inspect_fulltext=True):
+    return _phase1("noul.tools.review_tools").review_paper(
+        paper_id, domain=domain, inspect_fulltext=bool(inspect_fulltext))
+
+
+def review_paper_scientific(paper_id, domain=None, inspect_fulltext=True):
+    return _phase1("noul.tools.review_tools").review_paper_scientific(
+        paper_id, domain=domain, inspect_fulltext=bool(inspect_fulltext))
+
+
+def scaffold_implementation(paper_id, target=None, domain=None):
+    return _phase1("noul.tools.scaffold_tools").scaffold_implementation(
+        paper_id, target=target, domain=domain)
+
+
+def scaffold_paper_code(paper_id, target_language=None, domain=None):
+    return _phase1("noul.tools.scaffold_tools").scaffold_paper_code(
+        paper_id, target_language=target_language, domain=domain)
+
+
 
 
 def get_fulltext(id, question=""):
@@ -722,6 +750,16 @@ TOOLS = {
         ["paper_ids"],
         get_thematic_insights,
     ),
+    "generate_research_hypotheses": (
+        "Autonomous research gap & hypothesis engine (#18): cross-analyzes 2-15 papers to detect methodological "
+        "contradictions (`contradictions_found`) and unexplored synergies where one paper's method mitigates another's "
+        "limitation (`unexplored_complementarities`), then formulates 1-`max_hypotheses` structured, testable "
+        "`ResearchHypothesis` proposals with `source_papers` (>= 2), `proposed_methodology`, `required_baselines`, "
+        "`target_datasets_or_population`, and `evaluation_metrics`.",
+        {"paper_ids": {"type": "array", "items": S}, "topic": S, "max_hypotheses": {"type": "integer", "default": 3}},
+        ["paper_ids"],
+        generate_research_hypotheses,
+    ),
     "export_obsidian_notes": (
         "Export papers as atomic Obsidian/Markdown notes (`<Year> - <FirstAuthor> - <ShortTitle>.md`) into `vault_dir` "
         "(inside the workspace; default ./obsidian): YAML frontmatter (title, paper_id, doi, year, authors, venue, "
@@ -827,6 +865,37 @@ TOOLS = {
          "to_version": {"type": "string", "default": "v2"}},
         ["arxiv_id"],
         diff_arxiv_versions,
+    ),
+    "review_paper": (
+        "Multi-persona peer-review committee (#17, #20): detects the paper's scientific domain (or uses `domain` override) "
+        "and runs 3 specialized reviewer personas (NeurIPS/ICLR Theoretical, Skeptical Empirical, and Systems/Reproducibility "
+        "for CS/AI; CONSORT/STROBE Clinical Trial Methodologist, Biostatistician, and Translational Safety Reviewer for "
+        "Biomedical; Causal Identification Econometrician, Robustness Auditor, and Policy Economist for Economics) "
+        "consolidated by a Meta-Reviewer into a PeerReviewReport with verdict, scores, cited flaws/omissions, and questions.",
+        {"paper_id": S, "domain": _DOMAIN, "inspect_fulltext": {"type": "boolean", "default": True}},
+        ["paper_id"],
+        review_paper,
+    ),
+    "review_paper_scientific": (
+        "Alias for review_paper: domain-adaptive 3-persona scientific peer-review committee (#17, #20).",
+        {"paper_id": S, "domain": _DOMAIN, "inspect_fulltext": {"type": "boolean", "default": True}},
+        ["paper_id"],
+        review_paper_scientific,
+    ),
+    "scaffold_implementation": (
+        "Polyglot code & experimental protocol scaffolder (#16, #21): translates a paper's mathematical formulations, "
+        "architecture, econometric specification or clinical trial design into executable, ast-validated code + unit tests "
+        "(PyTorch `nn.Module` with shape assertions for CS/AI; Statsmodels or R `fixest` panel + robustness matrix for "
+        "Economics; CONSORT/STROBE operational checklist + ITT analytical pipeline for Biomedical/STEM).",
+        {"paper_id": S, "target": S, "domain": _DOMAIN},
+        ["paper_id"],
+        scaffold_implementation,
+    ),
+    "scaffold_paper_code": (
+        "Alias for scaffold_implementation (#16, #21): generates PyTorch, Statsmodels/R, or Clinical Protocol code + unit tests.",
+        {"paper_id": S, "target_language": S, "domain": _DOMAIN},
+        ["paper_id"],
+        scaffold_paper_code,
     ),
     "get_fulltext": (
         "Fetch open-access full text (via OpenAlex, EuropePMC, arXiv, Unpaywall) and return excerpts relevant to `question`.",
