@@ -414,6 +414,60 @@ def main(argv=None):
     sc_p.add_argument("--domain", help=DOMAIN_HELP)
     sc_p.add_argument("--pretty", action="store_true")
 
+    cite_p = sub.add_parser("cite", help="Contextual citation recommender and BibTeX infiller (#22)")
+    cite_p.add_argument("draft_text", help="Draft paragraph or path to .md/.tex file inside workspace")
+    cite_p.add_argument("--limit-per-claim", type=int, default=2, help="max papers recommended per claim (default: 2)")
+    cite_p.add_argument("--style", choices=["latex", "markdown"], default="latex")
+    cite_p.add_argument("--pretty", action="store_true")
+
+    rw_p = sub.add_parser("related-work", help="Synthesize comparative Related Work section from papers (#24)")
+    rw_p.add_argument("ids", nargs="+", help="Paper IDs/DOIs (space- or comma-separated)")
+    rw_p.add_argument("--proposal", required=True, help="Summary of your proposed contribution/innovation")
+    rw_p.add_argument("--style", choices=["latex", "numeric"], default="latex")
+    rw_p.add_argument("--format", dest="output_format", choices=["markdown", "latex"], default="markdown")
+    rw_p.add_argument("--pretty", action="store_true")
+
+    dr_p = sub.add_parser("draft", help="IMRaD manuscript blueprint generator and draft auditor (#23)")
+    dr_sub = dr_p.add_subparsers(dest="draft_cmd", required=True)
+    dr_struct = dr_sub.add_parser("structure", help="Generate IMRaD manuscript blueprint")
+    dr_struct.add_argument("--topic", required=True, help="Manuscript topic or working title")
+    dr_struct.add_argument("--venue", default="neurips", help="Target venue (neurips, icml, iclr, acl, ieee, nature, lancet, aer, general)")
+    dr_struct.add_argument("--hypothesis", default="", help="Central hypothesis")
+    dr_struct.add_argument("--findings", default="", help="Semicolon-separated key findings")
+    dr_struct.add_argument("--format", dest="output_format", choices=["markdown", "latex"], default="markdown")
+    dr_struct.add_argument("--pretty", action="store_true")
+
+    dr_audit = dr_sub.add_parser("audit", help="Audit draft manuscript for weak claims, notation, and reproducibility")
+    dr_audit.add_argument("draft_input", help="Path to .md/.tex draft in workspace or inline text")
+    dr_audit.add_argument("--venue", default="neurips")
+    dr_audit.add_argument("--format", dest="output_format", choices=["markdown", "latex"], default="markdown")
+    dr_audit.add_argument("--pretty", action="store_true")
+
+    bib_p = sub.add_parser("bibtex", help="BibTeX sanitizer and preprint-to-published resolver (#25)")
+    bib_sub = bib_p.add_subparsers(dest="bibtex_cmd", required=True)
+    bib_san = bib_sub.add_parser("sanitize", help="Sanitize .bib file/text and upgrade arXiv preprints")
+    bib_san.add_argument("bibtex_input", help="Path to .bib file in workspace or raw BibTeX string")
+    bib_san.add_argument("--update-preprints", dest="update_preprints", action="store_true", default=True)
+    bib_san.add_argument("--no-update-preprints", dest="update_preprints", action="store_false")
+    bib_san.add_argument("--output", dest="output_path", default=None, help="Output .bib path inside workspace")
+    bib_san.add_argument("--pretty", action="store_true")
+
+    reb_p = sub.add_parser("rebuttal", help="Peer-review Rebuttal Copilot (#26)")
+    reb_sub = reb_p.add_subparsers(dest="rebuttal_cmd", required=True)
+    reb_parse = reb_sub.add_parser("parse", help="Parse reviewer comments and draft structured rebuttal")
+    reb_parse.add_argument("reviews_input", help="Path to reviews.txt/.md in workspace or raw reviews text")
+    reb_parse.add_argument("--paper-id", default=None, help="Optional cached paper ID for grounding")
+    reb_parse.add_argument("--draft", dest="draft_input", default=None, help="Optional path to manuscript draft")
+    reb_parse.add_argument("--format", dest="output_format", choices=["markdown", "latex"], default="markdown")
+    reb_parse.add_argument("--pretty", action="store_true")
+
+    gk_p = sub.add_parser("gatekeeper", help="Pre-submission & desk-reject gatekeeper (#27)")
+    gk_sub = gk_p.add_subparsers(dest="gatekeeper_cmd", required=True)
+    gk_aud = gk_sub.add_parser("audit", help="Audit manuscript readiness (anonymity, venue checklist, overclaiming)")
+    gk_aud.add_argument("draft_path", help="Path to .tex, .md, or .pdf inside workspace (or inline text)")
+    gk_aud.add_argument("--venue", default="neurips", help="Target venue (default: neurips)")
+    gk_aud.add_argument("--pretty", action="store_true")
+
     for n in ("paper", "graph", "fulltext", "domain"):
         x = sub.add_parser(n)
         x.add_argument("id")
@@ -618,6 +672,71 @@ def main(argv=None):
                 ]
                 print("\n".join(lines))
                 return 0
+        elif a.cmd == "cite":
+            out = t.recommend_citations(a.draft_text, max_per_claim=a.limit_per_claim, citation_style=a.style)
+            if a.pretty:
+                lines = [
+                    "# Contextual Citation Infiller Report",
+                    f"Claims detected: `{out['claims_detected']}` | Format: `{out['input_format']}`",
+                    "",
+                    "## Annotated Text",
+                    out["annotated_text"],
+                    "",
+                    "## Recommendations & Justifications",
+                ]
+                for rec in out.get("recommendations") or []:
+                    lines.append(f"- **Claim:** \"{rec['claim_sentence']}\"")
+                    for j in rec.get("justifications") or []:
+                        lines.append(f"  - {j}")
+                if out.get("bibtex_block"):
+                    lines += ["", "## BibTeX", "```bibtex", out["bibtex_block"], "```"]
+                print("\n".join(lines))
+                return 0
+        elif a.cmd == "related-work":
+            out = t.synthesize_related_work(
+                _split_ids(a.ids), proposal=a.proposal, citation_style=a.style, output_format=a.output_format
+            )
+            if a.pretty:
+                print(out["rendered_related_work"])
+                if out.get("bibtex_block"):
+                    print("\n```bibtex\n" + out["bibtex_block"] + "\n```")
+                return 0
+        elif a.cmd == "draft":
+            if a.draft_cmd == "structure":
+                findings = [x.strip() for x in a.findings.split(";") if x.strip()] if a.findings else None
+                out = t.generate_manuscript_blueprint(
+                    a.topic, venue=a.venue, hypothesis=a.hypothesis, key_findings=findings, output_format=a.output_format
+                )
+                if a.pretty:
+                    print(out["rendered_template"])
+                    return 0
+            elif a.draft_cmd == "audit":
+                out = t.audit_manuscript_draft(a.draft_input, venue=a.venue, output_format=a.output_format)
+                if a.pretty:
+                    print(out["rendered_report"])
+                    return 0
+        elif a.cmd == "bibtex":
+            if a.bibtex_cmd == "sanitize":
+                out = t.sanitize_bibtex(
+                    a.bibtex_input, update_preprints=a.update_preprints, output_path=a.output_path
+                )
+                if a.pretty:
+                    print(out["sanitized_bibtex"])
+                    return 0
+        elif a.cmd == "rebuttal":
+            if a.rebuttal_cmd == "parse":
+                out = t.parse_and_draft_rebuttal(
+                    a.reviews_input, paper_id=a.paper_id, draft_input=a.draft_input, output_format=a.output_format
+                )
+                if a.pretty:
+                    print(out["latex_rebuttal"] if a.output_format == "latex" else out["markdown_rebuttal"])
+                    return 0
+        elif a.cmd == "gatekeeper":
+            if a.gatekeeper_cmd == "audit":
+                out = t.audit_submission_readiness(a.draft_path, venue=a.venue)
+                if a.pretty:
+                    print(out["summary_markdown"])
+                    return 0
         elif a.cmd == "artifacts":
             out = t.scan_paper_artifacts(a.id, verify_http=not a.no_verify, inspect_fulltext=a.fulltext)
         elif a.cmd == "domain":

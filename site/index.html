@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Noul Search Agent — Deterministic Multi-Model Search Agent &amp; Autonomous Scientific Research Assistant</title>
+  <meta name="description" content="Agente determinístico de busca científica multi-modelo, servidor MCP (stdio + HTTP/OpenAPI), auditoria peer-review, geração de código PyTorch/Statsmodels/R e copiloto de escrita acadêmica." />
+  <meta property="og:title" content="Noul Search Agent — Autonomous Scientific Research Assistant" />
+  <meta property="og:description" content="Deterministic Multi-Model Search Agent &amp; Autonomous Scientific Research Assistant (OpenAlex, Semantic Scholar, PubMed, EuropePMC, arXiv, Crossref, Unpaywall). MCP Ready." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="og-card.svg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Noul Search Agent" />
+  <meta name="twitter:description" content="Deterministic Multi-Model Search Agent &amp; Autonomous Scientific Research Assistant." />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav-bar">
+      <a href="#" class="brand">
+        <img src="favicon.svg" alt="Noul Logo" />
+        <span>Noul Search Agent</span>
+      </a>
+      <nav>
+        <ul class="nav-links">
+          <li><a href="#personas">Perfis de Uso</a></li>
+          <li><a href="#quickstart">Instalação 1-Click</a></li>
+          <li><a href="#architecture">Arquitetura</a></li>
+          <li><a href="#tools-catalog">Catálogo MCP</a></li>
+          <li><a href="#roadmap">Roadmap</a></li>
+        </ul>
+      </nav>
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Alternar tema">☀️ Modo Claro</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="container">
+        <div class="badge-row">
+          <span class="badge">v2.0.0</span>
+          <span class="badge emerald">MIT License</span>
+          <span class="badge indigo">MCP Ready (stdio + HTTP/OpenAPI)</span>
+          <span class="badge">Python 3.10+ (Zero Deps)</span>
+          <span class="badge emerald">CI Passing</span>
+        </div>
+        <h1>Noul Search Agent</h1>
+        <p class="hero-subtitle">
+          Deterministic Multi-Model Search Agent &amp; Autonomous Scientific Research Assistant — da busca federada em 6 bases científicas à auditoria multi-persona, geração de código executável e submissão blindada contra <em>desk-reject</em>.
+        </p>
+        <div class="cta-group">
+          <a href="#quickstart" class="btn btn-primary">⚡ Instalação Rápida (1-Click)</a>
+          <a href="https://github.com/ernaneDomingues/noul-search-agent" class="btn btn-secondary" target="_blank" rel="noopener">📦 Ver no GitHub</a>
+          <a href="https://github.com/ernaneDomingues/noul-search-agent/releases" class="btn btn-secondary" target="_blank" rel="noopener">🏷️ Releases</a>
+        </div>
+
+        <!-- Interactive Terminal Simulator -->
+        <div class="terminal-window" aria-label="Simulador interativo de terminal">
+          <div class="terminal-header">
+            <div class="window-dots">
+              <span class="dot red"></span>
+              <span class="dot yellow"></span>
+              <span class="dot green"></span>
+            </div>
+            <div class="terminal-tabs" role="tablist">
+              <button class="term-tab active" data-scenario="compare" type="button">noul compare</button>
+              <button class="term-tab" data-scenario="review" type="button">noul review</button>
+              <button class="term-tab" data-scenario="scaffold" type="button">noul scaffold</button>
+              <button class="term-tab" data-scenario="gatekeeper" type="button">noul gatekeeper audit</button>
+            </div>
+          </div>
+          <pre id="terminal-screen" class="terminal-body mono">$ noul compare arxiv:2305.14314 arxiv:2405.11001 --pretty</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Showcase Matrix by User Persona -->
+    <section id="personas" class="section">
+      <div class="container">
+        <h2 class="section-title">Matriz de Funcionalidades por Perfil</h2>
+        <p class="section-lead">
+          Roteamento automático por domínio científico (<code>computer_science</code>, <code>biomedical</code>, <code>economics</code>, <code>general_stem</code>) com ferramentas especializadas para cada fluxo de pesquisa.
+        </p>
+        <div class="persona-grid">
+          <article class="card">
+            <span class="card-tag">Engenheiros de IA &amp; Construtores</span>
+            <h3>Paper-to-Code &amp; Viabilidade de Hardware</h3>
+            <p>Traduza equações e arquiteturas diretamente em módulos PyTorch validados sintaticamente e dimensione sua infraestrutura de GPU antes do deploy.</p>
+            <ul>
+              <li>Scaffolder <code>nn.Module</code> com validação <code>ast.parse</code> e testes de shape (<code>noul scaffold</code>)</li>
+              <li>Calculadora determinística de VRAM em <strong>FP16, INT8 e INT4</strong> + KV Cache (<code>noul hardware</code>)</li>
+              <li>Extrator de tabelas de benchmark e ablação (<code>noul benchmarks</code>, <code>noul ablation</code>)</li>
+              <li>Radar de código aberto, pesos no Hugging Face e datasets (<code>noul artifacts</code>)</li>
+            </ul>
+          </article>
+
+          <article class="card">
+            <span class="card-tag">Médicos &amp; Pesquisadores de Saúde</span>
+            <h3>Auditoria Clínica &amp; Medicina Baseada em Evidências</h3>
+            <p>Avalie ensaios clínicos randomizados (RCTs), revisões sistemáticas e estudos observacionais com rigor metodológico e pirâmide de evidências.</p>
+            <ul>
+              <li>Comitê de revisão com rubricas <strong>CONSORT, STROBE e PRISMA</strong> (<code>noul review --domain bio</code>)</li>
+              <li>Extração de protocolos operacionais de intervenção e pipeline analítico ITT (<code>noul scaffold --target protocol</code>)</li>
+              <li><strong>Evidence Meter</strong> ponderado por desenho de estudo (Meta-análise 1.0 → Pré-clínico 0.2)</li>
+              <li>Grounding estrito de alegações numéricas contra o texto literal (<code>noul ground</code>)</li>
+            </ul>
+          </article>
+
+          <article class="card">
+            <span class="card-tag">Economistas &amp; Analistas de Políticas</span>
+            <h3>Identificação Causal &amp; Econometria Reprodutível</h3>
+            <p>Inspecione estratégias de identificação causal, pressupostos de tendências paralelas e gere especificações econométricas prontas para rodar.</p>
+            <ul>
+              <li>Auditoria de estratégias <strong>DiD, IV, RDD e Controles Sintéticos</strong> (<code>noul review --domain econ</code>)</li>
+              <li>Detecção de ameaças de endogeneidade, viés de seleção e variáveis omitidas (<code>noul failures</code>)</li>
+              <li>Geração de scripts em <strong>Python (<code>statsmodels</code>)</strong> e <strong>R (<code>fixest</code>)</strong> com erros-padrão clusterizados</li>
+              <li>Matriz de testes de robustez, placebo e falsificação</li>
+            </ul>
+          </article>
+
+          <article class="card">
+            <span class="card-tag">Autores Acadêmicos &amp; Revisores</span>
+            <h3>Copiloto IMRaD, BibTeX, Rebuttal &amp; Gatekeeper</h3>
+            <p>Acelere a redação científica do esqueleto inicial até a carta de resposta aos revisores e a blindagem preventiva contra <em>desk-reject</em>.</p>
+            <ul>
+              <li>Infilling contextual de citações com justificativa e BibTeX (<code>noul cite</code>)</li>
+              <li>Síntese narrativa comparativa de <em>Related Work</em> em Markdown/LaTeX (<code>noul related-work</code>)</li>
+              <li>Saneador de <code>.bib</code> que atualiza preprints do arXiv para NeurIPS/ICML/periódicos (<code>noul bibtex sanitize</code>)</li>
+              <li>Copiloto de Rebuttal (<code>noul rebuttal parse</code>) &amp; Gatekeeper Double-Blind (<code>noul gatekeeper audit</code>)</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- 1-Click Quickstart & MCP Setup -->
+    <section id="quickstart" class="section">
+      <div class="container">
+        <h2 class="section-title">Guia de Inicialização e Configuração (1-Click Setup)</h2>
+        <p class="section-lead">
+          Execute instantaneamente via <code>uvx</code> ou <code>npx</code> sem poluir seu ambiente Python global, ou conecte o servidor MCP ao seu assistente favorito.
+        </p>
+
+        <div class="quickstart-grid">
+          <div class="code-box">
+            <div class="code-box-header">
+              <span>Execução Instantânea via uvx (Python)</span>
+              <button class="copy-btn" data-copy-target="cmd-uvx" type="button">Copiar</button>
+            </div>
+            <pre id="cmd-uvx" class="mono">uvx noul-search-agent search "kv cache quantization" --pretty</pre>
+          </div>
+
+          <div class="code-box">
+            <div class="code-box-header">
+              <span>Execução Instantânea via npx (Node.js Wrapper)</span>
+              <button class="copy-btn" data-copy-target="cmd-npx" type="button">Copiar</button>
+            </div>
+            <pre id="cmd-npx" class="mono">npx noul-search-agent install --all</pre>
+          </div>
+        </div>
+
+        <div class="config-tabs-bar" role="tablist">
+          <button class="cfg-tab active" data-target="cfg-claude" type="button">Claude Desktop / Claude Code</button>
+          <button class="cfg-tab" data-target="cfg-cursor" type="button">Cursor (.cursor/mcp.json)</button>
+          <button class="cfg-tab" data-target="cfg-gemini" type="button">Gemini CLI &amp; Antigravity</button>
+        </div>
+
+        <div id="cfg-claude" class="cfg-panel active">
+          <div class="code-box">
+            <div class="code-box-header">
+              <span>claude_desktop_config.json / .mcp.json</span>
+              <button class="copy-btn" data-copy-target="json-claude" type="button">Copiar JSON</button>
+            </div>
+            <pre id="json-claude" class="mono">{
+  "mcpServers": {
+    "noul": {
+      "command": "uvx",
+      "args": ["noul-search-agent", "mcp"],
+      "env": {
+        "NOUL_EMAIL": "researcher@university.edu"
+      }
+    }
+  }
+}</pre>
+          </div>
+        </div>
+
+        <div id="cfg-cursor" class="cfg-panel">
+          <div class="code-box">
+            <div class="code-box-header">
+              <span>.cursor/mcp.json</span>
+              <button class="copy-btn" data-copy-target="json-cursor" type="button">Copiar JSON</button>
+            </div>
+            <pre id="json-cursor" class="mono">{
+  "mcpServers": {
+    "noul": {
+      "command": "npx",
+      "args": ["-y", "noul-search-agent", "mcp"]
+    }
+  }
+}</pre>
+          </div>
+        </div>
+
+        <div id="cfg-gemini" class="cfg-panel">
+          <div class="code-box">
+            <div class="code-box-header">
+              <span>~/.gemini/settings.json &amp; ~/.gemini/antigravity/mcp_config.json</span>
+              <button class="copy-btn" data-copy-target="json-gemini" type="button">Copiar JSON</button>
+            </div>
+            <pre id="json-gemini" class="mono">{
+  "mcpServers": {
+    "noul": {
+      "command": "python3",
+      "args": ["-m", "noul_mcp"],
+      "env": {
+        "NOUL_WORKSPACE": "/caminho/do/seu/workspace"
+      }
+    }
+  }
+}</pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Architecture & Ecosystem -->
+    <section id="architecture" class="section">
+      <div class="container">
+        <h2 class="section-title">Arquitetura e Relação com o Ecossistema</h2>
+        <p class="section-lead">
+          O <code>noul-search-agent</code> opera 100% localmente sobre a biblioteca padrão do Python (SQLite WAL cache, proteção SSRF e confinamento de workspace), integrando 6 provedores científicos abertos ao ecossistema <strong>The AI Research Journal</strong>.
+        </p>
+        <div class="arch-diagram mono">
+<pre>
+┌───────────────────────────────────────────────────────────────────────────────────────────┐
+│                   HOST AI AGENTS &amp; IDEs (Claude, Cursor, Gemini, Antigravity, CLI)        │
+└──────────────────────────────────────────────┬────────────────────────────────────────────┘
+                                               │ JSON-RPC 2.0 (stdio) / HTTP OpenAPI 3.1
+                                               ▼
+┌───────────────────────────────────────────────────────────────────────────────────────────┐
+│                         NOUL SEARCH AGENT RUNTIME (Stdlib-Only Core)                      │
+│  ┌─────────────────────────┐  ┌──────────────────────────┐  ┌──────────────────────────┐  │
+│  │ Discovery &amp; Synthesis   │  │ Technical &amp; Code Engine  │  │ Academic Authoring Suite │  │
+│  │ • search_papers         │  │ • extract_benchmark_tbls │  │ • recommend_citations    │  │
+│  │ • compare_papers        │  │ • estimate_hardware_spec │  │ • synthesize_related_wrk │  │
+│  │ • get_thematic_insights │  │ • review_paper (3-Pers.) │  │ • sanitize_bibtex        │  │
+│  │ • generate_hypotheses   │  │ • scaffold_implementation│  │ • parse_and_draft_rebut. │  │
+│  │ • evidence_meter        │  │ • diff_arxiv_versions    │  │ • audit_submission_ready │  │
+│  └─────────────────────────┘  └──────────────────────────┘  └──────────────────────────┘  │
+│  ┌─────────────────────────────────────────────────────────────────────────────────────┐  │
+│  │ SQLite WAL Cache (kv) • SSRF Public-IP Guard • Workspace Anti-Symlink Confinement   │  │
+│  └─────────────────────────────────────────────────────────────────────────────────────┘  │
+└───────────────┬──────────────────────────────┬──────────────────────────────┬─────────────┘
+                │                              │                              │
+                ▼                              ▼                              ▼
+┌──────────────────────────────┐ ┌───────────────────────────┐ ┌────────────────────────────┐
+│ 6 Open Scientific APIs       │ │ Open-Artifact Radar       │ │ The AI Research Journal    │
+│ • OpenAlex • SemanticScholar │ │ • GitHub / GitLab         │ │ • Persistent Dossiers      │
+│ • PubMed   • Europe PMC      │ │ • Hugging Face Hub        │ │ • Atomic Obsidian Vaults   │
+│ • arXiv    • Crossref/Unpayw.│ │ • Zenodo / Figshare / OSF │ │ • Reproducible Workflows   │
+└──────────────────────────────┘ └───────────────────────────┘ └────────────────────────────┘
+</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Interactive MCP Tools Catalog -->
+    <section id="tools-catalog" class="section">
+      <div class="container">
+        <h2 class="section-title">Portal de Documentação Técnica — Catálogo MCP &amp; CLI</h2>
+        <p class="section-lead">
+          Todas as ferramentas abaixo são expostas simultaneamente via protocolo MCP (<code>noul_mcp.py</code>) e via linha de comando (<code>noul_cli.py</code>).
+        </p>
+        <div class="catalog-controls">
+          <input id="tool-search" class="search-input" type="search" placeholder="Filtrar ferramentas por nome, descrição, parâmetro ou subcomando CLI..." aria-label="Filtrar ferramentas MCP" />
+        </div>
+        <!-- TOOLS_CATALOG_START -->
+        <div class="tools-grid">
+          <article class="tool-card" data-tool="search_papers">
+            <h4 class="mono">search_papers</h4>
+            <p>Search peer-reviewed and preprint literature across all scientific disciplines (OpenAlex, PubMed, Semantic Scholar, Crossref, arXiv, Europe PMC), deduplicated and ranked by study design and citations. Returns abstracts, evidence level (meta-analysis, systematic-review, rct, review, cohort, empirical, preclinical, other) and a citation/venue band (`tier`: top, high, standard, emerging — not a JCR quartile) and scientific `domain`. YOU classify each paper&#x27;s stance and synthesize.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> query | <strong>Optional:</strong> sources, year_min, study_types, min_citations, open_access, sort, limit, offset, exclude_ids, domain, clarify</div>
+              <div><strong>CLI:</strong> <code>noul search &lt;query&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="clarify_search_scope">
+            <h4 class="mono">clarify_search_scope</h4>
+            <p>Clarification loop for broad queries: says whether a query is too broad (needs &gt;= 2 of: 5+ meaningful words, boolean operators/quoted phrase, time constraint, method + outcome) and returns 3 domain-specific multiple-choice questions. Ask the user, then call again with `answers` ({&quot;q1&quot;: option label or 1-based index, ...}) to get `refined_query` and `recommended_filters` (year_min, study_types, sources, sort) for search_papers. Skip it when the user already gave a precise query.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> query | <strong>Optional:</strong> answers, domain</div>
+              <div><strong>CLI:</strong> <code>noul clarify &lt;query&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="get_paper">
+            <h4 class="mono">get_paper</h4>
+            <p>Get full record and abstract of a paper by cached ID, DOI, PMID, OpenAlex ID, arXiv ID, or Semantic Scholar ID. Includes its scientific `domain`; pass `domain` to override it.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> id | <strong>Optional:</strong> domain</div>
+              <div><strong>CLI:</strong> <code>noul paper &lt;id&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="detect_paper_domain">
+            <h4 class="mono">detect_paper_domain</h4>
+            <p>Detect a paper&#x27;s scientific macro-domain (computer_science, biomedical, economics, general_stem) from arXiv categories, fields of study, PubMed indexing and title/abstract vocabulary, explaining the signals used. Use it to pick domain-appropriate evaluation criteria.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> paper_id | <strong>Optional:</strong> domain</div>
+              <div><strong>CLI:</strong> <code>noul domain &lt;id&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="scan_paper_artifacts">
+            <h4 class="mono">scan_paper_artifacts</h4>
+            <p>Open-artifact radar: find code repositories (GitHub/GitLab/...), model weights (Hugging Face, Civitai, Kaggle, PyTorch Hub) and datasets (Zenodo, Figshare, OSF, Dataverse, HF datasets) linked from a paper, verify that the links are alive (HEAD, 5s timeout, max 20 URLs) and flag evasive &#x27;available on request&#x27; statements. Set inspect_fulltext=true to also scan the open-access full text.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> id | <strong>Optional:</strong> verify_http, inspect_fulltext</div>
+              <div><strong>CLI:</strong> <code>noul artifacts &lt;id&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="get_paper_references">
+            <h4 class="mono">get_paper_references</h4>
+            <p>Citation graph with influence ranking: papers this paper cites (`backward_citations`) and papers citing it (`forward_citations`), with title, year, venue, citation_count and Semantic Scholar&#x27;s `is_influential` flag (OpenAlex fallback: &gt;= 50 citations). Every returned `paper_id` is cached, so you can chain get_paper, get_paper_references or download_papers on it.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> paper_id | <strong>Optional:</strong> limit, direction, sort_by</div>
+              <div><strong>CLI:</strong> <code>noul references &lt;id&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="compare_papers">
+            <h4 class="mono">compare_papers</h4>
+            <p>Comparative matrix of 1-10 papers (3-5 typical): for each paper extracts the core problem/hypothesis, methodology (design + domain + method sentence), datasets/benchmarks/population, key results/metrics (headline finding, %, p-values, AUC, F1, HR, ...) and declared limitations, then returns a Markdown table plus convergence and divergence summaries. Set inspect_fulltext=true to also mine open-access full text.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> paper_ids | <strong>Optional:</strong> inspect_fulltext</div>
+              <div><strong>CLI:</strong> <code>noul compare &lt;id1&gt; &lt;id2&gt; ...</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="get_thematic_insights">
+            <h4 class="mono">get_thematic_insights</h4>
+            <p>Thematic synthesis of 1-20 papers across 3 cross-cutting axes (no isolated per-paper summaries): `consolidated_consensuses` (shared concepts, benchmarks and highest-level evidence), `methodological_tensions` (evidence-pyramid gaps, dataset/scale differences, open-artifact asymmetry, mixed results) and `emerging_future_work` (cross-referenced limitations and future work). Every statement cites [Author et al., Year]; `citations_map` maps each tag to paper ids.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> paper_ids | <strong>Optional:</strong> topic</div>
+              <div><strong>CLI:</strong> <code>noul insights &lt;id1&gt; &lt;id2&gt; ...</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="generate_research_hypotheses">
+            <h4 class="mono">generate_research_hypotheses</h4>
+            <p>Autonomous research gap &amp; hypothesis engine (#18): cross-analyzes 2-15 papers to detect methodological contradictions (`contradictions_found`) and unexplored synergies where one paper&#x27;s method mitigates another&#x27;s limitation (`unexplored_complementarities`), then formulates 1-`max_hypotheses` structured, testable `ResearchHypothesis` proposals with `source_papers` (&gt;= 2), `proposed_methodology`, `required_baselines`, `target_datasets_or_population`, and `evaluation_metrics`.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> paper_ids | <strong>Optional:</strong> topic, max_hypotheses</div>
+              <div><strong>CLI:</strong> <code>noul hypotheses &lt;id1&gt; &lt;id2&gt; ...</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="export_obsidian_notes">
+            <h4 class="mono">export_obsidian_notes</h4>
+            <p>Export papers as atomic Obsidian/Markdown notes (`&lt;Year&gt; - &lt;FirstAuthor&gt; - &lt;ShortTitle&gt;.md`) into `vault_dir` (inside the workspace; default ./obsidian): YAML frontmatter (title, paper_id, doi, year, authors, venue, domain, evidence_level, citations, open_access, has_code, has_weights, tags), TL;DR, key findings &amp; methodology, open artifacts, [[wikilinks]] between the exported notes and a BibTeX block.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> paper_ids | <strong>Optional:</strong> vault_dir, include_related_wikilinks</div>
+              <div><strong>CLI:</strong> <code>noul export &lt;ids&gt; --format obsidian</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="suggest_boolean_queries">
+            <h4 class="mono">suggest_boolean_queries</h4>
+            <p>Dynamic search expansion: mine acronyms (e.g. LoRA, GPTQ) and emerging technical terms from `paper_ids` (or from cached papers matching `query`) and return 3 ready-to-run boolean queries for search_papers: [1] precision deepening (AND), [2] synonym/method expansion (OR + AND), [3] noise exclusion (NOT).</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> none | <strong>Optional:</strong> query, paper_ids</div>
+              <div><strong>CLI:</strong> <code>noul expand &lt;query&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="extract_benchmark_tables">
+            <h4 class="mono">extract_benchmark_tables</h4>
+            <p>Benchmark table extractor: detects Markdown, LaTeX (tabular) and plain-text/PDF tables plus inline `Benchmark: value` pairs in the paper&#x27;s open-access full text (abstract fallback), keeps the exact model-row x metric-column correspondence, normalizes metric names (gsm-8k -&gt; GSM8K, human-eval -&gt; HumanEval, acc -&gt; Accuracy, ppl -&gt; Perplexity, ...) and converts values like &#x27;84.5%&#x27; or &#x27;84.5 ± 0.3&#x27; to numbers. Returns `tables` and a cross-table `normalized_summary` (by_metric, best_by_metric).</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> paper_id | <strong>Optional:</strong> none</div>
+              <div><strong>CLI:</strong> <code>noul benchmarks &lt;id&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="estimate_hardware_specs">
+            <h4 class="mono">estimate_hardware_specs</h4>
+            <p>Hardware feasibility / inference footprint: detects the model size (7B, 1.5B, 350M, 8x7B MoE, &#x27;671B parameters with 37B activated&#x27;, family defaults) and architecture (dense, moe, encoder_only, rnn_ssm), then computes FP16/INT8/INT4 weights, KV cache (2 x layers x kv_heads x head_dim x context x bytes) and recommended minimum VRAM (+15% overhead), extracts the authors&#x27; reported training hardware (e.g. &#x27;64 NVIDIA A100 80GB GPUs&#x27;, &#x27;TPU v4-1024&#x27;) and classifies the operational tier (edge_consumer_gpu &lt;= 16 GB, workstation &lt;= 48 GB, datacenter_cluster) from the INT4 footprint. Override sizes with total_params_b / active_params_b.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> paper_id | <strong>Optional:</strong> total_params_b, active_params_b, context_length</div>
+              <div><strong>CLI:</strong> <code>noul hardware &lt;id&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="verify_paper_claims">
+            <h4 class="mono">verify_paper_claims</h4>
+            <p>Evidence grounding with strict attribution: checks each claim (or, when `claims` is empty, the numeric/comparative sentences auto-extracted from the abstract/text) against the paper&#x27;s literal text, indexed by page and table/section. Returns `status` verified (all numbers literally in the same passage), partially_supported (topic found, some numbers diverge) or extrapolated, with a mandatory citation tag &#x27;[pág. X, Tabela Y: &quot;...&quot;]&#x27; / &#x27;[pág. X, Seção Y: &quot;...&quot;]&#x27; or an explicit &#x27;[EXTRAPOLAÇÃO NÃO LITERAL ...]&#x27; warning. Use it before stating numbers from a paper.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> paper_id | <strong>Optional:</strong> claims</div>
+              <div><strong>CLI:</strong> <code>noul ground &lt;id&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="extract_paper_math">
+            <h4 class="mono">extract_paper_math</h4>
+            <p>Math &amp; pseudocode extractor: finds equations (\begin{equation|align}, $$..$$, \[..\], inline $a = b$, plain-text &#x27;L_total = ...&#x27; / &#x27;Attention(Q, K, V) = ...&#x27;) and algorithms (\begin{algorithm}, &#x27;Algorithm N:&#x27; blocks). mode=&#x27;latex&#x27; returns clean delimited LaTeX; mode=&#x27;python&#x27; returns typed Python functions (`def equation_1(...) -&gt; float` / `def algorithm_1(...) -&gt; Any`, `import math`, original LaTeX in the docstring), always validated with ast.parse; mode=&#x27;both&#x27; returns both.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> paper_id | <strong>Optional:</strong> mode</div>
+              <div><strong>CLI:</strong> <code>noul math &lt;id&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="analyze_ablation_tables">
+            <h4 class="mono">analyze_ablation_tables</h4>
+            <p>Ablation analyzer: locates ablation tables/lists (rows &#x27;Full model&#x27; / &#x27;Ours&#x27; / &#x27;Baseline&#x27; and variants &#x27;w/o X&#x27;, &#x27;without X&#x27;, &#x27;- X&#x27;, &#x27;+ X&#x27;, &#x27;no X&#x27;), takes the full model (else baseline) as reference and computes, per component and metric, delta and delta_percent, flags is_marginal (|Δ%| &lt; 1%), ranks components by |Δ%| and emits warnings_and_alerts for marginal components and for a single component accounting for &gt;= 60% of the total reported gain.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> paper_id | <strong>Optional:</strong> none</div>
+              <div><strong>CLI:</strong> <code>noul ablation &lt;id&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="extract_prompts_and_decoding">
+            <h4 class="mono">extract_prompts_and_decoding</h4>
+            <p>Prompt &amp; inference protocol extractor: finds prompt templates (after &#x27;System Prompt:&#x27;, &#x27;User Prompt:&#x27;, &#x27;Prompt Template:&#x27;, &#x27;Instruction:&#x27;, in code fences/quotes, or text with {variable}, {{variable}}, &lt;context&gt;, &quot;Let&#x27;s think step by step&quot;, &quot;You are an expert&quot;) keeping placeholders verbatim and listing `variables`; extracts decoding hyperparameters (temperature, top_p, top_k, max_tokens, repetition_penalty, beam_size, seed, decoding_strategy) with literal evidence, and the JSON output schemas shown in the paper.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> paper_id | <strong>Optional:</strong> none</div>
+              <div><strong>CLI:</strong> <code>noul prompts &lt;id&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="detect_failure_modes">
+            <h4 class="mono">detect_failure_modes</h4>
+            <p>Failure mode &amp; critical assumption detector: scans Limitations, Error Analysis, Failure Cases, Discussion, Threats to Validity and Appendix (plus abstract/body) to classify failure modes into long_context, noise_sensitivity, out_of_distribution, latency_or_compute, sample_or_population_bias and general_limitation (with severity high/medium/low), extracts critical_assumptions, identifies baseline_superiority_scenarios (both from text and from benchmark tables where a baseline beats Ours), and extracts operational_limits.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> paper_id | <strong>Optional:</strong> inspect_fulltext</div>
+              <div><strong>CLI:</strong> <code>noul failures &lt;id&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="diff_arxiv_versions">
+            <h4 class="mono">diff_arxiv_versions</h4>
+            <p>arXiv temporal version diff analyzer: fetches and compares two revisions of an arXiv preprint (e.g. v1 vs v2), tracking title and authorship changes, metric and table number deltas (`metric_deltas`), claim attenuations or strengthenings (`claim_shifts`), newly added baselines or datasets (`new_baselines_or_datasets`) and a structured `markdown_diff` report.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> arxiv_id | <strong>Optional:</strong> from_version, to_version</div>
+              <div><strong>CLI:</strong> <code>noul diff &lt;arxiv_id&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="review_paper">
+            <h4 class="mono">review_paper</h4>
+            <p>Multi-persona peer-review committee (#17, #20): detects the paper&#x27;s scientific domain (or uses `domain` override) and runs 3 specialized reviewer personas (NeurIPS/ICLR Theoretical, Skeptical Empirical, and Systems/Reproducibility for CS/AI; CONSORT/STROBE Clinical Trial Methodologist, Biostatistician, and Translational Safety Reviewer for Biomedical; Causal Identification Econometrician, Robustness Auditor, and Policy Economist for Economics) consolidated by a Meta-Reviewer into a PeerReviewReport with verdict, scores, cited flaws/omissions, and questions.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> paper_id | <strong>Optional:</strong> domain, inspect_fulltext</div>
+              <div><strong>CLI:</strong> <code>noul review &lt;id&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="review_paper_scientific">
+            <h4 class="mono">review_paper_scientific</h4>
+            <p>Alias for review_paper: domain-adaptive 3-persona scientific peer-review committee (#17, #20).</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> paper_id | <strong>Optional:</strong> domain, inspect_fulltext</div>
+              <div><strong>CLI:</strong> <code>noul review &lt;id&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="scaffold_implementation">
+            <h4 class="mono">scaffold_implementation</h4>
+            <p>Polyglot code &amp; experimental protocol scaffolder (#16, #21): translates a paper&#x27;s mathematical formulations, architecture, econometric specification or clinical trial design into executable, ast-validated code + unit tests (PyTorch `nn.Module` with shape assertions for CS/AI; Statsmodels or R `fixest` panel + robustness matrix for Economics; CONSORT/STROBE operational checklist + ITT analytical pipeline for Biomedical/STEM).</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> paper_id | <strong>Optional:</strong> target, domain</div>
+              <div><strong>CLI:</strong> <code>noul scaffold &lt;id&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="scaffold_paper_code">
+            <h4 class="mono">scaffold_paper_code</h4>
+            <p>Alias for scaffold_implementation (#16, #21): generates PyTorch, Statsmodels/R, or Clinical Protocol code + unit tests.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> paper_id | <strong>Optional:</strong> target_language, domain</div>
+              <div><strong>CLI:</strong> <code>noul scaffold &lt;id&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="recommend_citations">
+            <h4 class="mono">recommend_citations</h4>
+            <p>Contextual citation recommender &amp; infiller (#22): scans a draft paragraph or file (.md/.tex) for explicit `[CITATION NEEDED]` / `\cite{?}` markers and unsubstantiated empirical claims, retrieves 2-3 supporting papers per claim with explicit Portuguese justifications (&#x27;Este artigo de X et al. (Ano) comprova essa afirmação...&#x27;), inserts inline LaTeX or Markdown citations, and generates a deduplicated BibTeX block.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> draft_text | <strong>Optional:</strong> max_per_claim, citation_style</div>
+              <div><strong>CLI:</strong> <code>noul cite &lt;text_or_file&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="synthesize_related_work">
+            <h4 class="mono">synthesize_related_work</h4>
+            <p>Narrative Related Work synthesizer (#24): clusters 1-20 papers into thematic approach families (Architectural &amp; Representation Foundations, Training/Optimization/Causal Identification, Efficiency/Scaling/Empirical Evaluation), writes comparative academic prose (While X..., Y..., whereas Z... — never isolated per-author lists), positions the user&#x27;s `proposal` against the collective gap, and exports Markdown or `\section{Related Work}` LaTeX plus BibTeX.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> paper_ids, proposal | <strong>Optional:</strong> citation_style, output_format</div>
+              <div><strong>CLI:</strong> <code>noul related-work &lt;ids&gt; --proposal ...</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="generate_manuscript_blueprint">
+            <h4 class="mono">generate_manuscript_blueprint</h4>
+            <p>IMRaD manuscript blueprint generator (#23 Mode 1): generates a venue-adapted (neurips, icml, iclr, acl, ieee, nature, lancet, aer, general) structural template with paragraph-by-paragraph writing guidance and required elements in Markdown or LaTeX.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> topic | <strong>Optional:</strong> venue, hypothesis, key_findings, output_format</div>
+              <div><strong>CLI:</strong> <code>noul draft structure --topic ...</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="audit_manuscript_draft">
+            <h4 class="mono">audit_manuscript_draft</h4>
+            <p>Draft manuscript auditor (#23 Mode 2): audits a draft (.md/.tex in workspace or inline text) for weak or unsubstantiated claims, mathematical/terminological inconsistencies ($L$ vs $\mathcal{L}$), and reproducibility omissions (seeds, hyperparameters, sample size N, error bars, compute hardware).</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> draft_input | <strong>Optional:</strong> venue, output_format</div>
+              <div><strong>CLI:</strong> <code>noul draft audit &lt;draft&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="sanitize_bibtex">
+            <h4 class="mono">sanitize_bibtex</h4>
+            <p>BibTeX sanitizer &amp; preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&amp;`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`).</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> bibtex_input | <strong>Optional:</strong> update_preprints, output_path</div>
+              <div><strong>CLI:</strong> <code>noul bibtex sanitize &lt;bib&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="parse_and_draft_rebuttal">
+            <h4 class="mono">parse_and_draft_rebuttal</h4>
+            <p>Peer-review Rebuttal Copilot (#26): segments raw reviewer comments (`Reviewer 1`, `Reviewer 2`, ...) into numbered actionable points, classifies each objection, flags requests requiring new experiments (`requires_new_experiment=True`), and generates polite, evidence-backed Author Rebuttals in Markdown and LaTeX.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> reviews_input | <strong>Optional:</strong> paper_id, draft_input, output_format</div>
+              <div><strong>CLI:</strong> <code>noul rebuttal parse &lt;reviews&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="audit_submission_readiness">
+            <h4 class="mono">audit_submission_readiness</h4>
+            <p>Pre-Submission &amp; Desk-Reject Gatekeeper (#27): runs a 4-stage audit on a `.tex`, `.md`, or `.pdf` manuscript for the target `venue` — (1) Double-Blind Anonymity Audit (non-anonymous GitHub/HF URLs, `\author` blocks, PDF metadata, first-person self-citations), (2) Venue Checklist Engine, (3) Overclaiming Scanner, and (4) Mandatory Sections Check — returning a `readiness_score` (0-100) and `desk_reject_risk`.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> draft_path | <strong>Optional:</strong> venue</div>
+              <div><strong>CLI:</strong> <code>noul gatekeeper audit &lt;draft&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="get_fulltext">
+            <h4 class="mono">get_fulltext</h4>
+            <p>Fetch open-access full text (via OpenAlex, EuropePMC, arXiv, Unpaywall) and return excerpts relevant to `question`.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> id | <strong>Optional:</strong> question</div>
+              <div><strong>CLI:</strong> <code>noul fulltext &lt;id&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="query_fulltexts">
+            <h4 class="mono">query_fulltexts</h4>
+            <p>Query across multiple papers simultaneously for a specific question (uses full text when Open Access or abstract fallback). Ideal for conversing over a set of papers.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> ids, question | <strong>Optional:</strong> max_chunks_per_paper</div>
+              <div><strong>CLI:</strong> <code>noul ask &lt;ids&gt; --question ...</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="citation_graph">
+            <h4 class="mono">citation_graph</h4>
+            <p>Papers this paper cites (references) and papers citing it (OpenAlex), automatically cached for follow-up.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> id | <strong>Optional:</strong> none</div>
+              <div><strong>CLI:</strong> <code>noul graph &lt;id&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="related_papers">
+            <h4 class="mono">related_papers</h4>
+            <p>Find papers semantically similar to the target paper, papers it cites (references), or papers citing it. Supports filtering by study_types and year_min.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> id | <strong>Optional:</strong> relation, study_types, year_min, limit</div>
+              <div><strong>CLI:</strong> <code>noul related &lt;id&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="download_papers">
+            <h4 class="mono">download_papers</h4>
+            <p>Download Open Access PDFs for one or more paper IDs or DOIs into `output_dir` (inside the workspace; default: configured download_dir, ./papers).</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> ids | <strong>Optional:</strong> output_dir</div>
+              <div><strong>CLI:</strong> <code>noul download &lt;ids&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="save_research_dossier">
+            <h4 class="mono">save_research_dossier</h4>
+            <p>Save a persistent research dossier (README.md, papers.json, references.bib) in `output_dir` (inside the workspace; default: configured research_dir, ./research) so the user can converse over the research documentation.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> topic, synthesis_markdown | <strong>Optional:</strong> paper_ids, output_dir</div>
+              <div><strong>CLI:</strong> <code>noul dossier save --topic ...</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="list_research_dossiers">
+            <h4 class="mono">list_research_dossiers</h4>
+            <p>List saved research dossiers available for follow-up conversation.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> none | <strong>Optional:</strong> output_dir</div>
+              <div><strong>CLI:</strong> <code>noul dossier list</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="get_research_dossier">
+            <h4 class="mono">get_research_dossier</h4>
+            <p>Load a saved research dossier (Markdown report and paper metadata) by slug or topic.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> slug | <strong>Optional:</strong> output_dir</div>
+              <div><strong>CLI:</strong> <code>noul dossier show &lt;slug&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="export_papers">
+            <h4 class="mono">export_papers</h4>
+            <p>Export papers as bibtex, ris or csv.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> ids | <strong>Optional:</strong> format</div>
+              <div><strong>CLI:</strong> <code>noul export &lt;ids&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="evidence_meter">
+            <h4 class="mono">evidence_meter</h4>
+            <p>Compute the Evidence Meter deterministically from YOUR stance classification of each paper: raw counts and percentages plus study-design-weighted percentages (meta-analysis 1.0 … preclinical 0.2). Use its output instead of computing percentages yourself.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> items | <strong>Optional:</strong> none</div>
+              <div><strong>CLI:</strong> <code>noul meter &#x27;&lt;json&gt;&#x27;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="configure_noul">
+            <h4 class="mono">configure_noul</h4>
+            <p>View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, and default download/research folders. `clear` resets it.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> none | <strong>Optional:</strong> email, workspace, download_dir, research_dir, clear</div>
+              <div><strong>CLI:</strong> <code>noul config</code></div>
+            </div>
+          </article>
+        </div>
+        <!-- TOOLS_CATALOG_END -->
+      </div>
+    </section>
+
+    <!-- Roadmap & Changelog -->
+    <section id="roadmap" class="section">
+      <div class="container">
+        <h2 class="section-title">Changelog &amp; Roadmap (Fases 0 a 6)</h2>
+        <p class="section-lead">
+          Evolução completa do <code>noul-search-agent</code> desde o núcleo de busca federada até o copiloto autônomo de autoria e submissão científica.
+        </p>
+        <table class="roadmap-table">
+          <thead>
+            <tr>
+              <th>Fase / Release</th>
+              <th>Issues</th>
+              <th>Entregas Principais</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Fase 0 — Core &amp; Hardening P0</strong></td>
+              <td>Baseline</td>
+              <td>Busca federada (6 APIs), Evidence Meter determinístico, proteção SSRF, confinamento de workspace e servidor MCP stdio/HTTP.</td>
+              <td>✅ Concluído</td>
+            </tr>
+            <tr>
+              <td><strong>Fase 1 — Contratos &amp; Radar</strong></td>
+              <td>#01, #02, #03, #19</td>
+              <td> Schemas dual-mode (Pydantic v2 / stdlib), Classificador de Domínio Científico, Radar de Artefatos Abertos e Grafo de Citações.</td>
+              <td>✅ Concluído</td>
+            </tr>
+            <tr>
+              <td><strong>Fase 2 — Síntese &amp; Obsidian</strong></td>
+              <td>#04, #05, #06, #07</td>
+              <td>Matriz Comparativa (<code>compare_papers</code>), Insights Temáticos, Exportador Obsidian com Wikilinks e Expansão Booleana.</td>
+              <td>✅ Concluído</td>
+            </tr>
+            <tr>
+              <td><strong>Fase 3 — Extração Técnica</strong></td>
+              <td>#08, #09, #10, #11, #12, #13</td>
+              <td>Extrator de Benchmarks, Calculadora de VRAM/KV Cache, Grounding Literal, Extrator de Equações/Algoritmos, Ablações e Prompts.</td>
+              <td>✅ Concluído</td>
+            </tr>
+            <tr>
+              <td><strong>Fase 4 — Modos de Falha &amp; Diff</strong></td>
+              <td>#14, #15</td>
+              <td>Detector de Modos de Falha e Pressupostos Críticos (<code>detect_failure_modes</code>) e Diff Temporal de Versões do arXiv (<code>diff_arxiv_versions</code>).</td>
+              <td>✅ Concluído</td>
+            </tr>
+            <tr>
+              <td><strong>Fase 5 — Revisão &amp; Scaffolder</strong></td>
+              <td>#16, #17, #18, #20, #21</td>
+              <td>Comitê Peer-Review Multi-Persona, Scaffolder Poliglota (PyTorch, Statsmodels, R, Protocolo Clínico) e Motor de Hipóteses.</td>
+              <td>✅ Concluído</td>
+            </tr>
+            <tr>
+              <td><strong>Fase 6 — Copiloto de Autoria &amp; Pages</strong></td>
+              <td>#22, #23, #24, #25, #26, #27, #28</td>
+              <td>Citation Infiller, IMRaD Draft Auditor, Related Work Synthesizer, BibTeX Sanitizer, Rebuttal Copilot, Submission Gatekeeper e Portal GitHub Pages.</td>
+              <td>✅ Concluído (v2.0.0)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>
+        <strong>Noul Search Agent</strong> • Distribuído sob a Licença MIT • Parte do ecossistema <em>The AI Research Journal</em>.
+      </p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

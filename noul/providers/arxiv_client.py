@@ -536,3 +536,177 @@ def diff_snapshots(
         new_baselines_or_datasets=new_baselines,
         markdown_diff=md_diff,
     )
+
+
+_ARXIV_IN_TEXT_RE = re.compile(r"(?:arxiv[:/\s]*|10\.48550/arxiv\.)(\d{4}\.\d{4,5})(?:v\d+)?", re.I)
+_CONFERENCE_VENUE_RE = re.compile(
+    r"\b(?:neurips|neural\s+information\s+processing|icml|international\s+conference\s+on\s+machine\s+learning|"
+    r"iclr|learning\s+representations|cvpr|computer\s+vision\s+and\s+pattern\s+recognition|iccv|eccv|"
+    r"acl|emnlp|naacl|eacl|coling|aaai|ijcai|kdd|sigkdd|sigir|www|thewebconf|chi|uist|icse|fse|ase|"
+    r"osdi|sosp|nsdi|eurosys|usenix|ccs|ndss|sp|isca|micro|hpca|asplos|pldi|popl|oopsla|icde|vldb|sigmod|"
+    r"aistats|uai|colt|corl|icra|iros|rss|miccai|ismb|recomb|proceedings|conference|symposium|workshop)\b",
+    re.I,
+)
+_PREPRINT_VENUE_RE = re.compile(r"\b(?:arxiv|corr|biorxiv|medrxiv|ssrn|preprint|techrxiv|chemrxiv)\b", re.I)
+
+
+def _norm_title_key(title: str) -> str:
+    clean = re.sub(r"\\[a-zA-Z]+\b", " ", title or "")
+    clean = re.sub(r"[{}]", "", clean)
+    return re.sub(r"[^a-z0-9]+", "", clean.lower())
+
+
+def extract_arxiv_id_from_entry(entry: dict) -> Optional[str]:
+    """Extract canonical base arXiv ID (without `vN`) from a parsed BibTeX entry dict if present."""
+    fields = entry.get("fields") or entry
+    eprint = str(fields.get("eprint") or fields.get("arxiv_id") or "").strip()
+    if eprint:
+        cleaned = _clean_arxiv_token(eprint)
+        m_ver = _VER_SUFFIX_RE.match(cleaned)
+        base = m_ver.group("base") if m_ver else cleaned
+        if _ARXIV_BASE_RE.match(base):
+            return base
+    for k in ("journal", "booktitle", "note", "howpublished", "url", "doi", "eid"):
+        val = str(fields.get(k) or "")
+        m = _ARXIV_IN_TEXT_RE.search(val)
+        if m:
+            return m.group(1)
+    return None
+
+
+def is_arxiv_preprint_entry(entry: dict) -> bool:
+    """Return True when a parsed BibTeX entry represents an arXiv/CoRR preprint rather than a final publication."""
+    etype = str(entry.get("entry_type") or "").lower().strip()
+    fields = entry.get("fields") or entry
+    journal = str(fields.get("journal") or "").strip()
+    booktitle = str(fields.get("booktitle") or "").strip()
+    howpub = str(fields.get("howpublished") or "").strip()
+    archive = str(fields.get("archiveprefix") or "").strip().lower()
+    doi = str(fields.get("doi") or "").strip().lower()
+    eprint = extract_arxiv_id_from_entry(entry)
+
+    # If it already has a formal non-preprint conference or journal venue, it's not a bare preprint
+    formal_venue = booktitle or journal
+    if formal_venue and not _PREPRINT_VENUE_RE.search(formal_venue) and etype in ("inproceedings", "article"):
+        if not doi.startswith("10.48550/arxiv"):
+            return False
+
+    if etype in ("misc", "unpublished", "techreport") and (
+        eprint or archive == "arxiv" or "arxiv" in journal.lower() or "arxiv" in howpub.lower()
+    ):
+        return True
+    if _PREPRINT_VENUE_RE.search(journal) or _PREPRINT_VENUE_RE.search(booktitle) or _PREPRINT_VENUE_RE.search(howpub):
+        return True
+    if doi.startswith("10.48550/arxiv"):
+        return True
+    if eprint and not formal_venue:
+        return True
+    return False
+
+
+def is_conference_venue(venue: str) -> bool:
+    """Return True if `venue` is a conference/proceedings rather than a journal."""
+    return bool(_CONFERENCE_VENUE_RE.search(venue or ""))
+
+
+def _is_formal_published_record(rec: dict) -> bool:
+    if not isinstance(rec, dict):
+        return False
+    venue = str(rec.get("journal") or rec.get("venue") or rec.get("booktitle") or "").strip()
+    if not venue or _PREPRINT_VENUE_RE.search(venue):
+        return False
+    return True
+
+
+def resolve_published_venue_for_preprint(entry: dict) -> Optional[dict]:
+    """Check cache and public scholarly APIs (S2 / Crossref / OpenAlex) for a formal peer-reviewed version
+    of an arXiv preprint. Returns a dict with `{venue, entry_type, year, doi, authors, title, arxiv_id}` or None."""
+    core = _core()
+    fields = entry.get("fields") or entry
+    raw_title = str(fields.get("title") or "").strip()
+    norm_t = _norm_title_key(raw_title)
+    arxiv_id = extract_arxiv_id_from_entry(entry)
+
+    candidates = []
+
+    # 1. Check direct cache keys and SQLite cache for matching title or arxiv_id
+    if arxiv_id:
+        for k in (f"arxiv_pub:{arxiv_id}", f"paper:arxiv:{arxiv_id}", f"paper:{arxiv_id}"):
+            cached = core.cache_get(k)
+            if cached and _is_formal_published_record(cached):
+                candidates.append(cached)
+
+    try:
+        with core._conn() as conn:
+            rows = conn.execute("SELECT v FROM kv WHERE k LIKE 'paper:%' OR k LIKE 'arxiv_pub:%'").fetchall()
+        for (val_json,) in rows:
+            try:
+                rec = json.loads(val_json) if "json" in globals() else __import__("json").loads(val_json)
+            except Exception:
+                continue
+            if not _is_formal_published_record(rec):
+                continue
+            rec_ax = _clean_arxiv_token(str(rec.get("arxiv_id") or ""))
+            rec_ax_base = _VER_SUFFIX_RE.match(rec_ax).group("base") if _VER_SUFFIX_RE.match(rec_ax) else rec_ax
+            rec_norm_t = _norm_title_key(rec.get("title") or "")
+            if (arxiv_id and rec_ax_base and rec_ax_base.lower() == arxiv_id.lower()) or (
+                norm_t and rec_norm_t and (norm_t == rec_norm_t or difflib.SequenceMatcher(None, norm_t, rec_norm_t).ratio() >= 0.90)
+            ):
+                candidates.append(rec)
+    except Exception:
+        pass
+
+    # 2. If not found in cache, query external APIs (all guarded by try/except for offline determinism)
+    if not candidates and arxiv_id:
+        try:
+            url = (
+                f"https://api.semanticscholar.org/graph/v1/paper/ARXIV:"
+                f"{urllib.parse.quote(arxiv_id, safe='/.')}?fields={core.S2_PAPER_FIELDS}"
+            )
+            p_s2 = core._parse_s2_paper(core._http_json(url))
+            if p_s2 and _is_formal_published_record(p_s2):
+                candidates.append(p_s2)
+        except Exception:
+            pass
+
+    if not candidates and raw_title:
+        clean_q = re.sub(r"[{}]", "", raw_title).strip()
+        for search_fn in (
+            lambda q: core._search_crossref(q, limit=5),
+            lambda q: core._search_openalex(q, limit=5),
+            lambda q: core._search_s2(q, limit=5),
+        ):
+            try:
+                results = search_fn(clean_q) or []
+            except Exception:
+                results = []
+            for r in results:
+                if not _is_formal_published_record(r):
+                    continue
+                r_norm = _norm_title_key(r.get("title") or "")
+                if norm_t and r_norm and (
+                    norm_t == r_norm or difflib.SequenceMatcher(None, norm_t, r_norm).ratio() >= 0.88
+                ):
+                    candidates.append(r)
+            if candidates:
+                break
+
+    if not candidates:
+        return None
+
+    best = candidates[0]
+    venue = str(best.get("journal") or best.get("venue") or best.get("booktitle") or "").strip()
+    is_conf = is_conference_venue(venue)
+    doi = core._norm_doi(best.get("doi"))
+    if doi and doi.startswith("10.48550/arxiv"):
+        doi = None
+    return {
+        "venue": venue,
+        "entry_type": "inproceedings" if is_conf else "article",
+        "year": best.get("year") or fields.get("year"),
+        "doi": doi,
+        "authors": best.get("authors") or [],
+        "title": best.get("title") or raw_title,
+        "arxiv_id": arxiv_id or best.get("arxiv_id"),
+    }
+

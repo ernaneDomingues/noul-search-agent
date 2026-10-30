@@ -318,6 +318,42 @@ def scaffold_paper_code(paper_id, target_language=None, domain=None):
         paper_id, target_language=target_language, domain=domain)
 
 
+def recommend_citations(draft_text, max_per_claim=2, citation_style="latex"):
+    return _phase1("noul.tools.authoring_tools").recommend_citations(
+        draft_text, max_per_claim=max_per_claim, citation_style=citation_style)
+
+
+def synthesize_related_work(paper_ids, proposal, citation_style="latex", output_format="markdown"):
+    return _phase1("noul.tools.authoring_tools").synthesize_related_work(
+        paper_ids, proposal=proposal, citation_style=citation_style, output_format=output_format)
+
+
+def generate_manuscript_blueprint(topic, venue="neurips", hypothesis="", key_findings=None, output_format="markdown"):
+    return _phase1("noul.tools.authoring_tools").generate_manuscript_blueprint(
+        topic, venue=venue, hypothesis=hypothesis, key_findings=key_findings, output_format=output_format)
+
+
+def audit_manuscript_draft(draft_input, venue="neurips", output_format="markdown"):
+    return _phase1("noul.tools.authoring_tools").audit_manuscript_draft(
+        draft_input, venue=venue, output_format=output_format)
+
+
+def sanitize_bibtex(bibtex_input, update_preprints=True, output_path=None):
+    return _phase1("noul.tools.authoring_tools").sanitize_bibtex(
+        bibtex_input, update_preprints=bool(update_preprints), output_path=output_path)
+
+
+def parse_and_draft_rebuttal(reviews_input, paper_id=None, draft_input=None, output_format="markdown"):
+    return _phase1("noul.tools.authoring_tools").parse_and_draft_rebuttal(
+        reviews_input, paper_id=paper_id, draft_input=draft_input, output_format=output_format)
+
+
+def audit_submission_readiness(draft_path, venue="neurips"):
+    return _phase1("noul.tools.gatekeeper_tools").audit_submission_readiness(
+        draft_path, venue=venue)
+
+
+
 
 
 def get_fulltext(id, question=""):
@@ -896,6 +932,98 @@ TOOLS = {
         {"paper_id": S, "target_language": S, "domain": _DOMAIN},
         ["paper_id"],
         scaffold_paper_code,
+    ),
+    "recommend_citations": (
+        "Contextual citation recommender & infiller (#22): scans a draft paragraph or file (.md/.tex) for explicit "
+        "`[CITATION NEEDED]` / `\\cite{?}` markers and unsubstantiated empirical claims, retrieves 2-3 supporting "
+        "papers per claim with explicit Portuguese justifications ('Este artigo de X et al. (Ano) comprova essa "
+        "afirmação...'), inserts inline LaTeX or Markdown citations, and generates a deduplicated BibTeX block.",
+        {
+            "draft_text": S,
+            "max_per_claim": {"type": "integer", "default": 2, "minimum": 1, "maximum": 5},
+            "citation_style": {"type": "string", "enum": ["latex", "markdown"], "default": "latex"},
+        },
+        ["draft_text"],
+        recommend_citations,
+    ),
+    "synthesize_related_work": (
+        "Narrative Related Work synthesizer (#24): clusters 1-20 papers into thematic approach families "
+        "(Architectural & Representation Foundations, Training/Optimization/Causal Identification, Efficiency/Scaling/"
+        "Empirical Evaluation), writes comparative academic prose (While X..., Y..., whereas Z... — never isolated "
+        "per-author lists), positions the user's `proposal` against the collective gap, and exports Markdown or "
+        "`\\section{Related Work}` LaTeX plus BibTeX.",
+        {
+            "paper_ids": {"type": "array", "items": S},
+            "proposal": S,
+            "citation_style": {"type": "string", "enum": ["latex", "numeric"], "default": "latex"},
+            "output_format": {"type": "string", "enum": ["markdown", "latex"], "default": "markdown"},
+        },
+        ["paper_ids", "proposal"],
+        synthesize_related_work,
+    ),
+    "generate_manuscript_blueprint": (
+        "IMRaD manuscript blueprint generator (#23 Mode 1): generates a venue-adapted (neurips, icml, iclr, acl, "
+        "ieee, nature, lancet, aer, general) structural template with paragraph-by-paragraph writing guidance and "
+        "required elements in Markdown or LaTeX.",
+        {
+            "topic": S,
+            "venue": {"type": "string", "default": "neurips"},
+            "hypothesis": S,
+            "key_findings": {"type": "array", "items": S},
+            "output_format": {"type": "string", "enum": ["markdown", "latex"], "default": "markdown"},
+        },
+        ["topic"],
+        generate_manuscript_blueprint,
+    ),
+    "audit_manuscript_draft": (
+        "Draft manuscript auditor (#23 Mode 2): audits a draft (.md/.tex in workspace or inline text) for weak or "
+        "unsubstantiated claims, mathematical/terminological inconsistencies ($L$ vs $\\mathcal{L}$), and "
+        "reproducibility omissions (seeds, hyperparameters, sample size N, error bars, compute hardware).",
+        {
+            "draft_input": S,
+            "venue": {"type": "string", "default": "neurips"},
+            "output_format": {"type": "string", "enum": ["markdown", "latex"], "default": "markdown"},
+        },
+        ["draft_input"],
+        audit_manuscript_draft,
+    ),
+    "sanitize_bibtex": (
+        "BibTeX sanitizer & preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR "
+        "preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) "
+        "venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX "
+        "(`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`).",
+        {
+            "bibtex_input": S,
+            "update_preprints": {"type": "boolean", "default": True},
+            "output_path": S,
+        },
+        ["bibtex_input"],
+        sanitize_bibtex,
+    ),
+    "parse_and_draft_rebuttal": (
+        "Peer-review Rebuttal Copilot (#26): segments raw reviewer comments (`Reviewer 1`, `Reviewer 2`, ...) into "
+        "numbered actionable points, classifies each objection, flags requests requiring new experiments "
+        "(`requires_new_experiment=True`), and generates polite, evidence-backed Author Rebuttals in Markdown and LaTeX.",
+        {
+            "reviews_input": S,
+            "paper_id": S,
+            "draft_input": S,
+            "output_format": {"type": "string", "enum": ["markdown", "latex"], "default": "markdown"},
+        },
+        ["reviews_input"],
+        parse_and_draft_rebuttal,
+    ),
+    "audit_submission_readiness": (
+        "Pre-Submission & Desk-Reject Gatekeeper (#27): runs a 4-stage audit on a `.tex`, `.md`, or `.pdf` manuscript "
+        "for the target `venue` — (1) Double-Blind Anonymity Audit (non-anonymous GitHub/HF URLs, `\\author` blocks, "
+        "PDF metadata, first-person self-citations), (2) Venue Checklist Engine, (3) Overclaiming Scanner, and "
+        "(4) Mandatory Sections Check — returning a `readiness_score` (0-100) and `desk_reject_risk`.",
+        {
+            "draft_path": S,
+            "venue": {"type": "string", "default": "neurips"},
+        },
+        ["draft_path"],
+        audit_submission_readiness,
     ),
     "get_fulltext": (
         "Fetch open-access full text (via OpenAlex, EuropePMC, arXiv, Unpaywall) and return excerpts relevant to `question`.",

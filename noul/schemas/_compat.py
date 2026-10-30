@@ -329,7 +329,11 @@ else:
     HttpUrl = FallbackHttpUrl
     ValidationError = FallbackValidationError
 
+_Model = BaseModel
+_field = Field
+
 __all__ = [
     "BaseModel", "Field", "HttpUrl", "ValidationError", "PYDANTIC_AVAILABLE",
     "FallbackBaseModel", "FallbackField", "FallbackHttpUrl", "FallbackValidationError", "FieldInfo",
+    "_Model", "_field",
 ]
