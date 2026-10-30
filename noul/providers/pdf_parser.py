@@ -14,7 +14,8 @@ _SECTION = re.compile(
     r"^[ \t]*(?:#{1,4}[ \t]+(?P<md>[^\n]{2,80})|\\(?:sub)*section\*?\{(?P<tex>[^}\n]{2,80})\}|"
     r"(?P<num>\d{1,2}(?:\.\d{1,2}){0,2}\.?[ \t]+[A-Z][A-Za-z][^\n]{0,60})|"
     r"(?P<named>Abstract|Introduction|Related Work|Background|Methods?|Methodology|Experiments?|"
-    r"Experimental Setup|Results?|Evaluation|Ablation(?: Study| Studies)?|Discussion|Limitations|Conclusions?|"
+    r"Experimental Setup|Results?|Evaluation|Ablation(?: Study| Studies)?|Discussion|Limitations|"
+    r"Error Analysis|Failure Cases|Threats to Validity|Broader Impacts?|Conclusions?|"
     r"References|Appendix(?: [A-Z])?)[ \t]*:?)[ \t]*$", re.M)
 
 

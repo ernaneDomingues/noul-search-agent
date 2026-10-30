@@ -1462,3 +1462,303 @@ def extract_prompts_and_decoding(paper_id):
     result.update({"title": corpus["title"], "source": corpus["source"], "variables": variables,
                    "hyperparameter_evidence": evidence, "warnings": warnings})
     return result
+
+
+# --------------------------------------------------------------------------- #14 failure modes & critical assumptions
+
+_PRIORITY_SECTIONS = re.compile(
+    r"limitation|error\s+analysis|failure|discussion|threat|validity|broader\s+impact|appendix|weakness|caveat", re.I)
+
+_ABBR_DOT = re.compile(r"\b(?:i\.i\.d|e\.g|i\.e|et\s+al|vs|cf|fig|tab|eq|sec|dr|mr|prof|no|vol|pp|approx)\.", re.I)
+
+_FAILURE_CATEGORIES = (
+    ("long_context", re.compile(
+        r"\b(?:long[-\s]context|sequence\s+length|context\s+window|context\s+length|lost\s+in\s+the\s+middle|"
+        r"quadratic\s+complexity|memory\s+overflow|out[-\s]of[-\s]memory|\bOOM\b|long\s+sequences|long\s+inputs)\b|"
+        r"\bO\(\s*[nNlL]\s*(?:\^\s*2|²)\s*\)|>\s*(?:8|16|32|64|128)\s*k\b", re.I)),
+    ("noise_sensitivity", re.compile(
+        r"\b(?:noisy|noise|perturbations?|adversarial|corrupted|missing\s+data|prompt\s+sensitivity|"
+        r"sensitive\s+to\s+prompts?|brittle|outliers?|malformed\s+prompts?|typos?)\b", re.I)),
+    ("out_of_distribution", re.compile(
+        r"\b(?:out[-\s]of[-\s]distribution|\bOOD\b|domain\s+shift|distribution\s+shift|covariate\s+shift|"
+        r"generaliz(?:e|es|ing|ation)\s+to|unseen\s+domains?|cross[-\s]lingual|external\s+validity|"
+        r"non[-\s]english|low[-\s]resource\s+languages?)\b", re.I)),
+    ("latency_or_compute", re.compile(
+        r"\b(?:latency|slow(?:er)?|computational\s+cost|compute\s+cost|overhead|inference\s+time|"
+        r"inference\s+cost|memory\s+footprint|bottleneck|multi[-\s]step|multiple\s+inference\s+calls|"
+        r"low\s+throughput|high\s+vram|energy\s+consumption)\b", re.I)),
+    ("sample_or_population_bias", re.compile(
+        r"\b(?:small\s+sample|single[-\s]center|retrospective|selection\s+bias|attrition|"
+        r"short\s+follow[-\s]up|in\s+vitro|animal\s+models?|mice|murine|pre[-\s]?clinical|"
+        r"convenience\s+sample|small\s+cohort)\b", re.I)),
+)
+
+_GENERAL_LIMITATION = re.compile(
+    r"\b(?:limitations?|drawbacks?|weakness(?:es)?|fails?\s+(?:when|to|on|under|if)|"
+    r"struggles?\s+(?:with|to|on|when)|does\s+not\s+support|cannot\s+handle|unable\s+to|"
+    r"degrades?\s+(?:when|on|under|rapidly|significantly)|shortcomings?|caveats?)\b", re.I)
+
+_SEVERITY_HIGH = re.compile(
+    r"\b(?:fails?|collapses?|severe(?:ly)?|prohibitive(?:ly)?|critical(?:ly)?|cannot|can't|"
+    r"only\s+in\s+vitro|catastrophic(?:ally)?|drastic(?:ally)?|unusable)\b", re.I)
+_SEVERITY_LOW = re.compile(
+    r"\b(?:minor|slight(?:ly)?|marginal(?:ly)?|negligible|modest(?:ly)?)\b", re.I)
+
+_TRIGGER_CLAUSE = re.compile(
+    r"(?:\b(?:when|if|under|beyond|above|over|for\s+inputs?|for\s+sequences?|in\s+the\s+presence\s+of|"
+    r"on\s+unseen|with\s+noisy|at\s+sequence\s+lengths?)\s+[^.;,\n]{3,90}|"
+    r">\s*\d+\s*[kKmM]?(?:\s*tokens?)?|\bO\(\s*[nNlL]\s*(?:\^\s*2|²)\s*\))", re.I)
+
+_ASSUMPTION_RE = re.compile(
+    r"\b(?:assum(?:e|es|ed|ing|ption|ptions)|requires?\s+that|under\s+the\s+(?:condition|assumption)|"
+    r"provided\s+that|i\.?i\.?d\.?|independent\s+and\s+identically\s+distributed|stationar(?:y|ity)|"
+    r"parallel\s+trends?|exogen(?:eity|ous)|no\s+unmeasured\s+confound(?:ing|ers?)|"
+    r"oracle(?:\s+[a-z]+)?|clean\s+labels?)\b", re.I)
+
+_BASELINE_SUPERIORITY_RE = re.compile(
+    r"\b(?:outperformed\s+by|baseline\s+outperforms?|outperforms?\s+(?:our|the\s+proposed)|"
+    r"underperforms?|worse\s+than|classical\s+(?:methods?|models?|baselines?)|simple\s+baselines?|"
+    r"linear\s+models?|BM25|logistic\s+regression|in\s+low[-\s]data|on\s+small\s+datasets?|"
+    r"when\s+N\s+is\s+small)\b", re.I)
+
+_OURS_ROW_RE = re.compile(
+    r"\b(?:ours|our\s+(?:model|method|approach|system|framework)|proposed(?:\s+method|\s+model)?|full\s+model)\b", re.I)
+
+
+def _prose_sentences(text, sections, table_spans=()):
+    """Yield `(is_priority, section_title, sentence_text)` preserving document order inside each priority tier."""
+    protected = _ABBR_DOT.sub(lambda m: m.group(0).replace(".", "prd"), text or "")
+    items = []
+    for m in _SENTENCE.finditer(protected):
+        if any(s <= m.start() < e for s, e in table_spans):
+            continue
+        raw = m.group(0).replace("prd", ".")
+        quote = re.sub(r"\s+", " ", raw).strip()
+        if len(quote) < 12 or not re.search(r"[A-Za-z]{3,}", quote):
+            continue
+        if re.match(r"^(?:#{1,4}\s+|(?:Table|Tabela|Fig(?:ure|\.)|Section)\s+\d+\s*[:.]?$)", quote, re.I):
+            continue
+        sec = pdf_parser.section_at(sections, m.start()) or ""
+        is_prio = bool(_PRIORITY_SECTIONS.search(sec))
+        items.append((0 if is_prio else 1, m.start(), sec, quote))
+    items.sort(key=lambda x: (x[0], x[1]))
+    return items
+
+
+def _severity_for(sentence):
+    if _SEVERITY_HIGH.search(sentence):
+        return "high"
+    if _SEVERITY_LOW.search(sentence):
+        return "low"
+    return "medium"
+
+
+def _trigger_for(sentence, match_text):
+    m = _TRIGGER_CLAUSE.search(sentence)
+    if m:
+        return re.sub(r"\s+", " ", m.group(0)).strip(" ,;.")
+    return re.sub(r"\s+", " ", match_text).strip()
+
+
+def _extract_operational_limits(text):
+    limits = {}
+    ctx_patterns = (
+        re.compile(r"(?:context\s+(?:window|length)|sequence\s+length|max(?:imum)?\s+(?:context|sequence|input)"
+                   r"(?:\s+(?:length|window|tokens?))?|beyond|exceeds?|>|>=)\s*(?:of\s*|[:=]\s*)?"
+                   r"(?P<num>\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(?P<unit>[kKmM])?\s*(?:tokens?\b|context\b)?", re.I),
+        re.compile(r"\b(?P<num>\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(?P<unit>[kK])\s*tokens?\b", re.I),
+        re.compile(r">\s*(?P<num>\d+(?:\.\d+)?)\s*(?P<unit>[kK])\b", re.I),
+    )
+    for rx in ctx_patterns:
+        for m in rx.finditer(text or ""):
+            raw_n = float(m.group("num").replace(",", ""))
+            unit = (m.group("unit") or "").lower()
+            val = int(raw_n * (1000 if unit == "k" else 1_000_000 if unit == "m" else 1))
+            if 128 <= val <= 10_000_000:
+                limits["max_context_tokens"] = val
+                break
+        if "max_context_tokens" in limits:
+            break
+
+    m_samp = re.search(
+        r"\b(?:min(?:imum)?\s+sample(?:\s+size)?(?:\s+of)?|sample\s+size(?:\s+of)?|\b[nN]\s*=\s*|cohort\s+of\s+)"
+        r"(\d{1,3}(?:,\d{3})+|\d+)\s*(?:patients?|participants?|subjects?|samples?|examples?|instances?|individuals?)?\b",
+        text or "", re.I)
+    if m_samp:
+        n_val = int(m_samp.group(1).replace(",", ""))
+        if 1 <= n_val <= 10_000_000:
+            limits["min_sample_size"] = n_val
+
+    m_lat = re.search(
+        r"(?:latency(?:\s+of|\s*[:=])?\s*(?P<v1>\d+(?:\.\d+)?)\s*(?P<u1>ms|milliseconds?|s|seconds?)\b|"
+        r"\b(?P<v2>\d+(?:\.\d+)?)\s*(?P<u2>ms|milliseconds?)\s+(?:latency|per\s+(?:token|query|step|request)))",
+        text or "", re.I)
+    if m_lat:
+        v = float(m_lat.group("v1") or m_lat.group("v2"))
+        u = (m_lat.group("u1") or m_lat.group("u2") or "ms").lower()
+        ms = v * 1000.0 if u.startswith("s") else v
+        limits["max_latency_ms"] = int(ms) if ms.is_integer() else round(ms, 2)
+
+    langs = []
+    for lang in ("English", "Chinese", "Spanish", "Portuguese", "French", "German", "Japanese", "Arabic"):
+        if re.search(rf"\b{lang}(?:[-\s]only)?\b", text or "", re.I):
+            if lang not in langs:
+                langs.append(lang)
+    if langs:
+        limits["supported_languages"] = langs
+    return limits
+
+
+def _table_baseline_superiority(paper_id, corpus, inspect_fulltext=True):
+    """Inspect benchmark tables for metrics where a non-ablation baseline outperforms 'Ours'/proposed row."""
+    scenarios = []
+    tables = parse_benchmark_tables(corpus["text"], corpus["pages"], corpus["captions"])
+    if inspect_fulltext:
+        try:
+            ext = extract_benchmark_tables(paper_id)
+            if ext and ext.get("tables"):
+                tables = ext["tables"]
+        except Exception:
+            pass
+    title_words = {w.lower() for w in re.findall(r"[A-Za-z][A-Za-z0-9\-]{2,}", corpus.get("title") or "")
+                   if w.lower() not in _STOP}
+    for tb in tables:
+        if tb.get("table_id") == "inline_metrics" or tb.get("format") == "inline":
+            continue
+        metrics_map = tb.get("normalized_metrics") or {}
+        if len(metrics_map) < 2:
+            continue
+        labels = list(metrics_map.keys())
+        ours_label = next((lbl for lbl in labels if _OURS_ROW_RE.search(lbl) and not _ABL_VARIANT.search(lbl)), None)
+        if ours_label is None and title_words:
+            ours_label = next(
+                (lbl for lbl in labels
+                 if any(w in lbl.lower() for w in title_words) and not _ABL_VARIANT.search(lbl)
+                 and not _ABL_BASE.search(lbl)),
+                None,
+            )
+        if not ours_label:
+            continue
+        ours_vals = metrics_map.get(ours_label) or {}
+        tb_label = tb.get("label") or tb.get("table_id") or "Table"
+        for other_label, other_vals in metrics_map.items():
+            if other_label == ours_label or _ABL_VARIANT.search(other_label):
+                continue
+            for metric, ours_v in ours_vals.items():
+                other_v = other_vals.get(metric)
+                if not (_is_number(ours_v) and _is_number(other_v)):
+                    continue
+                lower_better = metric in LOWER_IS_BETTER
+                if (not lower_better and other_v > ours_v) or (lower_better and other_v < ours_v):
+                    msg = (f"{tb_label} ({metric}): baseline '{other_label}' ({other_v}) outperforms "
+                           f"'{ours_label}' ({ours_v}).")
+                    if msg not in scenarios:
+                        scenarios.append(msg)
+    return scenarios
+
+
+def detect_failure_modes(paper_id: str, inspect_fulltext: bool = True) -> dict:
+    """Detect categorized failure modes, critical assumptions, baseline superiority scenarios and operational limits."""
+    from noul.schemas.technical import FailureModeEntry, FailureModesReport
+
+    pid = _paper_id(paper_id)
+    core = _core()
+    if inspect_fulltext:
+        corpus = pdf_parser.get_paper_corpus(pid)
+        p = corpus.get("paper") or core.resolve_paper(pid)
+        full_t = corpus.get("text") or ""
+        abs_t = p.get("abstract") or ""
+        if abs_t and abs_t not in full_t:
+            combined = f"{p.get('title') or ''}\n\n{abs_t}\n\n{full_t}".strip()
+            corpus = pdf_parser.build_corpus(combined, paper=p, source=corpus.get("source") or "fulltext")
+    else:
+        p = core.resolve_paper(pid)
+        text = "\n\n".join(x for x in (p.get("title") or "", p.get("abstract") or "") if x)
+        corpus = pdf_parser.build_corpus(text, paper=p, source="abstract")
+
+    domain = p.get("domain")
+    if not domain:
+        try:
+            from noul.providers import domain_classifier
+
+            domain = domain_classifier.resolve_domain(paper=p).value
+        except Exception:
+            domain = "general_stem"
+
+    text = corpus["text"]
+    raw_tables = parse_benchmark_tables(text, corpus["pages"], corpus["captions"])
+    table_spans = [tb["_span"] for tb in raw_tables if tb.get("_span") and tb.get("format") != "inline"]
+    sentences = _prose_sentences(text, corpus["sections"], table_spans=table_spans)
+
+    failure_modes = []
+    seen_cat_quote = set()
+    assumptions = []
+    baseline_scenarios = []
+
+    for _, _, sec, sent in sentences:
+        matched_specific = False
+        for category, rx in _FAILURE_CATEGORIES:
+            m = rx.search(sent)
+            if m:
+                matched_specific = True
+                key = (category, sent)
+                if key not in seen_cat_quote:
+                    seen_cat_quote.add(key)
+                    failure_modes.append(FailureModeEntry(
+                        category=category,
+                        severity=_severity_for(sent),
+                        description=sent,
+                        trigger_condition=_trigger_for(sent, m.group(0)),
+                        evidence_quote=sent,
+                    ))
+        if not matched_specific:
+            m_gen = _GENERAL_LIMITATION.search(sent)
+            if m_gen:
+                key = ("general_limitation", sent)
+                if key not in seen_cat_quote:
+                    seen_cat_quote.add(key)
+                    failure_modes.append(FailureModeEntry(
+                        category="general_limitation",
+                        severity=_severity_for(sent),
+                        description=sent,
+                        trigger_condition=_trigger_for(sent, m_gen.group(0)),
+                        evidence_quote=sent,
+                    ))
+
+        if _ASSUMPTION_RE.search(sent) and sent not in assumptions:
+            assumptions.append(sent)
+
+        if _BASELINE_SUPERIORITY_RE.search(sent) and sent not in baseline_scenarios:
+            baseline_scenarios.append(sent)
+
+    for tbl_scenario in _table_baseline_superiority(pid, corpus, inspect_fulltext=inspect_fulltext):
+        if tbl_scenario not in baseline_scenarios:
+            baseline_scenarios.append(tbl_scenario)
+
+    op_limits = _extract_operational_limits(text)
+
+    report = FailureModesReport(
+        paper_id=corpus["paper_id"] or p.get("id") or pid,
+        title=corpus["title"] or p.get("title") or "",
+        domain=domain or "general_stem",
+        failure_modes=failure_modes,
+        critical_assumptions=assumptions,
+        baseline_superiority_scenarios=baseline_scenarios,
+        operational_limits=op_limits,
+    )
+    return report.model_dump(mode="json")
+
+
+# --------------------------------------------------------------------------- #15 arXiv version diff
+
+def diff_arxiv_versions(arxiv_id: str, from_version: str = "v1", to_version: str = "v2") -> dict:
+    """Compare two versions of an arXiv paper (metadata, metrics, claim attenuations, new baselines/datasets)."""
+    from noul.providers import arxiv_client
+
+    base_id, v_old, v_new = arxiv_client.parse_arxiv_version_args(
+        arxiv_id, from_version=from_version, to_version=to_version
+    )
+    snap_old = arxiv_client.fetch_version_snapshot(base_id, v_old)
+    snap_new = arxiv_client.fetch_version_snapshot(base_id, v_new)
+    report = arxiv_client.diff_snapshots(base_id, v_old, snap_old, v_new, snap_new)
+    return report.model_dump(mode="json")

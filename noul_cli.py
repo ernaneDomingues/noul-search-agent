@@ -262,6 +262,37 @@ def _format_pretty_prompts(res):
     return "\n".join(lines)
 
 
+def _format_pretty_failures(res):
+    lines = [
+        f"# Failure modes & critical assumptions: {res.get('title') or res['paper_id']}",
+        f"Domain: `{res.get('domain', 'general_stem')}`",
+        "",
+        "## Failure Modes",
+    ]
+    for fm in res.get("failure_modes") or []:
+        lines.append(
+            f"- **[{fm['category']}]** (severity: `{fm['severity']}`) — {fm['description']}"
+            + (f" _(trigger: {fm['trigger_condition']})_" if fm.get("trigger_condition") else "")
+        )
+    if not res.get("failure_modes"):
+        lines.append("- None detected.")
+    lines += ["", "## Critical Assumptions"]
+    for a in res.get("critical_assumptions") or []:
+        lines.append(f"- {a}")
+    if not res.get("critical_assumptions"):
+        lines.append("- None detected.")
+    lines += ["", "## Baseline Superiority Scenarios"]
+    for b in res.get("baseline_superiority_scenarios") or []:
+        lines.append(f"- {b}")
+    if not res.get("baseline_superiority_scenarios"):
+        lines.append("- None detected.")
+    if res.get("operational_limits"):
+        lines += ["", "## Operational Limits"]
+        for k, v in res["operational_limits"].items():
+            lines.append(f"- `{k}`: {v}")
+    return "\n".join(lines)
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
     if argv and argv[0] == "mcp":
@@ -355,6 +386,15 @@ def main(argv=None):
     pr_p = sub.add_parser("prompts", help="Extract prompt templates, decoding hyperparameters and JSON schemas")
     pr_p.add_argument("id")
     pr_p.add_argument("--pretty", action="store_true")
+    fm_p = sub.add_parser("failures", help="Detect failure modes, critical assumptions and baseline superiority scenarios")
+    fm_p.add_argument("id")
+    fm_p.add_argument("--no-fulltext", action="store_true", help="analyse title/abstract only")
+    fm_p.add_argument("--pretty", action="store_true")
+    df_p = sub.add_parser("diff", help="Compare two arXiv revisions (e.g. v1 vs v2)")
+    df_p.add_argument("arxiv_id")
+    df_p.add_argument("--from", dest="from_version", default="v1", help="source version (default: v1)")
+    df_p.add_argument("--to", dest="to_version", default="v2", help="target version (default: v2)")
+    df_p.add_argument("--pretty", action="store_true")
 
     for n in ("paper", "graph", "fulltext", "domain"):
         x = sub.add_parser(n)
@@ -519,6 +559,16 @@ def main(argv=None):
             out = t.extract_prompts_and_decoding(a.id)
             if a.pretty:
                 print(_format_pretty_prompts(out))
+                return 0
+        elif a.cmd == "failures":
+            out = t.detect_failure_modes(a.id, inspect_fulltext=not a.no_fulltext)
+            if a.pretty:
+                print(_format_pretty_failures(out))
+                return 0
+        elif a.cmd == "diff":
+            out = t.diff_arxiv_versions(a.arxiv_id, from_version=a.from_version, to_version=a.to_version)
+            if a.pretty:
+                print(out["markdown_diff"])
                 return 0
         elif a.cmd == "artifacts":
             out = t.scan_paper_artifacts(a.id, verify_http=not a.no_verify, inspect_fulltext=a.fulltext)

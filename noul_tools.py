@@ -282,6 +282,16 @@ def extract_prompts_and_decoding(paper_id):
     return _phase1("noul.tools.technical_tools").extract_prompts_and_decoding(paper_id)
 
 
+def detect_failure_modes(paper_id, inspect_fulltext=True):
+    return _phase1("noul.tools.technical_tools").detect_failure_modes(
+        paper_id, inspect_fulltext=bool(inspect_fulltext))
+
+
+def diff_arxiv_versions(arxiv_id, from_version="v1", to_version="v2"):
+    return _phase1("noul.tools.technical_tools").diff_arxiv_versions(
+        arxiv_id, from_version=from_version, to_version=to_version)
+
+
 def get_fulltext(id, question=""):
     p = _resolve(id)
     pid = p["id"]
@@ -797,6 +807,26 @@ TOOLS = {
         {"paper_id": S},
         ["paper_id"],
         extract_prompts_and_decoding,
+    ),
+    "detect_failure_modes": (
+        "Failure mode & critical assumption detector: scans Limitations, Error Analysis, Failure Cases, Discussion, "
+        "Threats to Validity and Appendix (plus abstract/body) to classify failure modes into long_context, "
+        "noise_sensitivity, out_of_distribution, latency_or_compute, sample_or_population_bias and general_limitation "
+        "(with severity high/medium/low), extracts critical_assumptions, identifies baseline_superiority_scenarios "
+        "(both from text and from benchmark tables where a baseline beats Ours), and extracts operational_limits.",
+        {"paper_id": S, "inspect_fulltext": {"type": "boolean", "default": True}},
+        ["paper_id"],
+        detect_failure_modes,
+    ),
+    "diff_arxiv_versions": (
+        "arXiv temporal version diff analyzer: fetches and compares two revisions of an arXiv preprint (e.g. v1 vs v2), "
+        "tracking title and authorship changes, metric and table number deltas (`metric_deltas`), claim attenuations or "
+        "strengthenings (`claim_shifts`), newly added baselines or datasets (`new_baselines_or_datasets`) and a "
+        "structured `markdown_diff` report.",
+        {"arxiv_id": S, "from_version": {"type": "string", "default": "v1"},
+         "to_version": {"type": "string", "default": "v2"}},
+        ["arxiv_id"],
+        diff_arxiv_versions,
     ),
     "get_fulltext": (
         "Fetch open-access full text (via OpenAlex, EuropePMC, arXiv, Unpaywall) and return excerpts relevant to `question`.",
