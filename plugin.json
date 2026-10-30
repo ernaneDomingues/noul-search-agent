@@ -1,13 +1,13 @@
 {
   "name": "noul-search-agent",
   "displayName": "Noul Search",
-  "version": "1.1.0",
-  "description": "Scientific literature search across all disciplines with study-design evidence levels, scientific-domain detection, open-artifact radar (code, weights, datasets), influential citation graphs, scope clarification, a deterministic Evidence Meter, Open Access PDF download and research dossiers.",
+  "version": "1.0.0",
+  "description": "Autonomous Scientific Research & Document Intelligence Agent across CS/AI, Biomedical, Economics & STEM: 6-source literature search, Evidence Meter, artifact radar, benchmark/VRAM/math/ablation/prompt extraction, arXiv version diffs, multi-persona peer review, polyglot code/protocol scaffolding, academic authoring copilot, BibTeX sanitizer, rebuttal copilot and pre-submission desk-reject gatekeeper.",
   "author": {
     "name": "Ernane Domingues",
     "url": "https://github.com/ernaneDomingues"
   },
-  "homepage": "https://github.com/ernaneDomingues/noul-search-agent",
+  "homepage": "https://ernanedomingues.github.io/noul-search-agent/",
   "repository": "https://github.com/ernaneDomingues/noul-search-agent",
   "license": "Apache-2.0",
   "keywords": ["research", "scientific-literature", "evidence", "pubmed", "openalex", "arxiv", "mcp"],

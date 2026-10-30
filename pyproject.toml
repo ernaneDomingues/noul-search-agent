@@ -4,16 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "noul-search-agent"
-version = "1.1.0"
-description = "Scientific literature search agent (MCP server, CLI, skill and subagent) with study-design evidence levels, a deterministic Evidence Meter, Open Access PDF download and research dossiers. Zero dependencies."
+version = "1.0.0"
+description = "Autonomous Scientific Research & Document Intelligence Agent (Co-Scientist): MCP server, CLI, skill and subagent across CS/AI, Biomedical, Economics & STEM with deterministic Evidence Meter, benchmark/math/hardware/ablation extraction, multi-persona peer review, polyglot code/protocol scaffolding, academic authoring copilot, BibTeX sanitizer, rebuttal copilot and pre-submission desk-reject gatekeeper. Zero mandatory dependencies."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "Ernane Domingues" }]
-keywords = ["mcp", "model-context-protocol", "scientific-literature", "evidence", "openalex", "pubmed", "semantic-scholar", "europe-pmc", "claude", "copilot", "codex", "gemini"]
+keywords = ["mcp", "model-context-protocol", "scientific-literature", "co-scientist", "peer-review", "evidence", "openalex", "pubmed", "semantic-scholar", "europe-pmc", "arxiv", "claude", "copilot", "codex", "gemini"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Developers",
@@ -30,7 +30,8 @@ pdf = ["pypdf>=4.0"]
 pro = ["mcp>=1.6.0", "pydantic>=2.7.0", "httpx>=0.27.0", "typer>=0.12.0", "rich>=13.7.0", "pypdf>=4.0.0"]
 
 [project.urls]
-Homepage = "https://github.com/ernaneDomingues/noul-search-agent"
+Homepage = "https://ernanedomingues.github.io/noul-search-agent/"
+Documentation = "https://ernanedomingues.github.io/noul-search-agent/"
 Repository = "https://github.com/ernaneDomingues/noul-search-agent"
 Issues = "https://github.com/ernaneDomingues/noul-search-agent/issues"
 

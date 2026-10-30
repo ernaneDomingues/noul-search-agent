@@ -21,7 +21,7 @@ import xml.etree.ElementTree as ET
 from contextlib import contextmanager
 from pathlib import Path
 
-__version__ = "1.1.0"
+__version__ = "1.0.0"
 
 EV_W = {
     "meta-analysis": 1.0,

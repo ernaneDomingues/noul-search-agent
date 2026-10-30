@@ -1,10 +1,10 @@
 {
   "name": "noul-search-agent",
-  "version": "1.1.0",
-  "description": "Scientific literature search agent (MCP server, CLI, skill and subagent) with evidence levels and a deterministic Evidence Meter. Runs on the system Python (>= 3.10), zero dependencies.",
+  "version": "1.0.0",
+  "description": "Autonomous Scientific Research & Document Intelligence Agent (MCP server, CLI, skill and subagent) across CS/AI, Biomedical, Economics & STEM with Evidence Meter, technical extraction, multi-persona peer review, polyglot code/protocol scaffolding, academic authoring copilot and pre-submission gatekeeper. Zero dependencies.",
   "license": "Apache-2.0",
   "author": "Ernane Domingues",
-  "homepage": "https://github.com/ernaneDomingues/noul-search-agent#readme",
+  "homepage": "https://ernanedomingues.github.io/noul-search-agent/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ernaneDomingues/noul-search-agent.git"

@@ -1,7 +1,7 @@
 {
   "name": "noul",
-  "version": "1.1.0",
-  "description": "Noul Search: multi-disciplinary scientific literature search with evidence levels, Evidence Meter (Noul Meter), cited synthesis, related/cited paper discovery, and Open Access PDF downloads.",
+  "version": "1.0.0",
+  "description": "Noul Search: autonomous multi-disciplinary scientific research & document intelligence agent with 41 MCP tools (literature search, Evidence Meter, benchmark/VRAM/math/ablation extraction, multi-persona peer review, polyglot scaffolding, academic authoring and desk-reject gatekeeper).",
   "contextFileName": "GEMINI.md",
   "mcpServers": {
     "noul": {

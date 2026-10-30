@@ -1,13 +1,13 @@
 {
   "name": "noul-search-agent",
   "displayName": "Noul Search",
-  "version": "1.1.0",
-  "description": "Scientific literature search across all disciplines with study-design evidence levels, a deterministic Evidence Meter (Noul Meter), cited synthesis, related/cited paper discovery, Open Access PDF download and research dossiers.",
+  "version": "1.0.0",
+  "description": "Autonomous Scientific Research & Document Intelligence Agent across CS/AI, Biomedical, Economics & STEM: 41 MCP tools for literature search, Evidence Meter, technical extraction, multi-persona peer review, polyglot scaffolding, academic authoring and pre-submission gatekeeper.",
   "author": {
     "name": "Ernane Domingues",
     "url": "https://github.com/ernaneDomingues"
   },
-  "homepage": "https://github.com/ernaneDomingues/noul-search-agent",
+  "homepage": "https://ernanedomingues.github.io/noul-search-agent/",
   "repository": "https://github.com/ernaneDomingues/noul-search-agent",
   "license": "Apache-2.0",
   "keywords": ["research", "scientific-literature", "evidence", "pubmed", "openalex", "mcp"],
