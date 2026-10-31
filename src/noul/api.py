@@ -10,6 +10,7 @@ from pathlib import Path
 from noul import config as _config
 from noul import errors as _errors
 from noul import ids as _ids
+from noul import registry as _registry
 from noul.evidence import classify as _classify
 from noul.library import downloads as _downloads
 from noul.library import export as _exporting
@@ -18,6 +19,7 @@ from noul.library import graph as _graph
 from noul.net import cache as _cache
 from noul.providers import artifact_radar as _artifact_radar
 from noul.providers import domain_classifier as _domain_classifier
+from noul.schemas import tool_inputs as _inputs
 from noul.search import engine as _engine
 from noul.tools import authoring_tools as _authoring_tools
 from noul.tools import comparative_tools as _comparative_tools
@@ -150,6 +152,17 @@ def _resolve(id_or_doi):
     return _engine.resolve_paper(id_or_doi)
 
 
+@_registry.tool(
+    "search_papers",
+    description=(
+        "Search peer-reviewed and preprint literature across all scientific disciplines (OpenAlex, PubMed, "
+        "Semantic Scholar, Crossref, arXiv, Europe PMC), deduplicated and ranked by study design and "
+        "citations. Returns abstracts, evidence level (meta-analysis, systematic-review, rct, review, cohort, "
+        "empirical, preclinical, other) and a citation/venue band (`tier`: top, high, standard, emerging — "
+        "not a JCR quartile) and scientific `domain`. YOU classify each paper's stance and synthesize."
+    ),
+    input=_inputs.SearchPapersInput,
+)
 def search_papers(
     query,
     sources=None,
@@ -204,10 +217,29 @@ def search_papers(
     return out
 
 
+@_registry.tool(
+    "clarify_search_scope",
+    description=(
+        "Clarification loop for broad queries: says whether a query is too broad (needs >= 2 of: 5+ "
+        "meaningful words, boolean operators/quoted phrase, time constraint, method + outcome) and returns 3 "
+        'domain-specific multiple-choice questions. Ask the user, then call again with `answers` ({"q1": '
+        "option label or 1-based index, ...}) to get `refined_query` and `recommended_filters` (year_min, "
+        "study_types, sources, sort) for search_papers. Skip it when the user already gave a precise query."
+    ),
+    input=_inputs.ClarifySearchScopeInput,
+)
 def clarify_search_scope(query, answers=None, domain=None):
     return _search_tools.clarify_search_scope(query, answers=answers, domain=domain)
 
 
+@_registry.tool(
+    "get_paper",
+    description=(
+        "Get full record and abstract of a paper by cached ID, DOI, PMID, OpenAlex ID, arXiv ID, or Semantic "
+        "Scholar ID. Includes its scientific `domain`; pass `domain` to override it."
+    ),
+    input=_inputs.GetPaperInput,
+)
 def get_paper(id, domain=None):
     forced = _domain_override(domain)
     p = _resolve(id)
@@ -222,6 +254,15 @@ def get_paper(id, domain=None):
     return out
 
 
+@_registry.tool(
+    "detect_paper_domain",
+    description=(
+        "Detect a paper's scientific macro-domain (computer_science, biomedical, economics, general_stem) "
+        "from arXiv categories, fields of study, PubMed indexing and title/abstract vocabulary, explaining "
+        "the signals used. Use it to pick domain-appropriate evaluation criteria."
+    ),
+    input=_inputs.DetectPaperDomainInput,
+)
 def detect_paper_domain(paper_id, domain=None):
     """Classify a paper into computer_science | biomedical | economics | general_stem and explain why."""
     dc = _domain_classifier
@@ -244,6 +285,16 @@ def detect_paper_domain(paper_id, domain=None):
     }
 
 
+@_registry.tool(
+    "scan_paper_artifacts",
+    description=(
+        "Open-artifact radar: find code repositories (GitHub/GitLab/...), model weights (Hugging Face, "
+        "Civitai, Kaggle, PyTorch Hub) and datasets (Zenodo, Figshare, OSF, Dataverse, HF datasets) linked "
+        "from a paper, verify that the links are alive (HEAD, 5s timeout, max 20 URLs) and flag evasive "
+        "'available on request' statements. Set inspect_fulltext=true to also scan the open-access full text."
+    ),
+    input=_inputs.ScanPaperArtifactsInput,
+)
 def scan_paper_artifacts(id, verify_http=True, inspect_fulltext=False):
     """Detect code repositories, model weights and datasets linked from a paper and check they are reachable."""
     radar = _artifact_radar
@@ -276,118 +327,391 @@ def scan_paper_artifacts(id, verify_http=True, inspect_fulltext=False):
     return out
 
 
+@_registry.tool(
+    "get_paper_references",
+    description=(
+        "Citation graph with influence ranking: papers this paper cites (`backward_citations`) and papers "
+        "citing it (`forward_citations`), with title, year, venue, citation_count and Semantic Scholar's "
+        "`is_influential` flag (OpenAlex fallback: >= 50 citations). Every returned `paper_id` is cached, so "
+        "you can chain get_paper, get_paper_references or download_papers on it."
+    ),
+    input=_inputs.GetPaperReferencesInput,
+)
 def get_paper_references(paper_id, limit=10, direction="both", sort_by="influential"):
     return _search_tools.get_paper_references(paper_id, limit, direction, sort_by)
 
 
+@_registry.tool(
+    "compare_papers",
+    description=(
+        "Comparative matrix of 1-10 papers (3-5 typical): for each paper extracts the core "
+        "problem/hypothesis, methodology (design + domain + method sentence), datasets/benchmarks/population, "
+        "key results/metrics (headline finding, %, p-values, AUC, F1, HR, ...) and declared limitations, then "
+        "returns a Markdown table plus convergence and divergence summaries. Set inspect_fulltext=true to "
+        "also mine open-access full text."
+    ),
+    input=_inputs.ComparePapersInput,
+)
 def compare_papers(paper_ids, inspect_fulltext=False):
     return _comparative_tools.compare_papers(paper_ids, inspect_fulltext=inspect_fulltext)
 
 
+@_registry.tool(
+    "get_thematic_insights",
+    description=(
+        "Thematic synthesis of 1-20 papers across 3 cross-cutting axes (no isolated per-paper summaries): "
+        "`consolidated_consensuses` (shared concepts, benchmarks and highest-level evidence), "
+        "`methodological_tensions` (evidence-pyramid gaps, dataset/scale differences, open-artifact "
+        "asymmetry, mixed results) and `emerging_future_work` (cross-referenced limitations and future work). "
+        "Every statement cites [Author et al., Year]; `citations_map` maps each tag to paper ids."
+    ),
+    input=_inputs.GetThematicInsightsInput,
+)
 def get_thematic_insights(paper_ids, topic=None):
     return _comparative_tools.get_thematic_insights(paper_ids, topic=topic)
 
 
+@_registry.tool(
+    "generate_research_hypotheses",
+    description=(
+        "Autonomous research gap & hypothesis engine (#18): cross-analyzes 2-15 papers to detect "
+        "methodological contradictions (`contradictions_found`) and unexplored synergies where one paper's "
+        "method mitigates another's limitation (`unexplored_complementarities`), then formulates "
+        "1-`max_hypotheses` structured, testable `ResearchHypothesis` proposals with `source_papers` (>= 2), "
+        "`proposed_methodology`, `required_baselines`, `target_datasets_or_population`, and "
+        "`evaluation_metrics`."
+    ),
+    input=_inputs.GenerateResearchHypothesesInput,
+)
 def generate_research_hypotheses(paper_ids, topic=None, max_hypotheses=3):
     return _comparative_tools.generate_research_hypotheses(paper_ids, topic=topic, max_hypotheses=max_hypotheses)
 
 
+@_registry.tool(
+    "export_obsidian_notes",
+    description=(
+        "Export papers as atomic Obsidian/Markdown notes (`<Year> - <FirstAuthor> - <ShortTitle>.md`) into "
+        "`vault_dir` (inside the workspace; default ./obsidian): YAML frontmatter (title, paper_id, doi, "
+        "year, authors, venue, domain, evidence_level, citations, open_access, has_code, has_weights, tags), "
+        "TL;DR, key findings & methodology, open artifacts, [[wikilinks]] between the exported notes and a "
+        "BibTeX block."
+    ),
+    input=_inputs.ExportObsidianNotesInput,
+    writes=True,
+)
 def export_obsidian_notes(paper_ids, vault_dir=None, include_related_wikilinks=True):
     return _comparative_tools.export_obsidian_notes(
         paper_ids, vault_dir=vault_dir, include_related_wikilinks=include_related_wikilinks
     )
 
 
+@_registry.tool(
+    "suggest_boolean_queries",
+    description=(
+        "Dynamic search expansion: mine acronyms (e.g. LoRA, GPTQ) and emerging technical terms from "
+        "`paper_ids` (or from cached papers matching `query`) and return 3 ready-to-run boolean queries for "
+        "search_papers: [1] precision deepening (AND), [2] synonym/method expansion (OR + AND), [3] noise "
+        "exclusion (NOT)."
+    ),
+    input=_inputs.SuggestBooleanQueriesInput,
+)
 def suggest_boolean_queries(query="", paper_ids=None):
     return _search_tools.suggest_boolean_queries(query=query, paper_ids=paper_ids)
 
 
+@_registry.tool(
+    "extract_benchmark_tables",
+    description=(
+        "Benchmark table extractor: detects Markdown, LaTeX (tabular) and plain-text/PDF tables plus inline "
+        "`Benchmark: value` pairs in the paper's open-access full text (abstract fallback), keeps the exact "
+        "model-row x metric-column correspondence, normalizes metric names (gsm-8k -> GSM8K, human-eval -> "
+        "HumanEval, acc -> Accuracy, ppl -> Perplexity, ...) and converts values like '84.5%' or '84.5 ± 0.3' "
+        "to numbers. Returns `tables` and a cross-table `normalized_summary` (by_metric, best_by_metric)."
+    ),
+    input=_inputs.ExtractBenchmarkTablesInput,
+)
 def extract_benchmark_tables(paper_id):
     return _technical_tools.extract_benchmark_tables(paper_id)
 
 
+@_registry.tool(
+    "estimate_hardware_specs",
+    description=(
+        "Hardware feasibility / inference footprint: detects the model size (7B, 1.5B, 350M, 8x7B MoE, '671B "
+        "parameters with 37B activated', family defaults) and architecture (dense, moe, encoder_only, "
+        "rnn_ssm), then computes FP16/INT8/INT4 weights, KV cache (2 x layers x kv_heads x head_dim x context "
+        "x bytes) and recommended minimum VRAM (+15% overhead), extracts the authors' reported training "
+        "hardware (e.g. '64 NVIDIA A100 80GB GPUs', 'TPU v4-1024') and classifies the operational tier "
+        "(edge_consumer_gpu <= 16 GB, workstation <= 48 GB, datacenter_cluster) from the INT4 footprint. "
+        "Override sizes with total_params_b / active_params_b."
+    ),
+    input=_inputs.EstimateHardwareSpecsInput,
+)
 def estimate_hardware_specs(paper_id, total_params_b=None, active_params_b=None, context_length=8192):
     return _hardware_tools.estimate_hardware_specs(
         paper_id, total_params_b=total_params_b, active_params_b=active_params_b, context_length=context_length
     )
 
 
+@_registry.tool(
+    "verify_paper_claims",
+    description=(
+        "Evidence grounding with strict attribution: checks each claim (or, when `claims` is empty, the "
+        "numeric/comparative sentences auto-extracted from the abstract/text) against the paper's literal "
+        "text, indexed by page and table/section. Returns `status` verified (all numbers literally in the "
+        "same passage), partially_supported (topic found, some numbers diverge) or extrapolated, with a "
+        "mandatory citation tag '[pág. X, Tabela Y: \"...\"]' / '[pág. X, Seção Y: \"...\"]' or an explicit "
+        "'[EXTRAPOLAÇÃO NÃO LITERAL ...]' warning. Use it before stating numbers from a paper."
+    ),
+    input=_inputs.VerifyPaperClaimsInput,
+)
 def verify_paper_claims(paper_id, claims=None):
     return _technical_tools.verify_paper_claims(paper_id, claims=claims)
 
 
+@_registry.tool(
+    "extract_paper_math",
+    description=(
+        "Math & pseudocode extractor: finds equations (\\begin{equation|align}, $$..$$, \\[..\\], inline $a = "
+        "b$, plain-text 'L_total = ...' / 'Attention(Q, K, V) = ...') and algorithms (\\begin{algorithm}, "
+        "'Algorithm N:' blocks). mode='latex' returns clean delimited LaTeX; mode='python' returns typed "
+        "Python functions (`def equation_1(...) -> float` / `def algorithm_1(...) -> Any`, `import math`, "
+        "original LaTeX in the docstring), always validated with ast.parse; mode='both' returns both."
+    ),
+    input=_inputs.ExtractPaperMathInput,
+)
 def extract_paper_math(paper_id, mode="latex"):
     return _technical_tools.extract_paper_math(paper_id, mode=mode)
 
 
+@_registry.tool(
+    "analyze_ablation_tables",
+    description=(
+        "Ablation analyzer: locates ablation tables/lists (rows 'Full model' / 'Ours' / 'Baseline' and "
+        "variants 'w/o X', 'without X', '- X', '+ X', 'no X'), takes the full model (else baseline) as "
+        "reference and computes, per component and metric, delta and delta_percent, flags is_marginal (|Δ%| < "
+        "1%), ranks components by |Δ%| and emits warnings_and_alerts for marginal components and for a single "
+        "component accounting for >= 60% of the total reported gain."
+    ),
+    input=_inputs.AnalyzeAblationTablesInput,
+)
 def analyze_ablation_tables(paper_id):
     return _technical_tools.analyze_ablation_tables(paper_id)
 
 
+@_registry.tool(
+    "extract_prompts_and_decoding",
+    description=(
+        "Prompt & inference protocol extractor: finds prompt templates (after 'System Prompt:', 'User "
+        "Prompt:', 'Prompt Template:', 'Instruction:', in code fences/quotes, or text with {variable}, "
+        '{{variable}}, <context>, "Let\'s think step by step", "You are an expert") keeping placeholders '
+        "verbatim and listing `variables`; extracts decoding hyperparameters (temperature, top_p, top_k, "
+        "max_tokens, repetition_penalty, beam_size, seed, decoding_strategy) with literal evidence, and the "
+        "JSON output schemas shown in the paper."
+    ),
+    input=_inputs.ExtractPromptsAndDecodingInput,
+)
 def extract_prompts_and_decoding(paper_id):
     return _technical_tools.extract_prompts_and_decoding(paper_id)
 
 
+@_registry.tool(
+    "detect_failure_modes",
+    description=(
+        "Failure mode & critical assumption detector: scans Limitations, Error Analysis, Failure Cases, "
+        "Discussion, Threats to Validity and Appendix (plus abstract/body) to classify failure modes into "
+        "long_context, noise_sensitivity, out_of_distribution, latency_or_compute, sample_or_population_bias "
+        "and general_limitation (with severity high/medium/low), extracts critical_assumptions, identifies "
+        "baseline_superiority_scenarios (both from text and from benchmark tables where a baseline beats "
+        "Ours), and extracts operational_limits."
+    ),
+    input=_inputs.DetectFailureModesInput,
+)
 def detect_failure_modes(paper_id, inspect_fulltext=True):
     return _technical_tools.detect_failure_modes(paper_id, inspect_fulltext=bool(inspect_fulltext))
 
 
+@_registry.tool(
+    "diff_arxiv_versions",
+    description=(
+        "arXiv temporal version diff analyzer: fetches and compares two revisions of an arXiv preprint (e.g. "
+        "v1 vs v2), tracking title and authorship changes, metric and table number deltas (`metric_deltas`), "
+        "claim attenuations or strengthenings (`claim_shifts`), newly added baselines or datasets "
+        "(`new_baselines_or_datasets`) and a structured `markdown_diff` report."
+    ),
+    input=_inputs.DiffArxivVersionsInput,
+)
 def diff_arxiv_versions(arxiv_id, from_version="v1", to_version="v2"):
     return _technical_tools.diff_arxiv_versions(arxiv_id, from_version=from_version, to_version=to_version)
 
 
+@_registry.tool(
+    "review_paper",
+    description=(
+        "Multi-persona peer-review committee (#17, #20): detects the paper's scientific domain (or uses "
+        "`domain` override) and runs 3 specialized reviewer personas (NeurIPS/ICLR Theoretical, Skeptical "
+        "Empirical, and Systems/Reproducibility for CS/AI; CONSORT/STROBE Clinical Trial Methodologist, "
+        "Biostatistician, and Translational Safety Reviewer for Biomedical; Causal Identification "
+        "Econometrician, Robustness Auditor, and Policy Economist for Economics) consolidated by a "
+        "Meta-Reviewer into a PeerReviewReport with verdict, scores, cited flaws/omissions, and questions."
+    ),
+    input=_inputs.ReviewPaperInput,
+)
 def review_paper(paper_id, domain=None, inspect_fulltext=True):
     return _review_tools.review_paper(paper_id, domain=domain, inspect_fulltext=bool(inspect_fulltext))
 
 
+@_registry.tool(
+    "review_paper_scientific",
+    description=("Alias for review_paper: domain-adaptive 3-persona scientific peer-review committee (#17, #20)."),
+    input=_inputs.ReviewPaperScientificInput,
+)
 def review_paper_scientific(paper_id, domain=None, inspect_fulltext=True):
     return _review_tools.review_paper_scientific(paper_id, domain=domain, inspect_fulltext=bool(inspect_fulltext))
 
 
+@_registry.tool(
+    "scaffold_implementation",
+    description=(
+        "Polyglot code & experimental protocol scaffolder (#16, #21): translates a paper's mathematical "
+        "formulations, architecture, econometric specification or clinical trial design into executable, "
+        "ast-validated code + unit tests (PyTorch `nn.Module` with shape assertions for CS/AI; Statsmodels or "
+        "R `fixest` panel + robustness matrix for Economics; CONSORT/STROBE operational checklist + ITT "
+        "analytical pipeline for Biomedical/STEM)."
+    ),
+    input=_inputs.ScaffoldImplementationInput,
+)
 def scaffold_implementation(paper_id, target=None, domain=None):
     return _scaffold_tools.scaffold_implementation(paper_id, target=target, domain=domain)
 
 
+@_registry.tool(
+    "scaffold_paper_code",
+    description=(
+        "Alias for scaffold_implementation (#16, #21): generates PyTorch, Statsmodels/R, or Clinical Protocol "
+        "code + unit tests."
+    ),
+    input=_inputs.ScaffoldPaperCodeInput,
+)
 def scaffold_paper_code(paper_id, target_language=None, domain=None):
     return _scaffold_tools.scaffold_paper_code(paper_id, target_language=target_language, domain=domain)
 
 
+@_registry.tool(
+    "recommend_citations",
+    description=(
+        "Contextual citation recommender & infiller (#22): scans a draft paragraph or file (.md/.tex) for "
+        "explicit `[CITATION NEEDED]` / `\\cite{?}` markers and unsubstantiated empirical claims, retrieves "
+        "2-3 supporting papers per claim with explicit Portuguese justifications ('Este artigo de X et al. "
+        "(Ano) comprova essa afirmação...'), inserts inline LaTeX or Markdown citations, and generates a "
+        "deduplicated BibTeX block."
+    ),
+    input=_inputs.RecommendCitationsInput,
+)
 def recommend_citations(draft_text, max_per_claim=2, citation_style="latex"):
     return _authoring_tools.recommend_citations(draft_text, max_per_claim=max_per_claim, citation_style=citation_style)
 
 
+@_registry.tool(
+    "synthesize_related_work",
+    description=(
+        "Narrative Related Work synthesizer (#24): clusters 1-20 papers into thematic approach families "
+        "(Architectural & Representation Foundations, Training/Optimization/Causal Identification, "
+        "Efficiency/Scaling/Empirical Evaluation), writes comparative academic prose (While X..., Y..., "
+        "whereas Z... — never isolated per-author lists), positions the user's `proposal` against the "
+        "collective gap, and exports Markdown or `\\section{Related Work}` LaTeX plus BibTeX."
+    ),
+    input=_inputs.SynthesizeRelatedWorkInput,
+)
 def synthesize_related_work(paper_ids, proposal, citation_style="latex", output_format="markdown"):
     return _authoring_tools.synthesize_related_work(
         paper_ids, proposal=proposal, citation_style=citation_style, output_format=output_format
     )
 
 
+@_registry.tool(
+    "generate_manuscript_blueprint",
+    description=(
+        "IMRaD manuscript blueprint generator (#23 Mode 1): generates a venue-adapted (neurips, icml, iclr, "
+        "acl, ieee, nature, lancet, aer, general) structural template with paragraph-by-paragraph writing "
+        "guidance and required elements in Markdown or LaTeX."
+    ),
+    input=_inputs.GenerateManuscriptBlueprintInput,
+)
 def generate_manuscript_blueprint(topic, venue="neurips", hypothesis="", key_findings=None, output_format="markdown"):
     return _authoring_tools.generate_manuscript_blueprint(
         topic, venue=venue, hypothesis=hypothesis, key_findings=key_findings, output_format=output_format
     )
 
 
+@_registry.tool(
+    "audit_manuscript_draft",
+    description=(
+        "Draft manuscript auditor (#23 Mode 2): audits a draft (.md/.tex in workspace or inline text) for "
+        "weak or unsubstantiated claims, mathematical/terminological inconsistencies ($L$ vs $\\mathcal{L}$), "
+        "and reproducibility omissions (seeds, hyperparameters, sample size N, error bars, compute hardware)."
+    ),
+    input=_inputs.AuditManuscriptDraftInput,
+)
 def audit_manuscript_draft(draft_input, venue="neurips", output_format="markdown"):
     return _authoring_tools.audit_manuscript_draft(draft_input, venue=venue, output_format=output_format)
 
 
+@_registry.tool(
+    "sanitize_bibtex",
+    description=(
+        "BibTeX sanitizer & preprint-to-published resolver (#25): parses `.bib` files or text, upgrades "
+        "arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or "
+        "journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes "
+        "authors, escapes unescaped LaTeX (`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`)."
+    ),
+    input=_inputs.SanitizeBibtexInput,
+)
 def sanitize_bibtex(bibtex_input, update_preprints=True, output_path=None):
     return _authoring_tools.sanitize_bibtex(
         bibtex_input, update_preprints=bool(update_preprints), output_path=output_path
     )
 
 
+@_registry.tool(
+    "parse_and_draft_rebuttal",
+    description=(
+        "Peer-review Rebuttal Copilot (#26): segments raw reviewer comments (`Reviewer 1`, `Reviewer 2`, ...) "
+        "into numbered actionable points, classifies each objection, flags requests requiring new experiments "
+        "(`requires_new_experiment=True`), and generates polite, evidence-backed Author Rebuttals in Markdown "
+        "and LaTeX."
+    ),
+    input=_inputs.ParseAndDraftRebuttalInput,
+)
 def parse_and_draft_rebuttal(reviews_input, paper_id=None, draft_input=None, output_format="markdown"):
     return _authoring_tools.parse_and_draft_rebuttal(
         reviews_input, paper_id=paper_id, draft_input=draft_input, output_format=output_format
     )
 
 
+@_registry.tool(
+    "audit_submission_readiness",
+    description=(
+        "Pre-Submission & Desk-Reject Gatekeeper (#27): runs a 4-stage audit on a `.tex`, `.md`, or `.pdf` "
+        "manuscript for the target `venue` — (1) Double-Blind Anonymity Audit (non-anonymous GitHub/HF URLs, "
+        "`\\author` blocks, PDF metadata, first-person self-citations), (2) Venue Checklist Engine, (3) "
+        "Overclaiming Scanner, and (4) Mandatory Sections Check — returning a `readiness_score` (0-100) and "
+        "`desk_reject_risk`."
+    ),
+    input=_inputs.AuditSubmissionReadinessInput,
+)
 def audit_submission_readiness(draft_path, venue="neurips"):
     return _gatekeeper_tools.audit_submission_readiness(draft_path, venue=venue)
 
 
+@_registry.tool(
+    "get_fulltext",
+    description=(
+        "Fetch open-access full text (via OpenAlex, EuropePMC, arXiv, Unpaywall) and return excerpts relevant "
+        "to `question`."
+    ),
+    input=_inputs.GetFulltextInput,
+)
 def get_fulltext(id, question=""):
     p = _resolve(id)
     pid = p["id"]
@@ -401,6 +725,14 @@ def get_fulltext(id, question=""):
     return meta
 
 
+@_registry.tool(
+    "query_fulltexts",
+    description=(
+        "Query across multiple papers simultaneously for a specific question (uses full text when Open Access "
+        "or abstract fallback). Ideal for conversing over a set of papers."
+    ),
+    input=_inputs.QueryFulltextsInput,
+)
 def query_fulltexts(ids, question, max_chunks_per_paper=4):
     """Query across multiple papers (full text when Open Access, or abstract fallback) to answer follow-up questions."""
     if not ids:
@@ -447,6 +779,13 @@ def query_fulltexts(ids, question, max_chunks_per_paper=4):
     return {"question": question, "results": results}
 
 
+@_registry.tool(
+    "citation_graph",
+    description=(
+        "Papers this paper cites (references) and papers citing it (OpenAlex), automatically cached for follow-up."
+    ),
+    input=_inputs.CitationGraphInput,
+)
 def citation_graph(id):
     p = _resolve(id)
     res = _graph.citation_graph(p["id"])
@@ -458,6 +797,14 @@ def citation_graph(id):
     }
 
 
+@_registry.tool(
+    "related_papers",
+    description=(
+        "Find papers semantically similar to the target paper, papers it cites (references), or papers citing "
+        "it. Supports filtering by study_types and year_min."
+    ),
+    input=_inputs.RelatedPapersInput,
+)
 def related_papers(id, relation="all", study_types=None, year_min=None, limit=15):
     """Find similar papers, cited references, or citing papers for a given paper ID/DOI."""
     p = _resolve(id)
@@ -472,6 +819,15 @@ def related_papers(id, relation="all", study_types=None, year_min=None, limit=15
     }
 
 
+@_registry.tool(
+    "download_papers",
+    description=(
+        "Download Open Access PDFs for one or more paper IDs or DOIs into `output_dir` (inside the workspace; "
+        "default: configured download_dir, ./papers)."
+    ),
+    input=_inputs.DownloadPapersInput,
+    writes=True,
+)
 def download_papers(ids, output_dir=None):
     """Download Open Access PDFs for the given paper IDs/DOIs to `output_dir` (confined to the workspace)."""
     if not ids:
@@ -492,6 +848,11 @@ def download_papers(ids, output_dir=None):
     }
 
 
+@_registry.tool(
+    "export_papers",
+    description=("Export papers as bibtex, ris or csv."),
+    input=_inputs.ExportPapersInput,
+)
 def export_papers(ids, format="bibtex"):
     papers = []
     for i in ids:
@@ -517,6 +878,17 @@ def _dossier_paths(directory):
     )
 
 
+@_registry.tool(
+    "save_research_dossier",
+    description=(
+        "Save a persistent research dossier (README.md, papers.json, references.bib) in `output_dir` (inside "
+        "the workspace; default: configured research_dir, ./research) so the user can converse over the "
+        "research documentation."
+    ),
+    input=_inputs.SaveResearchDossierInput,
+    writes=True,
+    network=False,
+)
 def save_research_dossier(topic, synthesis_markdown, paper_ids=None, output_dir=None):
     """Save a structured research dossier (README.md, papers.json, references.bib) so the user can
     converse over the research documentation and revisit it across sessions."""
@@ -574,6 +946,12 @@ def save_research_dossier(topic, synthesis_markdown, paper_ids=None, output_dir=
     }
 
 
+@_registry.tool(
+    "list_research_dossiers",
+    description=("List saved research dossiers available for follow-up conversation."),
+    input=_inputs.ListResearchDossiersInput,
+    network=False,
+)
 def list_research_dossiers(output_dir=None):
     """List saved research dossiers from both the workspace directory and the index."""
     base = _safe_output_dir(output_dir, "research")
@@ -612,6 +990,12 @@ def list_research_dossiers(output_dir=None):
     return {"dossiers": list(items.values())}
 
 
+@_registry.tool(
+    "get_research_dossier",
+    description=("Load a saved research dossier (Markdown report and paper metadata) by slug or topic."),
+    input=_inputs.GetResearchDossierInput,
+    network=False,
+)
 def get_research_dossier(slug, output_dir=None):
     """Load a saved research dossier (Markdown synthesis + cached paper records) to continue a discussion."""
     listing = list_research_dossiers(output_dir=output_dir)
@@ -639,6 +1023,17 @@ def get_research_dossier(slug, output_dir=None):
     }
 
 
+@_registry.tool(
+    "configure_noul",
+    description=(
+        "View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall "
+        "and the OpenAlex/Crossref polite pool), workspace folder, and default download/research folders. "
+        "`clear` resets it."
+    ),
+    input=_inputs.ConfigureNoulInput,
+    writes=True,
+    network=False,
+)
 def configure_noul(email=None, workspace=None, download_dir=None, research_dir=None, clear=False):
     """View or update persistent Noul configuration (email for Unpaywall/polite pool, workspace, default folders).
     Called without arguments it only reads the configuration."""
@@ -661,6 +1056,16 @@ def _cached_paper(pid):
     return None
 
 
+@_registry.tool(
+    "evidence_meter",
+    description=(
+        "Compute the Evidence Meter deterministically from YOUR stance classification of each paper: raw "
+        "counts and percentages plus study-design-weighted percentages (meta-analysis 1.0 … preclinical 0.2). "
+        "Use its output instead of computing percentages yourself."
+    ),
+    input=_inputs.EvidenceMeterInput,
+    network=False,
+)
 def evidence_meter(items):
     """Compute reproducible raw and design-weighted Evidence Meter (Noul Meter) percentages from LLM stance
     classifications. Each item: {"id": str, "stance": "supportive"|"inconclusive"|"contrary", "evidence"?: str}.
@@ -707,501 +1112,6 @@ def evidence_meter(items):
     }
 
 
-S = {"type": "string"}
-_OUT_PAPERS = {
-    "type": "string",
-    "description": "Folder inside the workspace (relative paths are workspace-relative). "
-    "Default: configured download_dir (./papers).",
-}
-_OUT_RESEARCH = {
-    "type": "string",
-    "description": "Folder inside the workspace (relative paths are workspace-relative). "
-    "Default: configured research_dir (./research).",
-}
-_DOMAIN = {
-    "type": "string",
-    "description": "Scientific domain: computer_science (cs), biomedical (bio, med), "
-    "economics (econ) or general_stem (stem). Filters search results / overrides the detected domain.",
-}
-TOOLS = {
-    "search_papers": (
-        "Search peer-reviewed and preprint literature across all scientific disciplines (OpenAlex, PubMed, Semantic Scholar, "
-        "Crossref, arXiv, Europe PMC), deduplicated and ranked by study design and citations. Returns abstracts, evidence level "
-        "(meta-analysis, systematic-review, rct, review, cohort, empirical, preclinical, other) and a citation/venue band "
-        "(`tier`: top, high, standard, emerging — not a JCR quartile) and scientific `domain`. YOU classify each paper's "
-        "stance and synthesize.",
-        {
-            "query": S,
-            "sources": {"type": "array", "items": {"type": "string", "enum": list(_engine.SOURCES)}},
-            "year_min": {"type": "integer"},
-            "study_types": {"type": "array", "items": {"type": "string", "enum": EVIDENCE}},
-            "min_citations": {"type": "integer"},
-            "open_access": {"type": "boolean"},
-            "sort": {"type": "string", "enum": ["relevance", "date", "citations"]},
-            "limit": {"type": "integer", "default": 15},
-            "offset": {"type": "integer", "default": 0},
-            "exclude_ids": {"type": "array", "items": S},
-            "domain": _DOMAIN,
-            "clarify": {
-                "type": "boolean",
-                "default": False,
-                "description": "If the query is broad, add `clarification_suggested` questions to the response.",
-            },
-        },
-        ["query"],
-        search_papers,
-    ),
-    "clarify_search_scope": (
-        "Clarification loop for broad queries: says whether a query is too broad (needs >= 2 of: 5+ meaningful words, "
-        "boolean operators/quoted phrase, time constraint, method + outcome) and returns 3 domain-specific "
-        'multiple-choice questions. Ask the user, then call again with `answers` ({"q1": option label or 1-based '
-        "index, ...}) to get `refined_query` and `recommended_filters` (year_min, study_types, sources, sort) for "
-        "search_papers. Skip it when the user already gave a precise query.",
-        {"query": S, "answers": {"type": "object"}, "domain": _DOMAIN},
-        ["query"],
-        clarify_search_scope,
-    ),
-    "get_paper": (
-        "Get full record and abstract of a paper by cached ID, DOI, PMID, OpenAlex ID, arXiv ID, or Semantic Scholar ID. "
-        "Includes its scientific `domain`; pass `domain` to override it.",
-        {"id": S, "domain": _DOMAIN},
-        ["id"],
-        get_paper,
-    ),
-    "detect_paper_domain": (
-        "Detect a paper's scientific macro-domain (computer_science, biomedical, economics, general_stem) from arXiv "
-        "categories, fields of study, PubMed indexing and title/abstract vocabulary, explaining the signals used. "
-        "Use it to pick domain-appropriate evaluation criteria.",
-        {"paper_id": S, "domain": _DOMAIN},
-        ["paper_id"],
-        detect_paper_domain,
-    ),
-    "scan_paper_artifacts": (
-        "Open-artifact radar: find code repositories (GitHub/GitLab/...), model weights (Hugging Face, Civitai, "
-        "Kaggle, PyTorch Hub) and datasets (Zenodo, Figshare, OSF, Dataverse, HF datasets) linked from a paper, "
-        "verify that the links are alive (HEAD, 5s timeout, max 20 URLs) and flag evasive 'available on request' "
-        "statements. Set inspect_fulltext=true to also scan the open-access full text.",
-        {
-            "id": S,
-            "verify_http": {"type": "boolean", "default": True},
-            "inspect_fulltext": {"type": "boolean", "default": False},
-        },
-        ["id"],
-        scan_paper_artifacts,
-    ),
-    "get_paper_references": (
-        "Citation graph with influence ranking: papers this paper cites (`backward_citations`) and papers citing it "
-        "(`forward_citations`), with title, year, venue, citation_count and Semantic Scholar's `is_influential` flag "
-        "(OpenAlex fallback: >= 50 citations). Every returned `paper_id` is cached, so you can chain get_paper, "
-        "get_paper_references or download_papers on it.",
-        {
-            "paper_id": S,
-            "limit": {"type": "integer", "default": 10, "minimum": 1, "maximum": 50},
-            "direction": {"type": "string", "enum": ["both", "backward", "forward"], "default": "both"},
-            "sort_by": {"type": "string", "enum": ["influential", "citations", "year"], "default": "influential"},
-        },
-        ["paper_id"],
-        get_paper_references,
-    ),
-    "compare_papers": (
-        "Comparative matrix of 1-10 papers (3-5 typical): for each paper extracts the core problem/hypothesis, "
-        "methodology (design + domain + method sentence), datasets/benchmarks/population, key results/metrics "
-        "(headline finding, %, p-values, AUC, F1, HR, ...) and declared limitations, then returns a Markdown table "
-        "plus convergence and divergence summaries. Set inspect_fulltext=true to also mine open-access full text.",
-        {"paper_ids": {"type": "array", "items": S}, "inspect_fulltext": {"type": "boolean", "default": False}},
-        ["paper_ids"],
-        compare_papers,
-    ),
-    "get_thematic_insights": (
-        "Thematic synthesis of 1-20 papers across 3 cross-cutting axes (no isolated per-paper summaries): "
-        "`consolidated_consensuses` (shared concepts, benchmarks and highest-level evidence), "
-        "`methodological_tensions` (evidence-pyramid gaps, dataset/scale differences, open-artifact asymmetry, "
-        "mixed results) and `emerging_future_work` (cross-referenced limitations and future work). Every statement "
-        "cites [Author et al., Year]; `citations_map` maps each tag to paper ids.",
-        {"paper_ids": {"type": "array", "items": S}, "topic": S},
-        ["paper_ids"],
-        get_thematic_insights,
-    ),
-    "generate_research_hypotheses": (
-        "Autonomous research gap & hypothesis engine (#18): cross-analyzes 2-15 papers to detect methodological "
-        "contradictions (`contradictions_found`) and unexplored synergies where one paper's method mitigates another's "
-        "limitation (`unexplored_complementarities`), then formulates 1-`max_hypotheses` structured, testable "
-        "`ResearchHypothesis` proposals with `source_papers` (>= 2), `proposed_methodology`, `required_baselines`, "
-        "`target_datasets_or_population`, and `evaluation_metrics`.",
-        {"paper_ids": {"type": "array", "items": S}, "topic": S, "max_hypotheses": {"type": "integer", "default": 3}},
-        ["paper_ids"],
-        generate_research_hypotheses,
-    ),
-    "export_obsidian_notes": (
-        "Export papers as atomic Obsidian/Markdown notes (`<Year> - <FirstAuthor> - <ShortTitle>.md`) into `vault_dir` "
-        "(inside the workspace; default ./obsidian): YAML frontmatter (title, paper_id, doi, year, authors, venue, "
-        "domain, evidence_level, citations, open_access, has_code, has_weights, tags), TL;DR, key findings & "
-        "methodology, open artifacts, [[wikilinks]] between the exported notes and a BibTeX block.",
-        {
-            "paper_ids": {"type": "array", "items": S},
-            "vault_dir": {
-                "type": "string",
-                "description": "Vault folder inside the workspace (relative paths are "
-                "workspace-relative). Default: ./obsidian.",
-            },
-            "include_related_wikilinks": {"type": "boolean", "default": True},
-        },
-        ["paper_ids"],
-        export_obsidian_notes,
-    ),
-    "suggest_boolean_queries": (
-        "Dynamic search expansion: mine acronyms (e.g. LoRA, GPTQ) and emerging technical terms from `paper_ids` "
-        "(or from cached papers matching `query`) and return 3 ready-to-run boolean queries for search_papers: "
-        "[1] precision deepening (AND), [2] synonym/method expansion (OR + AND), [3] noise exclusion (NOT).",
-        {"query": S, "paper_ids": {"type": "array", "items": S}},
-        [],
-        suggest_boolean_queries,
-    ),
-    "extract_benchmark_tables": (
-        "Benchmark table extractor: detects Markdown, LaTeX (tabular) and plain-text/PDF tables plus inline "
-        "`Benchmark: value` pairs in the paper's open-access full text (abstract fallback), keeps the exact "
-        "model-row x metric-column correspondence, normalizes metric names (gsm-8k -> GSM8K, human-eval -> "
-        "HumanEval, acc -> Accuracy, ppl -> Perplexity, ...) and converts values like '84.5%' or '84.5 ± 0.3' to "
-        "numbers. Returns `tables` and a cross-table `normalized_summary` (by_metric, best_by_metric).",
-        {"paper_id": S},
-        ["paper_id"],
-        extract_benchmark_tables,
-    ),
-    "estimate_hardware_specs": (
-        "Hardware feasibility / inference footprint: detects the model size (7B, 1.5B, 350M, 8x7B MoE, '671B "
-        "parameters with 37B activated', family defaults) and architecture (dense, moe, encoder_only, rnn_ssm), "
-        "then computes FP16/INT8/INT4 weights, KV cache (2 x layers x kv_heads x head_dim x context x bytes) and "
-        "recommended minimum VRAM (+15% overhead), extracts the authors' reported training hardware (e.g. '64 NVIDIA "
-        "A100 80GB GPUs', 'TPU v4-1024') and classifies the operational tier (edge_consumer_gpu <= 16 GB, "
-        "workstation <= 48 GB, datacenter_cluster) from the INT4 footprint. Override sizes with total_params_b / "
-        "active_params_b.",
-        {
-            "paper_id": S,
-            "total_params_b": {"type": "number", "description": "Total parameters in billions (overrides detection)."},
-            "active_params_b": {"type": "number", "description": "Active parameters per token in billions (MoE)."},
-            "context_length": {"type": "integer", "default": 8192, "minimum": 1},
-        },
-        ["paper_id"],
-        estimate_hardware_specs,
-    ),
-    "verify_paper_claims": (
-        "Evidence grounding with strict attribution: checks each claim (or, when `claims` is empty, the numeric/"
-        "comparative sentences auto-extracted from the abstract/text) against the paper's literal text, indexed by "
-        "page and table/section. Returns `status` verified (all numbers literally in the same passage), "
-        "partially_supported (topic found, some numbers diverge) or extrapolated, with a mandatory citation tag "
-        "'[pág. X, Tabela Y: \"...\"]' / '[pág. X, Seção Y: \"...\"]' or an explicit '[EXTRAPOLAÇÃO NÃO LITERAL ...]' "
-        "warning. Use it before stating numbers from a paper.",
-        {"paper_id": S, "claims": {"type": "array", "items": S}},
-        ["paper_id"],
-        verify_paper_claims,
-    ),
-    "extract_paper_math": (
-        "Math & pseudocode extractor: finds equations (\\begin{equation|align}, $$..$$, \\[..\\], inline $a = b$, "
-        "plain-text 'L_total = ...' / 'Attention(Q, K, V) = ...') and algorithms (\\begin{algorithm}, 'Algorithm N:' "
-        "blocks). mode='latex' returns clean delimited LaTeX; mode='python' returns typed Python functions "
-        "(`def equation_1(...) -> float` / `def algorithm_1(...) -> Any`, `import math`, original LaTeX in the "
-        "docstring), always validated with ast.parse; mode='both' returns both.",
-        {"paper_id": S, "mode": {"type": "string", "enum": ["latex", "python", "both"], "default": "latex"}},
-        ["paper_id"],
-        extract_paper_math,
-    ),
-    "analyze_ablation_tables": (
-        "Ablation analyzer: locates ablation tables/lists (rows 'Full model' / 'Ours' / 'Baseline' and variants "
-        "'w/o X', 'without X', '- X', '+ X', 'no X'), takes the full model (else baseline) as reference and computes, "
-        "per component and metric, delta and delta_percent, flags is_marginal (|Δ%| < 1%), ranks components by "
-        "|Δ%| and emits warnings_and_alerts for marginal components and for a single component accounting for >= 60% "
-        "of the total reported gain.",
-        {"paper_id": S},
-        ["paper_id"],
-        analyze_ablation_tables,
-    ),
-    "extract_prompts_and_decoding": (
-        "Prompt & inference protocol extractor: finds prompt templates (after 'System Prompt:', 'User Prompt:', "
-        "'Prompt Template:', 'Instruction:', in code fences/quotes, or text with {variable}, {{variable}}, <context>, "
-        '"Let\'s think step by step", "You are an expert") keeping placeholders verbatim and listing `variables`; '
-        "extracts decoding hyperparameters (temperature, top_p, top_k, max_tokens, repetition_penalty, beam_size, "
-        "seed, decoding_strategy) with literal evidence, and the JSON output schemas shown in the paper.",
-        {"paper_id": S},
-        ["paper_id"],
-        extract_prompts_and_decoding,
-    ),
-    "detect_failure_modes": (
-        "Failure mode & critical assumption detector: scans Limitations, Error Analysis, Failure Cases, Discussion, "
-        "Threats to Validity and Appendix (plus abstract/body) to classify failure modes into long_context, "
-        "noise_sensitivity, out_of_distribution, latency_or_compute, sample_or_population_bias and general_limitation "
-        "(with severity high/medium/low), extracts critical_assumptions, identifies baseline_superiority_scenarios "
-        "(both from text and from benchmark tables where a baseline beats Ours), and extracts operational_limits.",
-        {"paper_id": S, "inspect_fulltext": {"type": "boolean", "default": True}},
-        ["paper_id"],
-        detect_failure_modes,
-    ),
-    "diff_arxiv_versions": (
-        "arXiv temporal version diff analyzer: fetches and compares two revisions of an arXiv preprint (e.g. v1 vs v2), "
-        "tracking title and authorship changes, metric and table number deltas (`metric_deltas`), claim attenuations or "
-        "strengthenings (`claim_shifts`), newly added baselines or datasets (`new_baselines_or_datasets`) and a "
-        "structured `markdown_diff` report.",
-        {
-            "arxiv_id": S,
-            "from_version": {"type": "string", "default": "v1"},
-            "to_version": {"type": "string", "default": "v2"},
-        },
-        ["arxiv_id"],
-        diff_arxiv_versions,
-    ),
-    "review_paper": (
-        "Multi-persona peer-review committee (#17, #20): detects the paper's scientific domain (or uses `domain` override) "
-        "and runs 3 specialized reviewer personas (NeurIPS/ICLR Theoretical, Skeptical Empirical, and Systems/Reproducibility "
-        "for CS/AI; CONSORT/STROBE Clinical Trial Methodologist, Biostatistician, and Translational Safety Reviewer for "
-        "Biomedical; Causal Identification Econometrician, Robustness Auditor, and Policy Economist for Economics) "
-        "consolidated by a Meta-Reviewer into a PeerReviewReport with verdict, scores, cited flaws/omissions, and questions.",
-        {"paper_id": S, "domain": _DOMAIN, "inspect_fulltext": {"type": "boolean", "default": True}},
-        ["paper_id"],
-        review_paper,
-    ),
-    "review_paper_scientific": (
-        "Alias for review_paper: domain-adaptive 3-persona scientific peer-review committee (#17, #20).",
-        {"paper_id": S, "domain": _DOMAIN, "inspect_fulltext": {"type": "boolean", "default": True}},
-        ["paper_id"],
-        review_paper_scientific,
-    ),
-    "scaffold_implementation": (
-        "Polyglot code & experimental protocol scaffolder (#16, #21): translates a paper's mathematical formulations, "
-        "architecture, econometric specification or clinical trial design into executable, ast-validated code + unit tests "
-        "(PyTorch `nn.Module` with shape assertions for CS/AI; Statsmodels or R `fixest` panel + robustness matrix for "
-        "Economics; CONSORT/STROBE operational checklist + ITT analytical pipeline for Biomedical/STEM).",
-        {"paper_id": S, "target": S, "domain": _DOMAIN},
-        ["paper_id"],
-        scaffold_implementation,
-    ),
-    "scaffold_paper_code": (
-        "Alias for scaffold_implementation (#16, #21): generates PyTorch, Statsmodels/R, or Clinical Protocol code + unit tests.",
-        {"paper_id": S, "target_language": S, "domain": _DOMAIN},
-        ["paper_id"],
-        scaffold_paper_code,
-    ),
-    "recommend_citations": (
-        "Contextual citation recommender & infiller (#22): scans a draft paragraph or file (.md/.tex) for explicit "
-        "`[CITATION NEEDED]` / `\\cite{?}` markers and unsubstantiated empirical claims, retrieves 2-3 supporting "
-        "papers per claim with explicit Portuguese justifications ('Este artigo de X et al. (Ano) comprova essa "
-        "afirmação...'), inserts inline LaTeX or Markdown citations, and generates a deduplicated BibTeX block.",
-        {
-            "draft_text": S,
-            "max_per_claim": {"type": "integer", "default": 2, "minimum": 1, "maximum": 5},
-            "citation_style": {"type": "string", "enum": ["latex", "markdown"], "default": "latex"},
-        },
-        ["draft_text"],
-        recommend_citations,
-    ),
-    "synthesize_related_work": (
-        "Narrative Related Work synthesizer (#24): clusters 1-20 papers into thematic approach families "
-        "(Architectural & Representation Foundations, Training/Optimization/Causal Identification, Efficiency/Scaling/"
-        "Empirical Evaluation), writes comparative academic prose (While X..., Y..., whereas Z... — never isolated "
-        "per-author lists), positions the user's `proposal` against the collective gap, and exports Markdown or "
-        "`\\section{Related Work}` LaTeX plus BibTeX.",
-        {
-            "paper_ids": {"type": "array", "items": S},
-            "proposal": S,
-            "citation_style": {"type": "string", "enum": ["latex", "numeric"], "default": "latex"},
-            "output_format": {"type": "string", "enum": ["markdown", "latex"], "default": "markdown"},
-        },
-        ["paper_ids", "proposal"],
-        synthesize_related_work,
-    ),
-    "generate_manuscript_blueprint": (
-        "IMRaD manuscript blueprint generator (#23 Mode 1): generates a venue-adapted (neurips, icml, iclr, acl, "
-        "ieee, nature, lancet, aer, general) structural template with paragraph-by-paragraph writing guidance and "
-        "required elements in Markdown or LaTeX.",
-        {
-            "topic": S,
-            "venue": {"type": "string", "default": "neurips"},
-            "hypothesis": S,
-            "key_findings": {"type": "array", "items": S},
-            "output_format": {"type": "string", "enum": ["markdown", "latex"], "default": "markdown"},
-        },
-        ["topic"],
-        generate_manuscript_blueprint,
-    ),
-    "audit_manuscript_draft": (
-        "Draft manuscript auditor (#23 Mode 2): audits a draft (.md/.tex in workspace or inline text) for weak or "
-        "unsubstantiated claims, mathematical/terminological inconsistencies ($L$ vs $\\mathcal{L}$), and "
-        "reproducibility omissions (seeds, hyperparameters, sample size N, error bars, compute hardware).",
-        {
-            "draft_input": S,
-            "venue": {"type": "string", "default": "neurips"},
-            "output_format": {"type": "string", "enum": ["markdown", "latex"], "default": "markdown"},
-        },
-        ["draft_input"],
-        audit_manuscript_draft,
-    ),
-    "sanitize_bibtex": (
-        "BibTeX sanitizer & preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR "
-        "preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) "
-        "venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX "
-        "(`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`).",
-        {
-            "bibtex_input": S,
-            "update_preprints": {"type": "boolean", "default": True},
-            "output_path": S,
-        },
-        ["bibtex_input"],
-        sanitize_bibtex,
-    ),
-    "parse_and_draft_rebuttal": (
-        "Peer-review Rebuttal Copilot (#26): segments raw reviewer comments (`Reviewer 1`, `Reviewer 2`, ...) into "
-        "numbered actionable points, classifies each objection, flags requests requiring new experiments "
-        "(`requires_new_experiment=True`), and generates polite, evidence-backed Author Rebuttals in Markdown and LaTeX.",
-        {
-            "reviews_input": S,
-            "paper_id": S,
-            "draft_input": S,
-            "output_format": {"type": "string", "enum": ["markdown", "latex"], "default": "markdown"},
-        },
-        ["reviews_input"],
-        parse_and_draft_rebuttal,
-    ),
-    "audit_submission_readiness": (
-        "Pre-Submission & Desk-Reject Gatekeeper (#27): runs a 4-stage audit on a `.tex`, `.md`, or `.pdf` manuscript "
-        "for the target `venue` — (1) Double-Blind Anonymity Audit (non-anonymous GitHub/HF URLs, `\\author` blocks, "
-        "PDF metadata, first-person self-citations), (2) Venue Checklist Engine, (3) Overclaiming Scanner, and "
-        "(4) Mandatory Sections Check — returning a `readiness_score` (0-100) and `desk_reject_risk`.",
-        {
-            "draft_path": S,
-            "venue": {"type": "string", "default": "neurips"},
-        },
-        ["draft_path"],
-        audit_submission_readiness,
-    ),
-    "get_fulltext": (
-        "Fetch open-access full text (via OpenAlex, EuropePMC, arXiv, Unpaywall) and return excerpts relevant to `question`.",
-        {"id": S, "question": S},
-        ["id"],
-        get_fulltext,
-    ),
-    "query_fulltexts": (
-        "Query across multiple papers simultaneously for a specific question (uses full text when Open Access or abstract fallback). "
-        "Ideal for conversing over a set of papers.",
-        {
-            "ids": {"type": "array", "items": S},
-            "question": S,
-            "max_chunks_per_paper": {"type": "integer", "default": 4},
-        },
-        ["ids", "question"],
-        query_fulltexts,
-    ),
-    "citation_graph": (
-        "Papers this paper cites (references) and papers citing it (OpenAlex), automatically cached for follow-up.",
-        {"id": S},
-        ["id"],
-        citation_graph,
-    ),
-    "related_papers": (
-        "Find papers semantically similar to the target paper, papers it cites (references), or papers citing it. "
-        "Supports filtering by study_types and year_min.",
-        {
-            "id": S,
-            "relation": {"type": "string", "enum": ["all", "similar", "references", "citing"], "default": "all"},
-            "study_types": {"type": "array", "items": {"type": "string", "enum": EVIDENCE}},
-            "year_min": {"type": "integer"},
-            "limit": {"type": "integer", "default": 15},
-        },
-        ["id"],
-        related_papers,
-    ),
-    "download_papers": (
-        "Download Open Access PDFs for one or more paper IDs or DOIs into `output_dir` (inside the workspace; "
-        "default: configured download_dir, ./papers).",
-        {"ids": {"type": "array", "items": S}, "output_dir": _OUT_PAPERS},
-        ["ids"],
-        download_papers,
-    ),
-    "save_research_dossier": (
-        "Save a persistent research dossier (README.md, papers.json, references.bib) in `output_dir` (inside the "
-        "workspace; default: configured research_dir, ./research) so the user can converse over the research documentation.",
-        {
-            "topic": S,
-            "synthesis_markdown": S,
-            "paper_ids": {"type": "array", "items": S},
-            "output_dir": _OUT_RESEARCH,
-        },
-        ["topic", "synthesis_markdown"],
-        save_research_dossier,
-    ),
-    "list_research_dossiers": (
-        "List saved research dossiers available for follow-up conversation.",
-        {"output_dir": _OUT_RESEARCH},
-        [],
-        list_research_dossiers,
-    ),
-    "get_research_dossier": (
-        "Load a saved research dossier (Markdown report and paper metadata) by slug or topic.",
-        {"slug": S, "output_dir": _OUT_RESEARCH},
-        ["slug"],
-        get_research_dossier,
-    ),
-    "export_papers": (
-        "Export papers as bibtex, ris or csv.",
-        {"ids": {"type": "array", "items": S}, "format": {"type": "string", "enum": ["bibtex", "ris", "csv"]}},
-        ["ids"],
-        export_papers,
-    ),
-    "evidence_meter": (
-        "Compute the Evidence Meter deterministically from YOUR stance classification of each paper: raw counts and "
-        "percentages plus study-design-weighted percentages (meta-analysis 1.0 … preclinical 0.2). Use its output "
-        "instead of computing percentages yourself.",
-        {
-            "items": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "id": S,
-                        "stance": {"type": "string", "description": "supportive | inconclusive | contrary"},
-                        "evidence": {
-                            "type": "string",
-                            "description": "Optional study design if the paper is not cached",
-                        },
-                    },
-                    "required": ["stance"],
-                },
-            },
-        },
-        ["items"],
-        evidence_meter,
-    ),
-    "configure_noul": (
-        "View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the "
-        "OpenAlex/Crossref polite pool), workspace folder, and default download/research folders. `clear` resets it.",
-        {
-            "email": S,
-            "workspace": S,
-            "download_dir": S,
-            "research_dir": S,
-            "clear": {"type": "boolean", "default": False},
-        },
-        [],
-        configure_noul,
-    ),
-}
-
-_JSON_TYPES = {"array": list, "object": dict, "string": str, "boolean": bool}
-
-
-def call(name, args):
-    if name not in TOOLS:
-        raise _errors.HTTPError(404, f"Unknown tool {name}")
-    if args is None:
-        args = {}
-    if not isinstance(args, dict):
-        raise _errors.HTTPError(400, f"Arguments for {name} must be a JSON object")
-    props, required = TOOLS[name][1], TOOLS[name][2]
-    unknown = sorted(k for k in args if k not in props)
-    if unknown:
-        raise _errors.HTTPError(400, f"Unknown argument(s) for {name}: {', '.join(unknown)}")
-    missing = [k for k in required if args.get(k) is None]
-    if missing:
-        raise _errors.HTTPError(400, f"Missing required argument(s) for {name}: {', '.join(missing)}")
-    for k, v in args.items():
-        expected = _JSON_TYPES.get(props[k].get("type"))
-        if v is not None and expected and not isinstance(v, expected):
-            raise _errors.HTTPError(400, f"Argument '{k}' for {name} must be of type {props[k]['type']}")
-    return TOOLS[name][3](**args)
+# Tool layer API: the registry owns names, schemas and validation (see noul.registry).
+TOOLS = _registry.TOOLS
+call = _registry.call

@@ -559,6 +559,14 @@
               <div><strong>CLI:</strong> <code>noul download &lt;ids&gt;</code></div>
             </div>
           </article>
+          <article class="tool-card" data-tool="export_papers">
+            <h4 class="mono">export_papers</h4>
+            <p>Export papers as bibtex, ris or csv.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> ids | <strong>Optional:</strong> format</div>
+              <div><strong>CLI:</strong> <code>noul export &lt;ids&gt;</code></div>
+            </div>
+          </article>
           <article class="tool-card" data-tool="save_research_dossier">
             <h4 class="mono">save_research_dossier</h4>
             <p>Save a persistent research dossier (README.md, papers.json, references.bib) in `output_dir` (inside the workspace; default: configured research_dir, ./research) so the user can converse over the research documentation.</p>
@@ -583,12 +591,12 @@
               <div><strong>CLI:</strong> <code>noul dossier show &lt;slug&gt;</code></div>
             </div>
           </article>
-          <article class="tool-card" data-tool="export_papers">
-            <h4 class="mono">export_papers</h4>
-            <p>Export papers as bibtex, ris or csv.</p>
+          <article class="tool-card" data-tool="configure_noul">
+            <h4 class="mono">configure_noul</h4>
+            <p>View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, and default download/research folders. `clear` resets it.</p>
             <div class="tool-meta mono">
-              <div><strong>Required:</strong> ids | <strong>Optional:</strong> format</div>
-              <div><strong>CLI:</strong> <code>noul export &lt;ids&gt;</code></div>
+              <div><strong>Required:</strong> none | <strong>Optional:</strong> email, workspace, download_dir, research_dir, clear</div>
+              <div><strong>CLI:</strong> <code>noul config</code></div>
             </div>
           </article>
           <article class="tool-card" data-tool="evidence_meter">
@@ -597,14 +605,6 @@
             <div class="tool-meta mono">
               <div><strong>Required:</strong> items | <strong>Optional:</strong> none</div>
               <div><strong>CLI:</strong> <code>noul meter &#x27;&lt;json&gt;&#x27;</code></div>
-            </div>
-          </article>
-          <article class="tool-card" data-tool="configure_noul">
-            <h4 class="mono">configure_noul</h4>
-            <p>View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, and default download/research folders. `clear` resets it.</p>
-            <div class="tool-meta mono">
-              <div><strong>Required:</strong> none | <strong>Optional:</strong> email, workspace, download_dir, research_dir, clear</div>
-              <div><strong>CLI:</strong> <code>noul config</code></div>
             </div>
           </article>
         </div>

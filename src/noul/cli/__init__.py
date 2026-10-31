@@ -33,12 +33,13 @@ Usage:
 """
 
 import argparse
+import inspect
 import json
 import sys
 from pathlib import Path
 
-from noul import __version__
-from noul import api as t
+from noul import __version__, registry
+from noul import log as _log
 from noul.cli.pretty import (
     _format_pretty_ablation,
     _format_pretty_benchmarks,
@@ -79,7 +80,7 @@ def _stdin_is_tty():
 def _interactive_clarification(query, domain=None):
     """Ask the clarification questions on stderr and read answers from stdin. Returns the refined scope or None
     when the query is already specific. Only called on an interactive terminal."""
-    scope = t.clarify_search_scope(query, domain=domain)
+    scope = _run("clarify_search_scope", query, domain=domain)
     if not scope["needs_clarification"]:
         return None
     print(f"Your query looks broad ({scope['domain']}). Answer to refine it (Enter to skip):", file=sys.stderr)
@@ -97,7 +98,7 @@ def _interactive_clarification(query, domain=None):
             answers[q["id"]] = line.strip()
     if not answers:
         return None
-    return t.clarify_search_scope(query, answers=answers, domain=domain)
+    return _run("clarify_search_scope", query, answers=answers, domain=domain)
 
 
 def _parse_config_pairs(pairs):
@@ -131,6 +132,12 @@ def _load_meter_items(arg):
 def _split_ids(values):
     """`id1 id2` and/or `id1,id2` -> [id1, id2]."""
     return [x.strip() for v in values or [] for x in str(v).split(",") if x.strip()]
+
+
+def _run(name, *args, **kwargs):
+    """Run a tool through the registry (validation + logging), binding positional arguments by name."""
+    bound = inspect.signature(registry.TOOLS[name][3]).bind_partial(*args, **kwargs)
+    return registry.call(name, dict(bound.arguments))
 
 
 def main(argv=None):
@@ -395,6 +402,13 @@ def main(argv=None):
     m_p = sub.add_parser("meter", help="Deterministic Evidence Meter from classified papers")
     m_p.add_argument("items", help='JSON list like [{"id":"...","stance":"supportive"}], or - to read stdin')
 
+    tool_p = sub.add_parser("tool", help="Run any MCP tool by name with JSON arguments (same contract as MCP)")
+    tool_p.add_argument("name", nargs="?", help="Tool name (omit with --list)")
+    tool_p.add_argument(
+        "--args", default="{}", help='JSON object of arguments, e.g. \'{"query": "..."}\', or - for stdin'
+    )
+    tool_p.add_argument("--list", action="store_true", help="List the tool names and exit")
+
     sub.add_parser("mcp", help="Run the MCP server (stdio, or --http [PORT])", add_help=False)
     sub.add_parser("install", help="Install into Claude, Copilot, Codex, Gemini, Antigravity", add_help=False)
 
@@ -403,8 +417,19 @@ def main(argv=None):
     def split(v):
         return [x.strip() for x in v.split(",") if x.strip()] if v else None
 
+    _log.configure()
     try:
-        if a.cmd == "search":
+        if a.cmd == "tool":
+            if a.list or not a.name:
+                out = {"tools": list(registry.TOOLS)}
+            else:
+                raw = sys.stdin.read() if a.args == "-" else a.args
+                try:
+                    args = json.loads(raw)
+                except json.JSONDecodeError as e:
+                    raise ValueError(f"--args must be a JSON object: {e}") from e
+                out = registry.call(a.name, args)
+        elif a.cmd == "search":
             query, year_min, types, sources, sort = a.query, a.year_min, split(a.types), split(a.sources), a.sort
             refined = None
             if a.interactive and not a.skip_clarification:
@@ -420,7 +445,8 @@ def main(argv=None):
                 types = types or f.get("study_types")
                 sources = sources or f.get("sources")
                 sort = sort or f.get("sort")
-            out = t.search_papers(
+            out = _run(
+                "search_papers",
                 query,
                 sources,
                 year_min,
@@ -439,7 +465,7 @@ def main(argv=None):
             if a.export_obsidian:
                 ids = [p["id"] for p in out["papers"] if p.get("id")]
                 out["obsidian_export"] = (
-                    t.export_obsidian_notes(ids, vault_dir=a.export_obsidian)
+                    _run("export_obsidian_notes", ids, vault_dir=a.export_obsidian)
                     if ids
                     else {"vault_dir": None, "exported_count": 0, "notes": []}
                 )
@@ -456,31 +482,33 @@ def main(argv=None):
                     answers = json.loads(a.answers)
                 except json.JSONDecodeError as e:
                     raise ValueError(f"--answers must be a JSON object: {e}") from e
-            out = t.clarify_search_scope(a.query, answers=answers, domain=a.domain)
+            out = _run("clarify_search_scope", a.query, answers=answers, domain=a.domain)
         elif a.cmd == "paper":
-            out = t.get_paper(a.id, domain=a.domain_override)
+            out = _run("get_paper", a.id, domain=a.domain_override)
         elif a.cmd == "references":
-            out = t.get_paper_references(a.id, limit=a.limit, direction=a.direction, sort_by=a.sort)
+            out = _run("get_paper_references", a.id, limit=a.limit, direction=a.direction, sort_by=a.sort)
         elif a.cmd == "compare":
-            out = t.compare_papers(_split_ids(a.ids), inspect_fulltext=a.fulltext)
+            out = _run("compare_papers", _split_ids(a.ids), inspect_fulltext=a.fulltext)
             if a.pretty:
                 print(_format_pretty_compare(out))
                 return 0
         elif a.cmd == "insights":
-            out = t.get_thematic_insights(_split_ids(a.ids), topic=a.topic)
+            out = _run("get_thematic_insights", _split_ids(a.ids), topic=a.topic)
             if a.pretty:
                 print(_format_pretty_insights(out))
                 return 0
         elif a.cmd == "hypotheses":
-            out = t.generate_research_hypotheses(_split_ids(a.ids), topic=a.topic, max_hypotheses=a.max_hypotheses)
+            out = _run(
+                "generate_research_hypotheses", _split_ids(a.ids), topic=a.topic, max_hypotheses=a.max_hypotheses
+            )
             if a.pretty:
                 print(out["markdown_report"])
                 return 0
         elif a.cmd == "expand":
-            out = t.suggest_boolean_queries(a.query, paper_ids=_split_ids([a.ids]) if a.ids else None)
+            out = _run("suggest_boolean_queries", a.query, paper_ids=_split_ids([a.ids]) if a.ids else None)
             if a.run:
                 chosen = out["suggestions"][a.run - 1]
-                res = t.search_papers(chosen["boolean_query"], limit=a.limit)
+                res = _run("search_papers", chosen["boolean_query"], limit=a.limit)
                 out = {"applied_suggestion": chosen, "expansion": out, "search": res}
                 if a.pretty:
                     print(f"> Running [{a.run}] {chosen['boolean_query']}\n")
@@ -490,55 +518,59 @@ def main(argv=None):
                 print(_format_pretty_expand(out))
                 return 0
         elif a.cmd == "benchmarks":
-            out = t.extract_benchmark_tables(a.id)
+            out = _run("extract_benchmark_tables", a.id)
             if a.pretty:
                 print(_format_pretty_benchmarks(out))
                 return 0
         elif a.cmd == "hardware":
-            out = t.estimate_hardware_specs(
-                a.id, total_params_b=a.params_b, active_params_b=a.active_params_b, context_length=a.context_length
+            out = _run(
+                "estimate_hardware_specs",
+                a.id,
+                total_params_b=a.params_b,
+                active_params_b=a.active_params_b,
+                context_length=a.context_length,
             )
             if a.pretty:
                 print(_format_pretty_hardware(out))
                 return 0
         elif a.cmd == "ground":
             claims = [x.strip() for x in a.claims.split(";") if x.strip()] if a.claims else None
-            out = t.verify_paper_claims(a.id, claims=claims)
+            out = _run("verify_paper_claims", a.id, claims=claims)
             if a.pretty:
                 print(_format_pretty_ground(out))
                 return 0
         elif a.cmd == "math":
-            out = t.extract_paper_math(a.id, mode=a.mode)
+            out = _run("extract_paper_math", a.id, mode=a.mode)
             if a.pretty:
                 print(_format_pretty_math(out))
                 return 0
         elif a.cmd == "ablation":
-            out = t.analyze_ablation_tables(a.id)
+            out = _run("analyze_ablation_tables", a.id)
             if a.pretty:
                 print(_format_pretty_ablation(out))
                 return 0
         elif a.cmd == "prompts":
-            out = t.extract_prompts_and_decoding(a.id)
+            out = _run("extract_prompts_and_decoding", a.id)
             if a.pretty:
                 print(_format_pretty_prompts(out))
                 return 0
         elif a.cmd == "failures":
-            out = t.detect_failure_modes(a.id, inspect_fulltext=not a.no_fulltext)
+            out = _run("detect_failure_modes", a.id, inspect_fulltext=not a.no_fulltext)
             if a.pretty:
                 print(_format_pretty_failures(out))
                 return 0
         elif a.cmd == "diff":
-            out = t.diff_arxiv_versions(a.arxiv_id, from_version=a.from_version, to_version=a.to_version)
+            out = _run("diff_arxiv_versions", a.arxiv_id, from_version=a.from_version, to_version=a.to_version)
             if a.pretty:
                 print(out["markdown_diff"])
                 return 0
         elif a.cmd == "review":
-            out = t.review_paper(a.id, domain=a.domain, inspect_fulltext=not a.no_fulltext)
+            out = _run("review_paper", a.id, domain=a.domain, inspect_fulltext=not a.no_fulltext)
             if a.pretty:
                 print(out["markdown_report"])
                 return 0
         elif a.cmd == "scaffold":
-            out = t.scaffold_implementation(a.id, target=a.target, domain=a.domain)
+            out = _run("scaffold_implementation", a.id, target=a.target, domain=a.domain)
             if a.pretty:
                 lang = out.get("language", "python")
                 lines = [
@@ -558,7 +590,7 @@ def main(argv=None):
                 print("\n".join(lines))
                 return 0
         elif a.cmd == "cite":
-            out = t.recommend_citations(a.draft_text, max_per_claim=a.limit_per_claim, citation_style=a.style)
+            out = _run("recommend_citations", a.draft_text, max_per_claim=a.limit_per_claim, citation_style=a.style)
             if a.pretty:
                 lines = [
                     "# Contextual Citation Infiller Report",
@@ -578,8 +610,12 @@ def main(argv=None):
                 print("\n".join(lines))
                 return 0
         elif a.cmd == "related-work":
-            out = t.synthesize_related_work(
-                _split_ids(a.ids), proposal=a.proposal, citation_style=a.style, output_format=a.output_format
+            out = _run(
+                "synthesize_related_work",
+                _split_ids(a.ids),
+                proposal=a.proposal,
+                citation_style=a.style,
+                output_format=a.output_format,
             )
             if a.pretty:
                 print(out["rendered_related_work"])
@@ -589,7 +625,8 @@ def main(argv=None):
         elif a.cmd == "draft":
             if a.draft_cmd == "structure":
                 findings = [x.strip() for x in a.findings.split(";") if x.strip()] if a.findings else None
-                out = t.generate_manuscript_blueprint(
+                out = _run(
+                    "generate_manuscript_blueprint",
                     a.topic,
                     venue=a.venue,
                     hypothesis=a.hypothesis,
@@ -600,58 +637,64 @@ def main(argv=None):
                     print(out["rendered_template"])
                     return 0
             elif a.draft_cmd == "audit":
-                out = t.audit_manuscript_draft(a.draft_input, venue=a.venue, output_format=a.output_format)
+                out = _run("audit_manuscript_draft", a.draft_input, venue=a.venue, output_format=a.output_format)
                 if a.pretty:
                     print(out["rendered_report"])
                     return 0
         elif a.cmd == "bibtex":
             if a.bibtex_cmd == "sanitize":
-                out = t.sanitize_bibtex(a.bibtex_input, update_preprints=a.update_preprints, output_path=a.output_path)
+                out = _run(
+                    "sanitize_bibtex", a.bibtex_input, update_preprints=a.update_preprints, output_path=a.output_path
+                )
                 if a.pretty:
                     print(out["sanitized_bibtex"])
                     return 0
         elif a.cmd == "rebuttal":
             if a.rebuttal_cmd == "parse":
-                out = t.parse_and_draft_rebuttal(
-                    a.reviews_input, paper_id=a.paper_id, draft_input=a.draft_input, output_format=a.output_format
+                out = _run(
+                    "parse_and_draft_rebuttal",
+                    a.reviews_input,
+                    paper_id=a.paper_id,
+                    draft_input=a.draft_input,
+                    output_format=a.output_format,
                 )
                 if a.pretty:
                     print(out["latex_rebuttal"] if a.output_format == "latex" else out["markdown_rebuttal"])
                     return 0
         elif a.cmd == "gatekeeper":
             if a.gatekeeper_cmd == "audit":
-                out = t.audit_submission_readiness(a.draft_path, venue=a.venue)
+                out = _run("audit_submission_readiness", a.draft_path, venue=a.venue)
                 if a.pretty:
                     print(out["summary_markdown"])
                     return 0
         elif a.cmd == "artifacts":
-            out = t.scan_paper_artifacts(a.id, verify_http=not a.no_verify, inspect_fulltext=a.fulltext)
+            out = _run("scan_paper_artifacts", a.id, verify_http=not a.no_verify, inspect_fulltext=a.fulltext)
         elif a.cmd == "domain":
-            out = t.detect_paper_domain(a.id, domain=a.domain_override)
+            out = _run("detect_paper_domain", a.id, domain=a.domain_override)
         elif a.cmd == "graph":
-            out = t.citation_graph(a.id)
+            out = _run("citation_graph", a.id)
         elif a.cmd == "fulltext":
-            out = t.get_fulltext(a.id, a.question)
+            out = _run("get_fulltext", a.id, a.question)
         elif a.cmd == "ask":
-            out = t.query_fulltexts(split(a.ids), a.question, a.chunks)
+            out = _run("query_fulltexts", split(a.ids), a.question, a.chunks)
         elif a.cmd == "related":
-            out = t.related_papers(a.id, a.relation, split(a.types), a.year_min, a.limit)
+            out = _run("related_papers", a.id, a.relation, split(a.types), a.year_min, a.limit)
         elif a.cmd == "download":
-            out = t.download_papers(split(a.ids), a.dir)
+            out = _run("download_papers", split(a.ids), a.dir)
         elif a.cmd == "export":
             vault = a.vault_dir or a.export_obsidian
             if a.format == "obsidian" or vault:
-                out = t.export_obsidian_notes(_split_ids(a.ids), vault_dir=vault)
+                out = _run("export_obsidian_notes", _split_ids(a.ids), vault_dir=vault)
             else:
-                out = t.export_papers(_split_ids(a.ids), a.format or "bibtex")
+                out = _run("export_papers", _split_ids(a.ids), a.format or "bibtex")
         elif a.cmd == "dossier":
             if a.dossier_cmd == "save":
                 md = Path(a.file).read_text(encoding="utf-8") if a.file else a.text
-                out = t.save_research_dossier(a.topic, md, split(a.ids), a.dir)
+                out = _run("save_research_dossier", a.topic, md, split(a.ids), a.dir)
             elif a.dossier_cmd == "list":
-                out = t.list_research_dossiers(a.dir)
+                out = _run("list_research_dossiers", a.dir)
             elif a.dossier_cmd == "show":
-                out = t.get_research_dossier(a.slug, a.dir)
+                out = _run("get_research_dossier", a.slug, a.dir)
         elif a.cmd == "config":
             kwargs = _parse_config_pairs(a.pairs)
             for key in ("email", "workspace", "download_dir", "research_dir"):
@@ -659,9 +702,9 @@ def main(argv=None):
                     kwargs[key] = getattr(a, key)
             if a.clear:
                 kwargs["clear"] = True
-            out = t.configure_noul(**kwargs)
+            out = _run("configure_noul", **kwargs)
         elif a.cmd == "meter":
-            out = t.evidence_meter(_load_meter_items(a.items))
+            out = _run("evidence_meter", _load_meter_items(a.items))
     except Exception as ex:
         print(json.dumps({"error": str(ex)}), file=sys.stderr)
         return 1

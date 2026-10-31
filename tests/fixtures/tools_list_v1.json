@@ -1,0 +1,1049 @@
+[
+ {
+  "description": "Search peer-reviewed and preprint literature across all scientific disciplines (OpenAlex, PubMed, Semantic Scholar, Crossref, arXiv, Europe PMC), deduplicated and ranked by study design and citations. Returns abstracts, evidence level (meta-analysis, systematic-review, rct, review, cohort, empirical, preclinical, other) and a citation/venue band (`tier`: top, high, standard, emerging — not a JCR quartile) and scientific `domain`. YOU classify each paper's stance and synthesize.",
+  "inputSchema": {
+   "properties": {
+    "clarify": {
+     "default": false,
+     "description": "If the query is broad, add `clarification_suggested` questions to the response.",
+     "type": "boolean"
+    },
+    "domain": {
+     "description": "Scientific domain: computer_science (cs), biomedical (bio, med), economics (econ) or general_stem (stem). Filters search results / overrides the detected domain.",
+     "type": "string"
+    },
+    "exclude_ids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "limit": {
+     "default": 15,
+     "type": "integer"
+    },
+    "min_citations": {
+     "type": "integer"
+    },
+    "offset": {
+     "default": 0,
+     "type": "integer"
+    },
+    "open_access": {
+     "type": "boolean"
+    },
+    "query": {
+     "type": "string"
+    },
+    "sort": {
+     "enum": [
+      "relevance",
+      "date",
+      "citations"
+     ],
+     "type": "string"
+    },
+    "sources": {
+     "items": {
+      "enum": [
+       "openalex",
+       "pubmed",
+       "s2",
+       "crossref",
+       "arxiv",
+       "europepmc"
+      ],
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "study_types": {
+     "items": {
+      "enum": [
+       "meta-analysis",
+       "systematic-review",
+       "rct",
+       "review",
+       "cohort",
+       "empirical",
+       "preclinical",
+       "other"
+      ],
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "year_min": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "query"
+   ],
+   "type": "object"
+  },
+  "name": "search_papers"
+ },
+ {
+  "description": "Clarification loop for broad queries: says whether a query is too broad (needs >= 2 of: 5+ meaningful words, boolean operators/quoted phrase, time constraint, method + outcome) and returns 3 domain-specific multiple-choice questions. Ask the user, then call again with `answers` ({\"q1\": option label or 1-based index, ...}) to get `refined_query` and `recommended_filters` (year_min, study_types, sources, sort) for search_papers. Skip it when the user already gave a precise query.",
+  "inputSchema": {
+   "properties": {
+    "answers": {
+     "type": "object"
+    },
+    "domain": {
+     "description": "Scientific domain: computer_science (cs), biomedical (bio, med), economics (econ) or general_stem (stem). Filters search results / overrides the detected domain.",
+     "type": "string"
+    },
+    "query": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "query"
+   ],
+   "type": "object"
+  },
+  "name": "clarify_search_scope"
+ },
+ {
+  "description": "Get full record and abstract of a paper by cached ID, DOI, PMID, OpenAlex ID, arXiv ID, or Semantic Scholar ID. Includes its scientific `domain`; pass `domain` to override it.",
+  "inputSchema": {
+   "properties": {
+    "domain": {
+     "description": "Scientific domain: computer_science (cs), biomedical (bio, med), economics (econ) or general_stem (stem). Filters search results / overrides the detected domain.",
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "id"
+   ],
+   "type": "object"
+  },
+  "name": "get_paper"
+ },
+ {
+  "description": "Detect a paper's scientific macro-domain (computer_science, biomedical, economics, general_stem) from arXiv categories, fields of study, PubMed indexing and title/abstract vocabulary, explaining the signals used. Use it to pick domain-appropriate evaluation criteria.",
+  "inputSchema": {
+   "properties": {
+    "domain": {
+     "description": "Scientific domain: computer_science (cs), biomedical (bio, med), economics (econ) or general_stem (stem). Filters search results / overrides the detected domain.",
+     "type": "string"
+    },
+    "paper_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "paper_id"
+   ],
+   "type": "object"
+  },
+  "name": "detect_paper_domain"
+ },
+ {
+  "description": "Open-artifact radar: find code repositories (GitHub/GitLab/...), model weights (Hugging Face, Civitai, Kaggle, PyTorch Hub) and datasets (Zenodo, Figshare, OSF, Dataverse, HF datasets) linked from a paper, verify that the links are alive (HEAD, 5s timeout, max 20 URLs) and flag evasive 'available on request' statements. Set inspect_fulltext=true to also scan the open-access full text.",
+  "inputSchema": {
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "inspect_fulltext": {
+     "default": false,
+     "type": "boolean"
+    },
+    "verify_http": {
+     "default": true,
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "id"
+   ],
+   "type": "object"
+  },
+  "name": "scan_paper_artifacts"
+ },
+ {
+  "description": "Citation graph with influence ranking: papers this paper cites (`backward_citations`) and papers citing it (`forward_citations`), with title, year, venue, citation_count and Semantic Scholar's `is_influential` flag (OpenAlex fallback: >= 50 citations). Every returned `paper_id` is cached, so you can chain get_paper, get_paper_references or download_papers on it.",
+  "inputSchema": {
+   "properties": {
+    "direction": {
+     "default": "both",
+     "enum": [
+      "both",
+      "backward",
+      "forward"
+     ],
+     "type": "string"
+    },
+    "limit": {
+     "default": 10,
+     "maximum": 50,
+     "minimum": 1,
+     "type": "integer"
+    },
+    "paper_id": {
+     "type": "string"
+    },
+    "sort_by": {
+     "default": "influential",
+     "enum": [
+      "influential",
+      "citations",
+      "year"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "paper_id"
+   ],
+   "type": "object"
+  },
+  "name": "get_paper_references"
+ },
+ {
+  "description": "Comparative matrix of 1-10 papers (3-5 typical): for each paper extracts the core problem/hypothesis, methodology (design + domain + method sentence), datasets/benchmarks/population, key results/metrics (headline finding, %, p-values, AUC, F1, HR, ...) and declared limitations, then returns a Markdown table plus convergence and divergence summaries. Set inspect_fulltext=true to also mine open-access full text.",
+  "inputSchema": {
+   "properties": {
+    "inspect_fulltext": {
+     "default": false,
+     "type": "boolean"
+    },
+    "paper_ids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "paper_ids"
+   ],
+   "type": "object"
+  },
+  "name": "compare_papers"
+ },
+ {
+  "description": "Thematic synthesis of 1-20 papers across 3 cross-cutting axes (no isolated per-paper summaries): `consolidated_consensuses` (shared concepts, benchmarks and highest-level evidence), `methodological_tensions` (evidence-pyramid gaps, dataset/scale differences, open-artifact asymmetry, mixed results) and `emerging_future_work` (cross-referenced limitations and future work). Every statement cites [Author et al., Year]; `citations_map` maps each tag to paper ids.",
+  "inputSchema": {
+   "properties": {
+    "paper_ids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "topic": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "paper_ids"
+   ],
+   "type": "object"
+  },
+  "name": "get_thematic_insights"
+ },
+ {
+  "description": "Autonomous research gap & hypothesis engine (#18): cross-analyzes 2-15 papers to detect methodological contradictions (`contradictions_found`) and unexplored synergies where one paper's method mitigates another's limitation (`unexplored_complementarities`), then formulates 1-`max_hypotheses` structured, testable `ResearchHypothesis` proposals with `source_papers` (>= 2), `proposed_methodology`, `required_baselines`, `target_datasets_or_population`, and `evaluation_metrics`.",
+  "inputSchema": {
+   "properties": {
+    "max_hypotheses": {
+     "default": 3,
+     "type": "integer"
+    },
+    "paper_ids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "topic": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "paper_ids"
+   ],
+   "type": "object"
+  },
+  "name": "generate_research_hypotheses"
+ },
+ {
+  "description": "Export papers as atomic Obsidian/Markdown notes (`<Year> - <FirstAuthor> - <ShortTitle>.md`) into `vault_dir` (inside the workspace; default ./obsidian): YAML frontmatter (title, paper_id, doi, year, authors, venue, domain, evidence_level, citations, open_access, has_code, has_weights, tags), TL;DR, key findings & methodology, open artifacts, [[wikilinks]] between the exported notes and a BibTeX block.",
+  "inputSchema": {
+   "properties": {
+    "include_related_wikilinks": {
+     "default": true,
+     "type": "boolean"
+    },
+    "paper_ids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "vault_dir": {
+     "description": "Vault folder inside the workspace (relative paths are workspace-relative). Default: ./obsidian.",
+     "type": "string"
+    }
+   },
+   "required": [
+    "paper_ids"
+   ],
+   "type": "object"
+  },
+  "name": "export_obsidian_notes"
+ },
+ {
+  "description": "Dynamic search expansion: mine acronyms (e.g. LoRA, GPTQ) and emerging technical terms from `paper_ids` (or from cached papers matching `query`) and return 3 ready-to-run boolean queries for search_papers: [1] precision deepening (AND), [2] synonym/method expansion (OR + AND), [3] noise exclusion (NOT).",
+  "inputSchema": {
+   "properties": {
+    "paper_ids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "query": {
+     "type": "string"
+    }
+   },
+   "required": [],
+   "type": "object"
+  },
+  "name": "suggest_boolean_queries"
+ },
+ {
+  "description": "Benchmark table extractor: detects Markdown, LaTeX (tabular) and plain-text/PDF tables plus inline `Benchmark: value` pairs in the paper's open-access full text (abstract fallback), keeps the exact model-row x metric-column correspondence, normalizes metric names (gsm-8k -> GSM8K, human-eval -> HumanEval, acc -> Accuracy, ppl -> Perplexity, ...) and converts values like '84.5%' or '84.5 ± 0.3' to numbers. Returns `tables` and a cross-table `normalized_summary` (by_metric, best_by_metric).",
+  "inputSchema": {
+   "properties": {
+    "paper_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "paper_id"
+   ],
+   "type": "object"
+  },
+  "name": "extract_benchmark_tables"
+ },
+ {
+  "description": "Hardware feasibility / inference footprint: detects the model size (7B, 1.5B, 350M, 8x7B MoE, '671B parameters with 37B activated', family defaults) and architecture (dense, moe, encoder_only, rnn_ssm), then computes FP16/INT8/INT4 weights, KV cache (2 x layers x kv_heads x head_dim x context x bytes) and recommended minimum VRAM (+15% overhead), extracts the authors' reported training hardware (e.g. '64 NVIDIA A100 80GB GPUs', 'TPU v4-1024') and classifies the operational tier (edge_consumer_gpu <= 16 GB, workstation <= 48 GB, datacenter_cluster) from the INT4 footprint. Override sizes with total_params_b / active_params_b.",
+  "inputSchema": {
+   "properties": {
+    "active_params_b": {
+     "description": "Active parameters per token in billions (MoE).",
+     "type": "number"
+    },
+    "context_length": {
+     "default": 8192,
+     "minimum": 1,
+     "type": "integer"
+    },
+    "paper_id": {
+     "type": "string"
+    },
+    "total_params_b": {
+     "description": "Total parameters in billions (overrides detection).",
+     "type": "number"
+    }
+   },
+   "required": [
+    "paper_id"
+   ],
+   "type": "object"
+  },
+  "name": "estimate_hardware_specs"
+ },
+ {
+  "description": "Evidence grounding with strict attribution: checks each claim (or, when `claims` is empty, the numeric/comparative sentences auto-extracted from the abstract/text) against the paper's literal text, indexed by page and table/section. Returns `status` verified (all numbers literally in the same passage), partially_supported (topic found, some numbers diverge) or extrapolated, with a mandatory citation tag '[pág. X, Tabela Y: \"...\"]' / '[pág. X, Seção Y: \"...\"]' or an explicit '[EXTRAPOLAÇÃO NÃO LITERAL ...]' warning. Use it before stating numbers from a paper.",
+  "inputSchema": {
+   "properties": {
+    "claims": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "paper_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "paper_id"
+   ],
+   "type": "object"
+  },
+  "name": "verify_paper_claims"
+ },
+ {
+  "description": "Math & pseudocode extractor: finds equations (\\begin{equation|align}, $$..$$, \\[..\\], inline $a = b$, plain-text 'L_total = ...' / 'Attention(Q, K, V) = ...') and algorithms (\\begin{algorithm}, 'Algorithm N:' blocks). mode='latex' returns clean delimited LaTeX; mode='python' returns typed Python functions (`def equation_1(...) -> float` / `def algorithm_1(...) -> Any`, `import math`, original LaTeX in the docstring), always validated with ast.parse; mode='both' returns both.",
+  "inputSchema": {
+   "properties": {
+    "mode": {
+     "default": "latex",
+     "enum": [
+      "latex",
+      "python",
+      "both"
+     ],
+     "type": "string"
+    },
+    "paper_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "paper_id"
+   ],
+   "type": "object"
+  },
+  "name": "extract_paper_math"
+ },
+ {
+  "description": "Ablation analyzer: locates ablation tables/lists (rows 'Full model' / 'Ours' / 'Baseline' and variants 'w/o X', 'without X', '- X', '+ X', 'no X'), takes the full model (else baseline) as reference and computes, per component and metric, delta and delta_percent, flags is_marginal (|Δ%| < 1%), ranks components by |Δ%| and emits warnings_and_alerts for marginal components and for a single component accounting for >= 60% of the total reported gain.",
+  "inputSchema": {
+   "properties": {
+    "paper_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "paper_id"
+   ],
+   "type": "object"
+  },
+  "name": "analyze_ablation_tables"
+ },
+ {
+  "description": "Prompt & inference protocol extractor: finds prompt templates (after 'System Prompt:', 'User Prompt:', 'Prompt Template:', 'Instruction:', in code fences/quotes, or text with {variable}, {{variable}}, <context>, \"Let's think step by step\", \"You are an expert\") keeping placeholders verbatim and listing `variables`; extracts decoding hyperparameters (temperature, top_p, top_k, max_tokens, repetition_penalty, beam_size, seed, decoding_strategy) with literal evidence, and the JSON output schemas shown in the paper.",
+  "inputSchema": {
+   "properties": {
+    "paper_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "paper_id"
+   ],
+   "type": "object"
+  },
+  "name": "extract_prompts_and_decoding"
+ },
+ {
+  "description": "Failure mode & critical assumption detector: scans Limitations, Error Analysis, Failure Cases, Discussion, Threats to Validity and Appendix (plus abstract/body) to classify failure modes into long_context, noise_sensitivity, out_of_distribution, latency_or_compute, sample_or_population_bias and general_limitation (with severity high/medium/low), extracts critical_assumptions, identifies baseline_superiority_scenarios (both from text and from benchmark tables where a baseline beats Ours), and extracts operational_limits.",
+  "inputSchema": {
+   "properties": {
+    "inspect_fulltext": {
+     "default": true,
+     "type": "boolean"
+    },
+    "paper_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "paper_id"
+   ],
+   "type": "object"
+  },
+  "name": "detect_failure_modes"
+ },
+ {
+  "description": "arXiv temporal version diff analyzer: fetches and compares two revisions of an arXiv preprint (e.g. v1 vs v2), tracking title and authorship changes, metric and table number deltas (`metric_deltas`), claim attenuations or strengthenings (`claim_shifts`), newly added baselines or datasets (`new_baselines_or_datasets`) and a structured `markdown_diff` report.",
+  "inputSchema": {
+   "properties": {
+    "arxiv_id": {
+     "type": "string"
+    },
+    "from_version": {
+     "default": "v1",
+     "type": "string"
+    },
+    "to_version": {
+     "default": "v2",
+     "type": "string"
+    }
+   },
+   "required": [
+    "arxiv_id"
+   ],
+   "type": "object"
+  },
+  "name": "diff_arxiv_versions"
+ },
+ {
+  "description": "Multi-persona peer-review committee (#17, #20): detects the paper's scientific domain (or uses `domain` override) and runs 3 specialized reviewer personas (NeurIPS/ICLR Theoretical, Skeptical Empirical, and Systems/Reproducibility for CS/AI; CONSORT/STROBE Clinical Trial Methodologist, Biostatistician, and Translational Safety Reviewer for Biomedical; Causal Identification Econometrician, Robustness Auditor, and Policy Economist for Economics) consolidated by a Meta-Reviewer into a PeerReviewReport with verdict, scores, cited flaws/omissions, and questions.",
+  "inputSchema": {
+   "properties": {
+    "domain": {
+     "description": "Scientific domain: computer_science (cs), biomedical (bio, med), economics (econ) or general_stem (stem). Filters search results / overrides the detected domain.",
+     "type": "string"
+    },
+    "inspect_fulltext": {
+     "default": true,
+     "type": "boolean"
+    },
+    "paper_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "paper_id"
+   ],
+   "type": "object"
+  },
+  "name": "review_paper"
+ },
+ {
+  "description": "Alias for review_paper: domain-adaptive 3-persona scientific peer-review committee (#17, #20).",
+  "inputSchema": {
+   "properties": {
+    "domain": {
+     "description": "Scientific domain: computer_science (cs), biomedical (bio, med), economics (econ) or general_stem (stem). Filters search results / overrides the detected domain.",
+     "type": "string"
+    },
+    "inspect_fulltext": {
+     "default": true,
+     "type": "boolean"
+    },
+    "paper_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "paper_id"
+   ],
+   "type": "object"
+  },
+  "name": "review_paper_scientific"
+ },
+ {
+  "description": "Polyglot code & experimental protocol scaffolder (#16, #21): translates a paper's mathematical formulations, architecture, econometric specification or clinical trial design into executable, ast-validated code + unit tests (PyTorch `nn.Module` with shape assertions for CS/AI; Statsmodels or R `fixest` panel + robustness matrix for Economics; CONSORT/STROBE operational checklist + ITT analytical pipeline for Biomedical/STEM).",
+  "inputSchema": {
+   "properties": {
+    "domain": {
+     "description": "Scientific domain: computer_science (cs), biomedical (bio, med), economics (econ) or general_stem (stem). Filters search results / overrides the detected domain.",
+     "type": "string"
+    },
+    "paper_id": {
+     "type": "string"
+    },
+    "target": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "paper_id"
+   ],
+   "type": "object"
+  },
+  "name": "scaffold_implementation"
+ },
+ {
+  "description": "Alias for scaffold_implementation (#16, #21): generates PyTorch, Statsmodels/R, or Clinical Protocol code + unit tests.",
+  "inputSchema": {
+   "properties": {
+    "domain": {
+     "description": "Scientific domain: computer_science (cs), biomedical (bio, med), economics (econ) or general_stem (stem). Filters search results / overrides the detected domain.",
+     "type": "string"
+    },
+    "paper_id": {
+     "type": "string"
+    },
+    "target_language": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "paper_id"
+   ],
+   "type": "object"
+  },
+  "name": "scaffold_paper_code"
+ },
+ {
+  "description": "Contextual citation recommender & infiller (#22): scans a draft paragraph or file (.md/.tex) for explicit `[CITATION NEEDED]` / `\\cite{?}` markers and unsubstantiated empirical claims, retrieves 2-3 supporting papers per claim with explicit Portuguese justifications ('Este artigo de X et al. (Ano) comprova essa afirmação...'), inserts inline LaTeX or Markdown citations, and generates a deduplicated BibTeX block.",
+  "inputSchema": {
+   "properties": {
+    "citation_style": {
+     "default": "latex",
+     "enum": [
+      "latex",
+      "markdown"
+     ],
+     "type": "string"
+    },
+    "draft_text": {
+     "type": "string"
+    },
+    "max_per_claim": {
+     "default": 2,
+     "maximum": 5,
+     "minimum": 1,
+     "type": "integer"
+    }
+   },
+   "required": [
+    "draft_text"
+   ],
+   "type": "object"
+  },
+  "name": "recommend_citations"
+ },
+ {
+  "description": "Narrative Related Work synthesizer (#24): clusters 1-20 papers into thematic approach families (Architectural & Representation Foundations, Training/Optimization/Causal Identification, Efficiency/Scaling/Empirical Evaluation), writes comparative academic prose (While X..., Y..., whereas Z... — never isolated per-author lists), positions the user's `proposal` against the collective gap, and exports Markdown or `\\section{Related Work}` LaTeX plus BibTeX.",
+  "inputSchema": {
+   "properties": {
+    "citation_style": {
+     "default": "latex",
+     "enum": [
+      "latex",
+      "numeric"
+     ],
+     "type": "string"
+    },
+    "output_format": {
+     "default": "markdown",
+     "enum": [
+      "markdown",
+      "latex"
+     ],
+     "type": "string"
+    },
+    "paper_ids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "proposal": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "paper_ids",
+    "proposal"
+   ],
+   "type": "object"
+  },
+  "name": "synthesize_related_work"
+ },
+ {
+  "description": "IMRaD manuscript blueprint generator (#23 Mode 1): generates a venue-adapted (neurips, icml, iclr, acl, ieee, nature, lancet, aer, general) structural template with paragraph-by-paragraph writing guidance and required elements in Markdown or LaTeX.",
+  "inputSchema": {
+   "properties": {
+    "hypothesis": {
+     "type": "string"
+    },
+    "key_findings": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "output_format": {
+     "default": "markdown",
+     "enum": [
+      "markdown",
+      "latex"
+     ],
+     "type": "string"
+    },
+    "topic": {
+     "type": "string"
+    },
+    "venue": {
+     "default": "neurips",
+     "type": "string"
+    }
+   },
+   "required": [
+    "topic"
+   ],
+   "type": "object"
+  },
+  "name": "generate_manuscript_blueprint"
+ },
+ {
+  "description": "Draft manuscript auditor (#23 Mode 2): audits a draft (.md/.tex in workspace or inline text) for weak or unsubstantiated claims, mathematical/terminological inconsistencies ($L$ vs $\\mathcal{L}$), and reproducibility omissions (seeds, hyperparameters, sample size N, error bars, compute hardware).",
+  "inputSchema": {
+   "properties": {
+    "draft_input": {
+     "type": "string"
+    },
+    "output_format": {
+     "default": "markdown",
+     "enum": [
+      "markdown",
+      "latex"
+     ],
+     "type": "string"
+    },
+    "venue": {
+     "default": "neurips",
+     "type": "string"
+    }
+   },
+   "required": [
+    "draft_input"
+   ],
+   "type": "object"
+  },
+  "name": "audit_manuscript_draft"
+ },
+ {
+  "description": "BibTeX sanitizer & preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`).",
+  "inputSchema": {
+   "properties": {
+    "bibtex_input": {
+     "type": "string"
+    },
+    "output_path": {
+     "type": "string"
+    },
+    "update_preprints": {
+     "default": true,
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "bibtex_input"
+   ],
+   "type": "object"
+  },
+  "name": "sanitize_bibtex"
+ },
+ {
+  "description": "Peer-review Rebuttal Copilot (#26): segments raw reviewer comments (`Reviewer 1`, `Reviewer 2`, ...) into numbered actionable points, classifies each objection, flags requests requiring new experiments (`requires_new_experiment=True`), and generates polite, evidence-backed Author Rebuttals in Markdown and LaTeX.",
+  "inputSchema": {
+   "properties": {
+    "draft_input": {
+     "type": "string"
+    },
+    "output_format": {
+     "default": "markdown",
+     "enum": [
+      "markdown",
+      "latex"
+     ],
+     "type": "string"
+    },
+    "paper_id": {
+     "type": "string"
+    },
+    "reviews_input": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "reviews_input"
+   ],
+   "type": "object"
+  },
+  "name": "parse_and_draft_rebuttal"
+ },
+ {
+  "description": "Pre-Submission & Desk-Reject Gatekeeper (#27): runs a 4-stage audit on a `.tex`, `.md`, or `.pdf` manuscript for the target `venue` — (1) Double-Blind Anonymity Audit (non-anonymous GitHub/HF URLs, `\\author` blocks, PDF metadata, first-person self-citations), (2) Venue Checklist Engine, (3) Overclaiming Scanner, and (4) Mandatory Sections Check — returning a `readiness_score` (0-100) and `desk_reject_risk`.",
+  "inputSchema": {
+   "properties": {
+    "draft_path": {
+     "type": "string"
+    },
+    "venue": {
+     "default": "neurips",
+     "type": "string"
+    }
+   },
+   "required": [
+    "draft_path"
+   ],
+   "type": "object"
+  },
+  "name": "audit_submission_readiness"
+ },
+ {
+  "description": "Fetch open-access full text (via OpenAlex, EuropePMC, arXiv, Unpaywall) and return excerpts relevant to `question`.",
+  "inputSchema": {
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "question": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "id"
+   ],
+   "type": "object"
+  },
+  "name": "get_fulltext"
+ },
+ {
+  "description": "Query across multiple papers simultaneously for a specific question (uses full text when Open Access or abstract fallback). Ideal for conversing over a set of papers.",
+  "inputSchema": {
+   "properties": {
+    "ids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "max_chunks_per_paper": {
+     "default": 4,
+     "type": "integer"
+    },
+    "question": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "ids",
+    "question"
+   ],
+   "type": "object"
+  },
+  "name": "query_fulltexts"
+ },
+ {
+  "description": "Papers this paper cites (references) and papers citing it (OpenAlex), automatically cached for follow-up.",
+  "inputSchema": {
+   "properties": {
+    "id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "id"
+   ],
+   "type": "object"
+  },
+  "name": "citation_graph"
+ },
+ {
+  "description": "Find papers semantically similar to the target paper, papers it cites (references), or papers citing it. Supports filtering by study_types and year_min.",
+  "inputSchema": {
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "limit": {
+     "default": 15,
+     "type": "integer"
+    },
+    "relation": {
+     "default": "all",
+     "enum": [
+      "all",
+      "similar",
+      "references",
+      "citing"
+     ],
+     "type": "string"
+    },
+    "study_types": {
+     "items": {
+      "enum": [
+       "meta-analysis",
+       "systematic-review",
+       "rct",
+       "review",
+       "cohort",
+       "empirical",
+       "preclinical",
+       "other"
+      ],
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "year_min": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "id"
+   ],
+   "type": "object"
+  },
+  "name": "related_papers"
+ },
+ {
+  "description": "Download Open Access PDFs for one or more paper IDs or DOIs into `output_dir` (inside the workspace; default: configured download_dir, ./papers).",
+  "inputSchema": {
+   "properties": {
+    "ids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "output_dir": {
+     "description": "Folder inside the workspace (relative paths are workspace-relative). Default: configured download_dir (./papers).",
+     "type": "string"
+    }
+   },
+   "required": [
+    "ids"
+   ],
+   "type": "object"
+  },
+  "name": "download_papers"
+ },
+ {
+  "description": "Save a persistent research dossier (README.md, papers.json, references.bib) in `output_dir` (inside the workspace; default: configured research_dir, ./research) so the user can converse over the research documentation.",
+  "inputSchema": {
+   "properties": {
+    "output_dir": {
+     "description": "Folder inside the workspace (relative paths are workspace-relative). Default: configured research_dir (./research).",
+     "type": "string"
+    },
+    "paper_ids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "synthesis_markdown": {
+     "type": "string"
+    },
+    "topic": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "topic",
+    "synthesis_markdown"
+   ],
+   "type": "object"
+  },
+  "name": "save_research_dossier"
+ },
+ {
+  "description": "List saved research dossiers available for follow-up conversation.",
+  "inputSchema": {
+   "properties": {
+    "output_dir": {
+     "description": "Folder inside the workspace (relative paths are workspace-relative). Default: configured research_dir (./research).",
+     "type": "string"
+    }
+   },
+   "required": [],
+   "type": "object"
+  },
+  "name": "list_research_dossiers"
+ },
+ {
+  "description": "Load a saved research dossier (Markdown report and paper metadata) by slug or topic.",
+  "inputSchema": {
+   "properties": {
+    "output_dir": {
+     "description": "Folder inside the workspace (relative paths are workspace-relative). Default: configured research_dir (./research).",
+     "type": "string"
+    },
+    "slug": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "slug"
+   ],
+   "type": "object"
+  },
+  "name": "get_research_dossier"
+ },
+ {
+  "description": "Export papers as bibtex, ris or csv.",
+  "inputSchema": {
+   "properties": {
+    "format": {
+     "enum": [
+      "bibtex",
+      "ris",
+      "csv"
+     ],
+     "type": "string"
+    },
+    "ids": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "ids"
+   ],
+   "type": "object"
+  },
+  "name": "export_papers"
+ },
+ {
+  "description": "Compute the Evidence Meter deterministically from YOUR stance classification of each paper: raw counts and percentages plus study-design-weighted percentages (meta-analysis 1.0 … preclinical 0.2). Use its output instead of computing percentages yourself.",
+  "inputSchema": {
+   "properties": {
+    "items": {
+     "items": {
+      "properties": {
+       "evidence": {
+        "description": "Optional study design if the paper is not cached",
+        "type": "string"
+       },
+       "id": {
+        "type": "string"
+       },
+       "stance": {
+        "description": "supportive | inconclusive | contrary",
+        "type": "string"
+       }
+      },
+      "required": [
+       "stance"
+      ],
+      "type": "object"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "items"
+   ],
+   "type": "object"
+  },
+  "name": "evidence_meter"
+ },
+ {
+  "description": "View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, and default download/research folders. `clear` resets it.",
+  "inputSchema": {
+   "properties": {
+    "clear": {
+     "default": false,
+     "type": "boolean"
+    },
+    "download_dir": {
+     "type": "string"
+    },
+    "email": {
+     "type": "string"
+    },
+    "research_dir": {
+     "type": "string"
+    },
+    "workspace": {
+     "type": "string"
+    }
+   },
+   "required": [],
+   "type": "object"
+  },
+  "name": "configure_noul"
+ }
+]

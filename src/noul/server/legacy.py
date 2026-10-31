@@ -18,23 +18,22 @@ from urllib.parse import urlparse
 
 from noul import __version__ as VERSION
 from noul import api as t
+from noul import log as _log
+from noul import registry as _registry
 
 SUPPORTED_PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
 PROTOCOL = SUPPORTED_PROTOCOLS[0]
-WRITE_TOOLS = frozenset({"download_papers", "save_research_dossier", "export_obsidian_notes", "configure_noul"})
+# Tools that write to disk or change configuration, from the registry (`writes=True`).
+WRITE_TOOLS = _registry.write_tools()
 MAX_BODY_BYTES = 1024 * 1024
 DEFAULT_PORT = 8765
 
 
 def tools_list(exclude=()):
     return [
-        {
-            "name": n,
-            "description": d,
-            "inputSchema": {"type": "object", "properties": props, "required": req},
-        }
-        for n, (d, props, req, _) in t.TOOLS.items()
-        if n not in exclude
+        {"name": item["name"], "description": item["description"], "inputSchema": item["inputSchema"]}
+        for item in _registry.catalog()
+        if item["name"] not in exclude
     ]
 
 
@@ -358,6 +357,7 @@ def run_stdio():
 
 
 def main(argv=None):
+    _log.configure()
     ap = argparse.ArgumentParser(prog="noul-mcp", description="Noul Search MCP server (stdio by default).")
     ap.add_argument(
         "--http",

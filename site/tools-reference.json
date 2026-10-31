@@ -416,6 +416,17 @@
       "cli_equivalent": "noul download <ids>"
     },
     {
+      "name": "export_papers",
+      "description": "Export papers as bibtex, ris or csv.",
+      "required": [
+        "ids"
+      ],
+      "Optional": [
+        "format"
+      ],
+      "cli_equivalent": "noul export <ids>"
+    },
+    {
       "name": "save_research_dossier",
       "description": "Save a persistent research dossier (README.md, papers.json, references.bib) in `output_dir` (inside the workspace; default: configured research_dir, ./research) so the user can converse over the research documentation.",
       "required": [
@@ -449,26 +460,6 @@
       "cli_equivalent": "noul dossier show <slug>"
     },
     {
-      "name": "export_papers",
-      "description": "Export papers as bibtex, ris or csv.",
-      "required": [
-        "ids"
-      ],
-      "Optional": [
-        "format"
-      ],
-      "cli_equivalent": "noul export <ids>"
-    },
-    {
-      "name": "evidence_meter",
-      "description": "Compute the Evidence Meter deterministically from YOUR stance classification of each paper: raw counts and percentages plus study-design-weighted percentages (meta-analysis 1.0 … preclinical 0.2). Use its output instead of computing percentages yourself.",
-      "required": [
-        "items"
-      ],
-      "Optional": [],
-      "cli_equivalent": "noul meter '<json>'"
-    },
-    {
       "name": "configure_noul",
       "description": "View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, and default download/research folders. `clear` resets it.",
       "required": [],
@@ -480,6 +471,15 @@
         "clear"
       ],
       "cli_equivalent": "noul config"
+    },
+    {
+      "name": "evidence_meter",
+      "description": "Compute the Evidence Meter deterministically from YOUR stance classification of each paper: raw counts and percentages plus study-design-weighted percentages (meta-analysis 1.0 … preclinical 0.2). Use its output instead of computing percentages yourself.",
+      "required": [
+        "items"
+      ],
+      "Optional": [],
+      "cli_equivalent": "noul meter '<json>'"
     }
   ]
 }
