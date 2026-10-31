@@ -84,7 +84,10 @@ def mcp_command():
         if os.name == "nt":
             return "cmd", ["/c", "npx", "-y", PKG, "mcp"]
         return "npx", ["-y", PKG, "mcp"]
-    return sys.executable, ["-m", "noul", "mcp"]
+    script = _console_script("noul-mcp")
+    if script:
+        return str(script), []
+    return sys.executable, [str(REPO / "noul_mcp.py")]
 
 
 def cli_command():
@@ -92,7 +95,30 @@ def cli_command():
         return f"uvx {PKG}"
     if RUNNER == "npx":
         return f"npx -y {PKG}"
-    return f"{_q(sys.executable)} -m noul"
+    script = _console_script("noul")
+    if script:
+        return _q(script)
+    return f"{_q(sys.executable)} {_q(REPO / 'noul_cli.py')}"
+
+
+def _console_script(name):
+    """Absolute path of an installed console script next to this interpreter, or None.
+
+    Agents start stdio MCP servers inside the user's project folder. `python -m noul` would put that folder
+    first on sys.path, so a cloned repository containing `noul/` or a stdlib-named file (`json.py`, ...) could
+    run its own code; a console script (or an absolute script path) keeps sys.path[0] on the install folder."""
+    exe = name + (".exe" if os.name == "nt" else "")
+    dirs = [Path(sys.executable).parent]
+    for scheme in (None, f"{os.name}_user"):
+        try:
+            dirs.append(Path(sysconfig.get_path("scripts", scheme) if scheme else sysconfig.get_path("scripts")))
+        except (KeyError, TypeError):
+            pass
+    for folder in dirs:
+        candidate = folder / exe
+        if candidate.is_file():
+            return candidate.resolve()
+    return None
 
 
 def render(path, skill_path=None):

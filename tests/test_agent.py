@@ -108,7 +108,7 @@ def check_installer_roundtrip():
     assert "__NOUL_DIR__" not in (h / ".claude/agents/noul-researcher.md").read_text(encoding="utf-8")
     assert (
         json.loads((h / ".copilot/mcp-config.json").read_text(encoding="utf-8"))["mcpServers"]["noul"]["command"]
-        == sys.executable
+        == __import__("noul.install", fromlist=["x"]).mcp_command()[0]  # absolute console script, never `-m noul`
     )
     assert (h / ".claude/commands/noul-search-config.md").exists()
     toml = (h / ".codex/config.toml").read_text(encoding="utf-8")

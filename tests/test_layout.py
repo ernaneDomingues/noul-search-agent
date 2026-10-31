@@ -96,15 +96,22 @@ class InstallerInProcessTests(unittest.TestCase):
         self.assertEqual(code or 0, 0, err)
         home = Path(ENV["HOME"])
         skill = (home / ".claude/skills/noul-search/SKILL.md").read_text(encoding="utf-8")
-        self.assertIn("-m noul", skill)
-        self.assertNotIn("noul_cli.py", skill)
+        from noul import install
+
+        cli = install.cli_command()
+        self.assertIn(cli, skill)
+        # Never `python -m noul`: agents run servers inside untrusted project folders (sys.path[0] = cwd).
+        self.assertNotIn("-m noul", skill)
         self.assertNotIn("${CLAUDE_PLUGIN_ROOT}", skill)
+        command, args = install.mcp_command()
+        self.assertTrue(Path(command).is_absolute(), command)
+        self.assertNotIn("-m", args)
         mcp_files = [p for p in (home / ".claude.json", home / ".claude/settings.json") if p.exists()]
         servers = {}
         for path in mcp_files:
             servers.update(json.loads(path.read_text(encoding="utf-8")).get("mcpServers", {}))
         if "noul" in servers:
-            self.assertEqual(servers["noul"]["args"], ["-m", "noul", "mcp"])
+            self.assertEqual([servers["noul"]["command"], *servers["noul"]["args"]], [command, *args])
         code, _, err = self.run_installer("claude", "--uninstall")
         self.assertEqual(code or 0, 0, err)
         self.assertFalse((home / ".claude/skills/noul-search/SKILL.md").exists())
