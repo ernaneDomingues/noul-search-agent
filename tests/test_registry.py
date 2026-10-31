@@ -114,7 +114,6 @@ class CallValidationTests(unittest.TestCase):
             ("search_papers", {"query": "x", "typo": 1}, 400, "Unknown argument(s) for search_papers: typo"),
             ("search_papers", {"query": 3}, 400, "Invalid argument(s) for search_papers: 'query'"),
             ("search_papers", {"query": "x", "sort": "random"}, 400, "'sort'"),
-            ("evidence_meter", {"items": [{"id": "a"}]}, 400, "'items.0.stance'"),
         ]
         for name, args, code, text in cases:
             with self.subTest(name=name, args=args), self.assertRaises(HTTPError) as ctx:
@@ -136,6 +135,31 @@ class CallValidationTests(unittest.TestCase):
         with mock.patch.dict(registry.REGISTRY, {"search_papers": replacement}):
             self.assertEqual(registry.call("search_papers", {"query": "q", "limit": "5"}), {"ok": True})
         self.assertEqual(seen, {"query": "q", "limit": 5})
+
+    def test_evidence_meter_keeps_v1_item_tolerance(self):
+        from noul import registry
+
+        out = registry.call(
+            "evidence_meter",
+            {"items": [{"id": 7, "stance": "supportive", "title": "extra keys are ignored"}, {"id": "b"}, "junk"]},
+        )
+        self.assertEqual(out["total_papers"], 1)
+        self.assertEqual(len(out["skipped"]), 2)
+
+    def test_enum_case_and_null_defaults_follow_v1(self):
+        from noul import api, registry  # noqa: F401
+
+        tool = registry.REGISTRY["search_papers"]
+        seen = {}
+
+        def fake(**kwargs):
+            seen.update(kwargs)
+            return {}
+
+        replacement = registry.Tool(tool.name, tool.description, tool.input, fake, tool.writes, tool.network)
+        with mock.patch.dict(registry.REGISTRY, {"search_papers": replacement}):
+            registry.call("search_papers", {"query": "q", "sort": "Citations", "study_types": ["RCT"], "limit": None})
+        self.assertEqual(seen, {"query": "q", "sort": "citations", "study_types": ["rct"]})
 
     def test_nested_models_are_passed_as_plain_dicts(self):
         from noul import registry

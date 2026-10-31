@@ -6,6 +6,7 @@ catalog and the SKILL tool list are all derived from it."""
 
 from __future__ import annotations
 
+import sys
 import time
 import types
 import typing
@@ -94,10 +95,18 @@ def _type_schema(ann: Any) -> dict[str, Any]:
     return {"type": _JSON_TYPES[ann]}
 
 
-def _field_schema(field: Any) -> dict[str, Any]:
-    schema = _type_schema(field.annotation)
+def _field_schema(field: Any, owner: type[BaseModel]) -> dict[str, Any]:
+    extra = field.json_schema_extra if isinstance(field.json_schema_extra, dict) else {}
+    schema: dict[str, Any]
+    if extra.get("schema_items"):
+        # A list validated loosely (by the tool itself) whose items are advertised with a documentation model,
+        # named in the same module as the owning input model.
+        item_model = getattr(sys.modules[owner.__module__], str(extra["schema_items"]))
+        schema = {"type": "array", "items": _object_schema(item_model)}
+    else:
+        schema = _type_schema(field.annotation)
     # `Literal[...] | None` is cached by value set, so optional enums carry their declared order explicitly.
-    order = (field.json_schema_extra or {}).get("enum_order") if isinstance(field.json_schema_extra, dict) else None
+    order = extra.get("enum_order")
     if order:
         target = schema["items"] if schema.get("type") == "array" else schema
         if set(order) != set(target.get("enum", ())):
@@ -117,7 +126,7 @@ def _field_schema(field: Any) -> dict[str, Any]:
 def _object_schema(model: type[BaseModel]) -> dict[str, Any]:
     return {
         "type": "object",
-        "properties": {name: _field_schema(f) for name, f in model.model_fields.items()},
+        "properties": {name: _field_schema(f, model) for name, f in model.model_fields.items()},
         "required": [name for name, f in model.model_fields.items() if f.is_required()],
     }
 
@@ -190,6 +199,23 @@ def _validation_message(name: str, exc: ValidationError) -> str:
     return f"Invalid argument(s) for {name}: " + "; ".join(parts)
 
 
+def _fold_enum_case(annotation: Any, value: Any) -> Any:
+    """v1 accepted enum values in any case (e.g. `RCT`, `Citations`): fold strings to the lower-case member."""
+    inner = _unwrap_optional(annotation)
+    is_list = typing.get_origin(inner) is list
+    literal = typing.get_args(inner)[0] if is_list else inner
+    if typing.get_origin(literal) is not typing.Literal:
+        return value
+    members = {str(m).lower(): m for m in typing.get_args(literal) if isinstance(m, str)}
+
+    def fold(v: Any) -> Any:
+        return members.get(v.lower(), v) if isinstance(v, str) else v
+
+    if is_list and isinstance(value, list):
+        return [fold(v) for v in value]
+    return fold(value)
+
+
 def call(name: str, args: Any = None) -> Any:
     """Validate `args` against the tool's input model and run it. Errors are `HTTPError` (400/404)."""
     if name not in _loaded():
@@ -206,12 +232,19 @@ def call(name: str, args: Any = None) -> Any:
     missing = [k for k, f in fields.items() if f.is_required() and args.get(k) is None]
     if missing:
         raise _errors.HTTPError(400, f"Missing required argument(s) for {name}: {', '.join(missing)}")
+    args = {k: _fold_enum_case(fields[k].annotation, v) for k, v in args.items()}
     try:
         model = t.input.model_validate(args)
     except ValidationError as exc:
+        _log.logger.debug("tool rejected name=%s fields=%s", name, sorted({str(e["loc"][0]) for e in exc.errors()}))
         raise _errors.HTTPError(400, _validation_message(name, exc)) from None
-    # Only the arguments the caller sent are passed, so the function's own defaults still apply.
-    kwargs = {k: getattr(model, k) for k in args}
+    # Only the arguments the caller sent are passed, so the function's own defaults still apply. An explicit null
+    # for a field with a non-null default means "use the default" (the value the schema advertises).
+    kwargs = {
+        k: getattr(model, k)
+        for k, v in args.items()
+        if not (v is None and not fields[k].is_required() and fields[k].default is not None)
+    }
     for k, v in kwargs.items():
         if isinstance(v, list):
             kwargs[k] = [x.model_dump(exclude_unset=True) if isinstance(x, BaseModel) else x for x in v]

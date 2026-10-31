@@ -441,7 +441,9 @@ class ExportPapersInput(_ToolInput):
 class EvidenceMeterInput(_ToolInput):
     """Arguments of `evidence_meter`."""
 
-    items: list[EvidenceMeterItemsItem]
+    # Items are validated by evidence_meter itself (v1 behaviour: bad items are reported in `skipped`, extra keys
+    # such as a title or rationale are ignored); EvidenceMeterItemsItem documents the advertised item schema.
+    items: list[Any] = Field(..., json_schema_extra={"schema_items": "EvidenceMeterItemsItem"})
 
 
 class ConfigureNoulInput(_ToolInput):
