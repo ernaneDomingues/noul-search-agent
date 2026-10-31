@@ -8,5 +8,10 @@
     "n": 100,
     "accuracy": 0.62,
     "macro_f1": 0.6222
+  },
+  "domain_holdout": {
+    "n": 40,
+    "accuracy": 0.5,
+    "macro_f1": 0.4733
   }
 }
