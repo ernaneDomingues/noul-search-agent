@@ -6,9 +6,8 @@ Copilot, Cursor…) reasons and writes the verdicts. Keep it that way.
 
 ## Status: v2 refactor in progress
 
-The approved plan lives in `docs/REFACTOR_PLAN.md` (one PR per phase). Phase 0 is merged; Phase 1 ships as
-three PRs: 1a (src layout, merged), **1b** (tool registry + generated artifacts), 1c (resilient HTTP +
-domain classifier). Do not start a later PR's work in an earlier one.
+The approved plan lives in `docs/REFACTOR_PLAN.md` (one PR per phase). Phase 0 is merged; Phase 1 (1a/1b/1c) is merged;
+current: **Phase 2a** (MCP on the official SDK). Do not start a later PR's work in an earlier one.
 
 | Path | Role |
 |---|---|
@@ -22,7 +21,8 @@ domain classifier). Do not start a later PR's work in an earlier one.
 | `src/noul/api.py` | the 41 tool functions, each decorated with `@_registry.tool(...)`; `TOOLS`/`call` re-exported for v1 callers |
 | `src/noul/schemas/tool_inputs.py` | one Pydantic input model per tool — the source of the MCP `inputSchema` |
 | `src/noul/log.py` | `noul` logger, stderr only, level from `NOUL_LOG_LEVEL` |
-| `src/noul/server/legacy.py` | hand-written MCP (stdio) + hardened HTTP server (`--http`); replaced by the SDK in Phase 2a |
+| `src/noul/server/mcp.py`, `http.py`, `common.py` | MCP server on the official SDK (stdio; prompts, progress, e-mail elicitation) and the Starlette HTTP app (Streamable HTTP `/mcp`, REST/OpenAPI, `Guard` middleware for Host/Origin/Bearer/body cap); profiles via `--profile`/`NOUL_TOOL_PROFILE` |
+| `src/noul/server/legacy.py` | v1 hand-written server, only via `noul-mcp --legacy`; removed in 2.0.0 |
 | `src/noul/cli/`, `src/noul/install.py` | `noul` CLI (`python -m noul`), `noul-install` |
 | `noul_core.py`, `noul_tools.py`, `noul_mcp.py`, `noul_cli.py`, `install.py` | deprecated root shims (removed in 2.0.0) |
 | `skills/`, `agents/`, `commands/`, `.claude-plugin/` | distribution to agent clients (plugin runs `uv run --project ${CLAUDE_PLUGIN_ROOT} noul-mcp`) |

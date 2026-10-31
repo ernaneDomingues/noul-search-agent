@@ -70,8 +70,8 @@ class Guard:
         if origin and origin not in self.cors_origins:
             return await reply(403, {"error": "Forbidden: origin not allowed (see NOUL_CORS_ORIGINS)"})
         if scope.get("method") == "OPTIONS":
-            for message in _json(204, "", {**cors, **_PREFLIGHT_HEADERS})[:1]:
-                await send(message)
+            hdrs = [(k.lower().encode(), v.encode()) for k, v in {**cors, **_PREFLIGHT_HEADERS}.items()]
+            await send({"type": "http.response.start", "status": 204, "headers": hdrs})
             await send({"type": "http.response.body", "body": b""})
             return
         if self.token and path != "/healthz":
