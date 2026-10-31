@@ -1,7 +1,7 @@
 {
   "name": "noul-search-agent",
   "version": "1.0.0",
-  "description": "Autonomous Scientific Research & Document Intelligence Agent (MCP server, CLI, skill and subagent) across CS/AI, Biomedical, Economics & STEM with Evidence Meter, technical extraction, multi-persona peer review, polyglot code/protocol scaffolding, academic authoring copilot and pre-submission gatekeeper. Zero dependencies.",
+  "description": "Autonomous Scientific Research & Document Intelligence Agent (MCP server, CLI, skill and subagent) across CS/AI, Biomedical, Economics & STEM with Evidence Meter, technical extraction, multi-persona peer review, polyglot code/protocol scaffolding, academic authoring copilot and pre-submission gatekeeper. Runs through uv (installs Python and dependencies automatically).",
   "license": "Apache-2.0",
   "author": "Ernane Domingues",
   "homepage": "https://ernanedomingues.github.io/noul-search-agent/",
@@ -12,25 +12,38 @@
   "bugs": {
     "url": "https://github.com/ernaneDomingues/noul-search-agent/issues"
   },
-  "keywords": ["mcp", "model-context-protocol", "scientific-literature", "evidence", "research", "claude", "copilot", "codex", "gemini"],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "scientific-literature",
+    "evidence",
+    "research",
+    "claude",
+    "copilot",
+    "codex",
+    "gemini"
+  ],
   "bin": {
     "noul-search-agent": "bin/noul.js",
     "noul": "bin/noul.js"
   },
   "files": [
     "bin/",
+    "src/",
+    "pyproject.toml",
+    "uv.lock",
     "noul_core.py",
     "noul_tools.py",
     "noul_mcp.py",
     "noul_cli.py",
     "install.py",
-    "noul/",
     "plugin.json",
     "skills/",
     "agents/",
     "commands/",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "!**/__pycache__"
   ],
   "engines": {
     "node": ">=16"

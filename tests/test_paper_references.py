@@ -75,7 +75,7 @@ class ReferencesTests(unittest.TestCase):
         c.cache_set("paper:" + ANCHOR["id"], dict(ANCHOR))
 
     def refs(self, **kw):
-        with mock.patch.object(c, "_http_json", side_effect=s2_router) as m:
+        with mock.patch(_support.core_target("_http_json"), side_effect=s2_router) as m:
             out = t.call("get_paper_references", {"paper_id": ANCHOR["id"], **kw})
         return out, m
 
@@ -141,8 +141,8 @@ class ReferencesTests(unittest.TestCase):
             "citing": [{**ANCHOR, "id": "oa:W4", "title": "Citer", "citations": 1, "year": 2024, "doi": None}],
         }
         with (
-            mock.patch.object(c, "_http_json", side_effect=boom),
-            mock.patch.object(c, "citation_graph", return_value=graph) as cg,
+            mock.patch(_support.core_target("_http_json"), side_effect=boom),
+            mock.patch(_support.core_target("citation_graph"), return_value=graph) as cg,
         ):
             out = t.get_paper_references(ANCHOR["id"])
         cg.assert_called_once_with(ANCHOR["id"])
@@ -156,7 +156,7 @@ class ReferencesTests(unittest.TestCase):
 
     def test_cli(self):
         buf = io.StringIO()
-        with mock.patch.object(c, "_http_json", side_effect=s2_router), contextlib.redirect_stdout(buf):
+        with mock.patch(_support.core_target("_http_json"), side_effect=s2_router), contextlib.redirect_stdout(buf):
             code = cli.main(["references", ANCHOR["id"], "--direction", "backward", "--sort", "year", "--limit", "2"])
         out = json.loads(buf.getvalue())
         self.assertEqual((code, [r["year"] for r in out["backward_citations"]]), (0, [2019, 2015]))

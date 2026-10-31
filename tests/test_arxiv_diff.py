@@ -56,6 +56,7 @@ def setUpModule():
     import noul_cli as cli
     import noul_core as c
     import noul_tools as t
+
     from noul.providers import arxiv_client as _ac
 
     arxiv_client = _ac
@@ -63,7 +64,7 @@ def setUpModule():
 
 class ArxivDiffTests(unittest.TestCase):
     def setUp(self):
-        patcher_json = mock.patch.object(c, "_http_json", side_effect=_support.no_network)
+        patcher_json = mock.patch(_support.core_target("_http_json"), side_effect=_support.no_network)
         patcher_json.start()
         self.addCleanup(patcher_json.stop)
 
@@ -97,7 +98,7 @@ class ArxivDiffTests(unittest.TestCase):
             arxiv_client.parse_arxiv_version_args("2401.12345", "v1", "v1")
 
     def test_diff_via_atom_api_detects_metrics_attenuation_authors_and_baselines(self):
-        with mock.patch.object(c, "_http_get", side_effect=self._mock_atom_get):
+        with mock.patch(_support.core_target("_http_get"), side_effect=self._mock_atom_get):
             out = t.call("diff_arxiv_versions", {"arxiv_id": "2401.12345", "from_version": "v1", "to_version": "v2"})
 
         self.assertEqual(out["arxiv_base_id"], "2401.12345")
@@ -175,7 +176,7 @@ class ArxivDiffTests(unittest.TestCase):
             },
         )
 
-        with mock.patch.object(c, "_http_get", side_effect=_support.no_network):
+        with mock.patch(_support.core_target("_http_get"), side_effect=_support.no_network):
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
                 self.assertEqual(cli.main(["diff", "2402.54321", "--from", "v1", "--to", "v2", "--pretty"]), 0)

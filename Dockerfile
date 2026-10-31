@@ -11,12 +11,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PORT=8080
 
 WORKDIR /src
-COPY pyproject.toml README.md LICENSE noul_core.py noul_tools.py noul_mcp.py noul_cli.py install.py ./
-COPY noul ./noul
+COPY pyproject.toml README.md LICENSE ./
+COPY src ./src
 COPY skills ./skills
 COPY agents ./agents
 COPY commands ./commands
-RUN pip install --no-cache-dir ".[pdf]" \
+RUN pip install --no-cache-dir . \
     && useradd --create-home --uid 10001 noul \
     && mkdir -p /tmp/noul-cache /tmp/noul-workspace \
     && chown noul:noul /tmp/noul-cache /tmp/noul-workspace \

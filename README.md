@@ -4,20 +4,22 @@ Agente autônomo de pesquisa científica, inteligência documental e copiloto de
 
 - **Portal & Documentação Pública**: [https://ernanedomingues.github.io/noul-search-agent/](https://ernanedomingues.github.io/noul-search-agent/)
 
-Zero chaves de API obrigatórias e zero dependências externas obrigatórias (usa apenas a biblioteca padrão do Python 3.10+; `pypdf` e `pydantic>=2.7` são opcionais via extras `pdf` e `pro`): o LLM do próprio agente classifica a postura dos estudos e redige a síntese citada.
+Zero chaves de API obrigatórias e nenhum LLM próprio: o LLM do agente que você já usa classifica a postura dos estudos e redige a síntese citada. Requer Python 3.10+ com `pydantic` e `pypdf`; o caminho recomendado é o [`uv`](https://docs.astral.sh/uv/), que instala o Python e as dependências automaticamente.
 
 ## Componentes
 | Arquivo | Função |
 |---|---|
-| `noul_core.py` | Motor de busca (`OpenAlex`, `PubMed`, `Semantic Scholar`, `Crossref`, `arXiv`, `Europe PMC`, `Unpaywall`), deduplicação, classificação de desenho de estudo, faixas de impacto, grafo de citações, download de PDFs com proteção SSRF e configuração persistente |
-| `noul_tools.py` | **41 ferramentas MCP compartilhadas**: descoberta e busca (`search_papers`, `get_paper`, `clarify_search_scope`, `detect_paper_domain`, `get_paper_references`, `scan_paper_artifacts`, `suggest_boolean_queries`), síntese e PKM (`compare_papers`, `get_thematic_insights`, `generate_research_hypotheses`, `export_obsidian_notes`), mergulho técnico e auditoria (`extract_benchmark_tables`, `estimate_hardware_specs`, `verify_paper_claims`, `extract_paper_math`, `analyze_ablation_tables`, `extract_prompts_and_decoding`, `detect_failure_modes`, `diff_arxiv_versions`), comitê de revisão e scaffolder (`review_paper`, `review_paper_scientific`, `scaffold_implementation`, `scaffold_paper_code`), copiloto de autoria e pré-submissão (`recommend_citations`, `synthesize_related_work`, `generate_manuscript_blueprint`, `audit_manuscript_draft`, `sanitize_bibtex`, `parse_and_draft_rebuttal`, `audit_submission_readiness`) e gestão de biblioteca (`get_fulltext`, `query_fulltexts`, `citation_graph`, `related_papers`, `download_papers`, `save_research_dossier`, `list_research_dossiers`, `get_research_dossier`, `export_papers`, `evidence_meter`, `configure_noul`) |
-| `noul/` | Pacote modular (somente stdlib; Pydantic v2 opcional via extra `pro`): `noul/schemas/` (contratos dual-mode), `noul/providers/` (classificador de domínio, radar de artefatos, parser de PDF/tabelas e cliente temporal do arXiv), `noul/prompts/` (clarificação, rubricas `NeurIPS/ICLR`, `CONSORT/STROBE/PRISMA`, `Econometria Causal` e templates de scaffolding) e `noul/tools/` (Fases 1 a 6) |
-| `noul_mcp.py` | Servidor MCP (`stdio`) e servidor HTTP endurecido (`--http`) com MCP em `/mcp`, OpenAPI em `/openapi.json`, `/healthz` e MCP Resources (`noul://dossier/<slug>`) |
-| `noul_cli.py` | CLI (`noul`) para terminal (`--pretty`, `search --interactive`) ou agentes sem MCP (inclui `clarify`, `domain`, `references`, `artifacts`, `compare`, `insights`, `hypotheses`, `expand`, `benchmarks`, `hardware`, `ground`, `math`, `ablation`, `prompts`, `failures`, `diff`, `review`, `scaffold`, `cite`, `related-work`, `draft structure\|audit`, `bibtex sanitize`, `rebuttal parse`, `gatekeeper audit` e `export --format obsidian`); também expõe `mcp` e `install` |
+| `src/noul/search/`, `src/noul/providers/` | Motor de busca (`OpenAlex`, `PubMed`, `Semantic Scholar`, `Crossref`, `arXiv`, `Europe PMC`, `Unpaywall`), um módulo por fonte, deduplicação e ranqueamento; classificador de domínio, radar de artefatos, parser de PDF/tabelas e cliente temporal do arXiv |
+| `src/noul/evidence/`, `src/noul/library/`, `src/noul/net/` | Classificação de desenho de estudo e faixas de impacto; texto completo, grafo de citações, downloads e exportação; HTTP com proteção SSRF e cache SQLite |
+| `src/noul/api.py` | **41 ferramentas MCP compartilhadas** (registro `TOOLS` e `call()`) usadas pelo MCP, pelo HTTP/OpenAPI e pela CLI |
+| `src/noul/tools/`, `src/noul/schemas/`, `src/noul/prompts/` | Ferramentas das Fases 1 a 6, contratos Pydantic v2 e rubricas (`NeurIPS/ICLR`, `CONSORT/STROBE/PRISMA`, `Econometria Causal`) |
+| `src/noul/server/legacy.py` | Servidor MCP (`stdio`) e servidor HTTP endurecido (`--http`) com MCP em `/mcp`, OpenAPI em `/openapi.json`, `/healthz` e MCP Resources (`noul://dossier/<slug>`) |
+| `src/noul/cli/` | CLI (`noul`, ou `python -m noul`) para terminal (`--pretty`, `search --interactive`) ou agentes sem MCP; também expõe `mcp` e `install` |
+| `src/noul/install.py` | Instalador idempotente em nível de usuário (`noul-install`) |
+| `noul_core.py`, `noul_tools.py`, `noul_mcp.py`, `noul_cli.py`, `install.py` | *Shims* de compatibilidade (obsoletos; removidos na 2.0.0) |
 | `site/` & `scripts/build_site.py` | Landing Page responsiva (Modo Claro/Escuro), simulador de terminal interativo e catálogo sincronizado das 41 ferramentas MCP publicado via GitHub Pages (`.github/workflows/deploy-pages.yml`) |
 | `skills/noul-search/SKILL.md` | Fluxo de pesquisa, auditoria técnica, revisão por pares, autoria científica e conversa sobre os artigos |
 | `agents/`, `commands/` | Subagentes/extensões (Claude, Copilot, Codex, Gemini) e o comando `/noul-search-config` |
-| `install.py` | Instalador idempotente em nível de usuário (`noul-install`) |
 | `.claude-plugin/`, `plugin.json`, `pyproject.toml`, `package.json` + `bin/noul.js`, `Dockerfile` | Distribuição: plugin do Claude Code / Antigravity, PyPI (`pip`/`pipx`/`uvx`), npm (`npx`) e contêiner (Cloud Run) |
 
 ## Instalação
@@ -33,17 +35,18 @@ Escolha **uma** das opções:
 pipx install noul-search-agent && noul-install --all
 uvx noul-search-agent install --all          # agentes passam a iniciar o MCP via `uvx`
 
-# npm (após publicação) — usa o Python do sistema, sem dependências
+# npm (após publicação) — usa o uv para provisionar Python e dependências
 npx -y noul-search-agent install --all       # agentes passam a iniciar o MCP via `npx`
 
-# A partir do código-fonte (ou antes da publicação: pipx install git+https://github.com/ernaneDomingues/noul-search-agent)
-python3 install.py --all                     # todos os ambientes suportados
-python3 install.py antigravity claude        # ou ambientes específicos
-python3 install.py --all --dry-run           # apenas mostra o que faria
-python3 install.py --all --uninstall         # remove tudo de forma limpa
+# A partir do código-fonte (requer uv: https://docs.astral.sh/uv/)
+git clone https://github.com/ernaneDomingues/noul-search-agent && cd noul-search-agent
+uv run noul-install --all                    # todos os ambientes suportados
+uv run noul-install antigravity claude       # ou ambientes específicos
+uv run noul-install --all --dry-run          # apenas mostra o que faria
+uv run noul-install --all --uninstall        # remove tudo de forma limpa
 ```
 
-O instalador usa o interpretador atual (`sys.executable`, funciona no Windows) ou `--runner uvx|npx`, grava strings TOML seguras para caminhos do Windows, cria um `.bak` antes de alterar pela primeira vez um arquivo de configuração existente e não toca em arquivos JSON corrompidos (sai com código 1). O plugin do Claude Code requer `python3` (3.10+) no `PATH`.
+O instalador usa o interpretador atual (`sys.executable`, funciona no Windows) ou `--runner uvx|npx`, grava strings TOML seguras para caminhos do Windows, cria um `.bak` antes de alterar pela primeira vez um arquivo de configuração existente e não toca em arquivos JSON corrompidos (sai com código 1). O plugin do Claude Code e o launcher `npx` requerem o [`uv`](https://docs.astral.sh/uv/) no `PATH`.
 
 ## Configuração
 
@@ -66,15 +69,13 @@ Downloads e dossiês ficam **sempre dentro do workspace** (padrão: diretório a
 | `NOUL_HOME` | Cache e `config.json` (padrão `~/.cache/noul-search-agent`) |
 | `NOUL_DB_PATH` | Caminho do banco SQLite de cache |
 | `NOUL_ALLOW_ANY_PATH=1` | Desativa o confinamento ao workspace; reservado a testes isolados |
-| `NOUL_APP_DIR` | Usa explicitamente o núcleo de um `noul-search-app` externo |
 | `NOUL_INSTALL_RUNNER` | Runner padrão do instalador (`python`, `uvx`, `npx`) |
-| `NOUL_PYTHON` | Interpretador usado pelo launcher `npx` |
+| `NOUL_UV` | Executável do `uv` usado pelo launcher `npx` |
 
-Opcional: `pip install "noul-search-agent[pdf]"` (ou `pip install pypdf`) habilita a extração local de texto dos PDFs.
 
 ## Exemplos de Uso (CLI e Conversa)
 
-Os exemplos usam `noul` (instalado via pip/pipx). Com uvx, troque por `uvx noul-search-agent`; a partir do código-fonte, troque por `python3 noul_cli.py`.
+Os exemplos usam `noul` (instalado via pip/pipx). Com uvx, troque por `uvx noul-search-agent`; a partir do código-fonte, troque por `uv run noul`.
 
 ### 1. Pesquisar na literatura (Medicina, IA/Computação, Economia, Psicologia...)
 ```bash
@@ -107,7 +108,7 @@ noul meter '[{"id":"doi:10.1093/nutrit/nuac064","stance":"supportive"},{"id":"pm
 
 ### 6. Modo HTTP / OpenAPI (ChatGPT Actions, clientes Web, Cloud Run)
 ```bash
-noul-mcp --http 8765          # ou: python3 noul_mcp.py --http 8765
+noul-mcp --http 8765          # ou: uv run noul-mcp --http 8765
 # MCP: http://127.0.0.1:8765/mcp · OpenAPI: /openapi.json · saúde: /healthz
 ```
 Segurança: escuta em `127.0.0.1` por padrão e valida o cabeçalho `Host` (anti DNS rebinding); CORS apenas para `NOUL_CORS_ORIGINS`; autenticação `Authorization: Bearer` com `NOUL_HTTP_TOKEN` (exceto `/healthz`); ferramentas que gravam em disco (`download_papers`, `save_research_dossier`, `configure_noul`) ficam ocultas e bloqueadas via HTTP, a menos que `NOUL_HTTP_ALLOW_WRITE=1` **e** um token estejam definidos. Outras variáveis: `NOUL_HTTP_HOST`, `PORT`, `NOUL_HTTP_LOG=1`.

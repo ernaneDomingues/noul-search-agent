@@ -5,9 +5,15 @@
   "contextFileName": "GEMINI.md",
   "mcpServers": {
     "noul": {
-      "command": "python3",
-      "args": ["__NOUL_DIR__/noul_mcp.py"],
-      "cwd": "__NOUL_DIR__"
+      "command": "uv",
+      "args": [
+        "run",
+        "--project",
+        "__NOUL_DIR__",
+        "--quiet",
+        "--frozen",
+        "noul-mcp"
+      ]
     }
   }
 }

@@ -47,7 +47,7 @@ def frontmatter(text):
 class ObsidianExportTests(unittest.TestCase):
     def setUp(self):
         self.ids = _support.seed_phase2_papers(c, ["llm_a", "rct", "mice"])
-        patcher = mock.patch.object(c, "_http_json", side_effect=_support.no_network)
+        patcher = mock.patch(_support.core_target("_http_json"), side_effect=_support.no_network)
         patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -166,7 +166,7 @@ class ObsidianExportTests(unittest.TestCase):
         self.assertEqual((code, out["vault_dir"]), (0, str(WS / "obsidian")))
 
         papers = [dict(_support.PHASE2_PAPERS[k]) for k in ("llm_a", "mice")]
-        with mock.patch.object(c, "search", return_value={"papers": papers, "sources": {}, "warnings": []}):
+        with mock.patch(_support.core_target("search"), return_value={"papers": papers, "sources": {}, "warnings": []}):
             code, out = self._cli("search", "exercise bdnf", "--export-obsidian", "./vault-search")
         exp = out["obsidian_export"]
         self.assertEqual((code, exp["exported_count"], exp["vault_dir"]), (0, 2, str(WS / "vault-search")))

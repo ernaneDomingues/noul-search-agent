@@ -76,9 +76,8 @@ class CitationAndRelatedWorkTests(unittest.TestCase):
             "Furthermore, preference optimization with calibrated reward margins has been shown to stabilize policy gradients. "
             "Finally, 4-bit quantization significantly improves inference throughput across GPU architectures \\cite{?}."
         )
-        with mock.patch.object(
-            t,
-            "search_papers",
+        with mock.patch(
+            "noul.api.search_papers",
             return_value={"papers": [self.p1, self.p2], "total_found": 2, "sources": ["openalex"], "warnings": []},
         ):
             res = t.call(
@@ -100,9 +99,8 @@ class CitationAndRelatedWorkTests(unittest.TestCase):
 
     def test_recommend_citations_markdown_style_and_cli(self):
         draft = "# Introduction\nKey-value cache compression reduces memory by 68% [CITATION NEEDED]."
-        with mock.patch.object(
-            t,
-            "search_papers",
+        with mock.patch(
+            "noul.api.search_papers",
             return_value={"papers": [self.p1], "total_found": 1, "sources": ["openalex"], "warnings": []},
         ):
             buf = io.StringIO()
