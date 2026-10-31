@@ -230,6 +230,7 @@ def search_papers(
     ),
     input=_inputs.ClarifySearchScopeInput,
     profiles=("research",),
+    network=False,
 )
 def clarify_search_scope(query, answers=None, domain=None):
     return _search_tools.clarify_search_scope(query, answers=answers, domain=domain)
@@ -412,6 +413,9 @@ def generate_research_hypotheses(paper_ids, topic=None, max_hypotheses=3):
     input=_inputs.ExportObsidianNotesInput,
     writes=True,
     profiles=("write",),
+    destructive=True,
+    idempotent=True,
+    title="Export Obsidian notes",
 )
 def export_obsidian_notes(paper_ids, vault_dir=None, include_related_wikilinks=True):
     return _comparative_tools.export_obsidian_notes(
@@ -429,6 +433,7 @@ def export_obsidian_notes(paper_ids, vault_dir=None, include_related_wikilinks=T
     ),
     input=_inputs.SuggestBooleanQueriesInput,
     profiles=("research",),
+    network=False,
 )
 def suggest_boolean_queries(query="", paper_ids=None):
     return _search_tools.suggest_boolean_queries(query=query, paper_ids=paper_ids)
@@ -565,6 +570,7 @@ def detect_failure_modes(paper_id, inspect_fulltext=True):
     input=_inputs.DiffArxivVersionsInput,
     profiles=("review",),
     output=_out.ArxivVersionDiffReport,
+    title="Diff arXiv versions",
 )
 def diff_arxiv_versions(arxiv_id, from_version="v1", to_version="v2"):
     return _technical_tools.diff_arxiv_versions(arxiv_id, from_version=from_version, to_version=to_version)
@@ -592,6 +598,7 @@ def review_paper(paper_id, domain=None, inspect_fulltext=True):
     description=("Alias for review_paper: domain-adaptive 3-persona scientific peer-review committee (#17, #20)."),
     input=_inputs.ReviewPaperScientificInput,
     profiles=("review",),
+    title="Review paper (scientific committee)",
 )
 def review_paper_scientific(paper_id, domain=None, inspect_fulltext=True):
     return _review_tools.review_paper_scientific(paper_id, domain=domain, inspect_fulltext=bool(inspect_fulltext))
@@ -673,6 +680,7 @@ def synthesize_related_work(paper_ids, proposal, citation_style="latex", output_
     input=_inputs.GenerateManuscriptBlueprintInput,
     profiles=("write",),
     output=_out.ManuscriptBlueprint,
+    network=False,
 )
 def generate_manuscript_blueprint(topic, venue="neurips", hypothesis="", key_findings=None, output_format="markdown"):
     return _authoring_tools.generate_manuscript_blueprint(
@@ -690,6 +698,7 @@ def generate_manuscript_blueprint(topic, venue="neurips", hypothesis="", key_fin
     input=_inputs.AuditManuscriptDraftInput,
     profiles=("write",),
     output=_out.DraftAuditReport,
+    network=False,
 )
 def audit_manuscript_draft(draft_input, venue="neurips", output_format="markdown"):
     return _authoring_tools.audit_manuscript_draft(draft_input, venue=venue, output_format=output_format)
@@ -707,6 +716,8 @@ def audit_manuscript_draft(draft_input, venue="neurips", output_format="markdown
     write_args=("output_path",),
     profiles=("write",),
     output=_out.BibtexSanitizeReport,
+    destructive=True,
+    title="Sanitize BibTeX",
 )
 def sanitize_bibtex(bibtex_input, update_preprints=True, output_path=None):
     return _authoring_tools.sanitize_bibtex(
@@ -744,6 +755,7 @@ def parse_and_draft_rebuttal(reviews_input, paper_id=None, draft_input=None, out
     input=_inputs.AuditSubmissionReadinessInput,
     profiles=("write",),
     output=_out.SubmissionGatekeeperReport,
+    network=False,
 )
 def audit_submission_readiness(draft_path, venue="neurips"):
     return _gatekeeper_tools.audit_submission_readiness(draft_path, venue=venue)
@@ -757,6 +769,7 @@ def audit_submission_readiness(draft_path, venue="neurips"):
     ),
     input=_inputs.GetFulltextInput,
     profiles=("research",),
+    title="Get full text",
 )
 def get_fulltext(id, question=""):
     p = _resolve(id)
@@ -779,6 +792,7 @@ def get_fulltext(id, question=""):
     ),
     input=_inputs.QueryFulltextsInput,
     profiles=("research",),
+    title="Query full texts",
 )
 def query_fulltexts(ids, question, max_chunks_per_paper=4):
     """Query across multiple papers (full text when Open Access, or abstract fallback) to answer follow-up questions."""
@@ -876,7 +890,8 @@ def related_papers(id, relation="all", study_types=None, year_min=None, limit=15
     ),
     input=_inputs.DownloadPapersInput,
     writes=True,
-    profiles=("write",),
+    profiles=("research",),
+    idempotent=True,
 )
 def download_papers(ids, output_dir=None):
     """Download Open Access PDFs for the given paper IDs/DOIs to `output_dir` (confined to the workspace)."""
@@ -939,8 +954,9 @@ def _dossier_paths(directory):
     input=_inputs.SaveResearchDossierInput,
     writes=True,
     network=False,
-    profiles=("write",),
+    profiles=("research",),
     destructive=True,
+    idempotent=True,
 )
 def save_research_dossier(topic, synthesis_markdown, paper_ids=None, output_dir=None):
     """Save a structured research dossier (README.md, papers.json, references.bib) so the user can
@@ -1090,6 +1106,8 @@ def get_research_dossier(slug, output_dir=None):
     network=False,
     profiles=("research",),
     destructive=True,
+    idempotent=True,
+    title="Configure Noul",
 )
 def configure_noul(email=None, workspace=None, download_dir=None, research_dir=None, clear=False):
     """View or update persistent Noul configuration (email for Unpaywall/polite pool, workspace, default folders).

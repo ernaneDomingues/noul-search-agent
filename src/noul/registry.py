@@ -39,6 +39,8 @@ class Tool:
     # Overwrites or deletes user data (MCP destructiveHint).
     destructive: bool = False
     title: str | None = None
+    # Same arguments -> same end state (MCP idempotentHint); None: derived (read-only tools are idempotent).
+    idempotent: bool | None = None
 
 
 REGISTRY: dict[str, Tool] = {}
@@ -66,7 +68,7 @@ def tool_annotations(tool: Tool) -> dict[str, Any]:
         "title": tool_title(tool),
         "readOnlyHint": read_only,
         "destructiveHint": tool.destructive,
-        "idempotentHint": read_only,
+        "idempotentHint": read_only if tool.idempotent is None else tool.idempotent,
         "openWorldHint": tool.network,
     }
 
@@ -95,6 +97,7 @@ def tool(
     output: type[BaseModel] | None = None,
     destructive: bool = False,
     title: str | None = None,
+    idempotent: bool | None = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Register the decorated function as tool `name` (the function itself is returned unchanged)."""
 
@@ -113,6 +116,7 @@ def tool(
             output,
             destructive,
             title,
+            idempotent,
         )
         return fn
 

@@ -24,9 +24,9 @@ Zero chaves de API obrigatórias e nenhum LLM próprio: o LLM do agente que voc�
 
 ## Ferramentas MCP
 
-**Perfis de ferramentas.** Para não sobrecarregar o contexto do modelo, o servidor expõe um perfil: `research` (núcleo de busca, leitura e Evidence Meter, 15 ferramentas), `review` (núcleo + revisão e auditoria técnica), `write` (núcleo + autoria, BibTeX e submissão) ou `all` (as 41). Padrão: `all` no uso local (stdio: plugin, CLI, `noul-install`) e `research` no servidor HTTP/remoto. Mude com `noul-mcp --profile review` ou `NOUL_TOOL_PROFILE=write`.
+**Perfis de ferramentas.** Para não sobrecarregar o contexto do modelo, o servidor expõe um perfil: `research` (núcleo de busca, leitura, Evidence Meter, dossiês e downloads, 17 ferramentas), `review` (núcleo + revisão e auditoria técnica), `write` (núcleo + autoria, BibTeX e submissão) ou `all` (as 41). Padrão: `all` no uso local (stdio: plugin, CLI, `noul-install`) e `research` no servidor HTTP/remoto. Mude com `noul-mcp --profile review` ou `NOUL_TOOL_PROFILE=write`.
 
-O servidor MCP usa o SDK oficial (`mcp` 2.x): stdio e Streamable HTTP (`/mcp`), *annotations* por ferramenta (somente leitura, destrutiva, acesso à rede), `structuredContent` (com `outputSchema` nas ferramentas que já têm modelo de resultado), *prompts* (`noul-research`, `noul-review`, `noul-write`), progresso por fonte em `search_papers` e, em stdio, um pedido único do e-mail de contato quando ele não está configurado. O servidor v1 continua disponível com `noul-mcp --legacy` até a 2.0.0.
+O servidor MCP usa o SDK oficial (`mcp` 2.x): stdio e Streamable HTTP (`/mcp`), *annotations* por ferramenta (somente leitura, destrutiva, acesso à rede), `structuredContent` (com `outputSchema` nas ferramentas que já têm modelo de resultado), *prompts* (`noul-research`, `noul-review`, `noul-write`), progresso por fonte em `search_papers` e, em stdio, um pedido único do e-mail de contato (na primeira busca de texto completo ou PDF, se ainda não configurado; uma recusa é lembrada). O servidor v1 continua disponível com `noul-mcp --legacy` até a 2.0.0.
 
 Gerado a partir do registro (`src/noul/registry.py`) por `scripts/build_site.py`; não edite à mão.
 
@@ -67,9 +67,9 @@ Gerado a partir do registro (`src/noul/registry.py`) por `scripts/build_site.py`
 | `query_fulltexts` | Query across multiple papers simultaneously for a specific question (uses full text when Open Access or abstract fallback). | research (todos) | não |
 | `citation_graph` | Papers this paper cites (references) and papers citing it (OpenAlex), automatically cached for follow-up. | research (todos) | não |
 | `related_papers` | Find papers semantically similar to the target paper, papers it cites (references), or papers citing it. | research (todos) | não |
-| `download_papers` | Download Open Access PDFs for one or more paper IDs or DOIs into `output_dir` (inside the workspace; default: configured download_dir, ./papers). | write | sim |
+| `download_papers` | Download Open Access PDFs for one or more paper IDs or DOIs into `output_dir` (inside the workspace; default: configured download_dir, ./papers). | research (todos) | sim |
 | `export_papers` | Export papers as bibtex, ris or csv. | research (todos) | não |
-| `save_research_dossier` | Save a persistent research dossier (README.md, papers.json, references.bib) in `output_dir` (inside the workspace; default: configured research_dir, ./research) so the user can converse over the research documentation. | write | sim |
+| `save_research_dossier` | Save a persistent research dossier (README.md, papers.json, references.bib) in `output_dir` (inside the workspace; default: configured research_dir, ./research) so the user can converse over the research documentation. | research (todos) | sim |
 | `list_research_dossiers` | List saved research dossiers available for follow-up conversation. | research (todos) | não |
 | `get_research_dossier` | Load a saved research dossier (Markdown report and paper metadata) by slug or topic. | research (todos) | não |
 | `configure_noul` | View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, and default download/research folders. | research (todos) | sim |

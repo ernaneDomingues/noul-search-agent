@@ -130,7 +130,7 @@ class HttpAppTests(unittest.TestCase):
     def test_rest_tools_and_openapi_follow_the_profile(self):
         with client() as c:
             names = {t["name"] for t in c.get("/tools", headers=AUTH).json()["tools"]}
-            self.assertEqual(len(names), 14)  # research profile (15) minus configure_noul (a write tool)
+            self.assertEqual(len(names), 14)  # research profile (17) minus its 3 write tools
             spec = c.get("/openapi.json", headers=AUTH).json()
             self.assertEqual({p.rsplit("/", 1)[1] for p in spec["paths"]}, names)
             ok = c.post("/tools/evidence_meter", json={"items": [{"stance": "supportive"}]}, headers=AUTH)

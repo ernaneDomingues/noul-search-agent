@@ -58,7 +58,14 @@ def openapi_spec(host=f"http://localhost:{DEFAULT_PORT}", exclude=(), profile=No
                 "summary": desc[:120],
                 "description": desc,
                 "requestBody": {"required": True, "content": {"application/json": {"schema": item["inputSchema"]}}},
-                "responses": {"200": {"description": "Tool response"}},
+                "responses": {
+                    "200": {"description": "Tool response"}
+                    if not item["outputSchema"]
+                    else {
+                        "description": "Tool response",
+                        "content": {"application/json": {"schema": item["outputSchema"]}},
+                    }
+                },
             }
         }
     return {

@@ -43,7 +43,8 @@ class McpServerTests(unittest.TestCase):
 
         self.assertEqual(len(run(names, "all", True)), 41)
         research = run(names, "research", True)
-        self.assertEqual(len(research), 15)
+        self.assertEqual(len(research), 17)
+        self.assertTrue({"save_research_dossier", "download_papers"} <= research)  # the research flow saves
         self.assertIn("search_papers", research)
         self.assertNotIn("review_paper", research)
         no_write = run(names, "all", False)
@@ -85,6 +86,8 @@ class McpServerTests(unittest.TestCase):
         self.assertTrue(bad.is_error)
         self.assertIn("Invalid argument(s) for search_papers", bad.content[0].text)
         self.assertTrue(unknown.is_error)
+        self.assertTrue(bad.content[0].text.startswith("InvalidArguments:"))  # not mistaken for a network error
+        self.assertTrue(unknown.content[0].text.startswith("NotFound:"))
 
     def test_write_calls_are_refused_without_write_permission(self):
         from noul.server.mcp import build_server
@@ -113,7 +116,7 @@ class McpServerTests(unittest.TestCase):
 
         result = run(call)
         self.assertTrue(result.is_error)
-        self.assertIn("not available in the 'research' profile", result.content[0].text)
+        self.assertIn("not in the 'research' tool profile", result.content[0].text)
 
     def test_prompts(self):
         from noul.server.mcp import build_server
@@ -129,6 +132,33 @@ class McpServerTests(unittest.TestCase):
         text = got.messages[0].content.text
         self.assertIn("Does creatine improve memory?", text)
         self.assertIn("evidence_meter", text)
+
+    def test_prompts_follow_the_profile_and_require_their_arguments(self):
+        from noul.server.mcp import build_server
+
+        async def go():
+            async with self.client(build_server(profile="research")) as c:
+                names = [p.name for p in (await c.list_prompts()).prompts]
+                try:
+                    await c.get_prompt("noul-research", {})
+                    missing_ok = True
+                except Exception:
+                    missing_ok = False
+                return names, missing_ok
+
+        names, missing_ok = run(go)
+        self.assertEqual(names, ["noul-research"])
+        self.assertFalse(missing_ok)
+
+    def test_structured_content_is_dropped_when_it_would_not_match_the_output_schema(self):
+        from noul.schemas.tool_outputs import BibtexSanitizeReport
+        from noul.server.mcp import _text_result
+
+        result = _text_result({"entries_total": "many"}, output=BibtexSanitizeReport)
+        self.assertIsNone(result.structured_content)
+        self.assertIn("many", result.content[0].text)
+        ok = _text_result({"entries_total": 2}, output=BibtexSanitizeReport)
+        self.assertEqual(ok.structured_content, {"entries_total": 2})
 
     def test_dossier_resources(self):
         from noul import api
@@ -195,8 +225,8 @@ class ElicitationTests(unittest.TestCase):
             server = build_server(elicit_email=True)
             kwargs = {"elicitation_callback": on_elicit} if callback else {}
             async with Client(InMemoryTransport(server), **kwargs) as c:
-                await c.call_tool("suggest_boolean_queries", {"query": "LLM quantization"})
-                await c.call_tool("suggest_boolean_queries", {"query": "LLM quantization"})
+                await c.call_tool("get_fulltext", {"id": "doi:10.1000/none"})
+                await c.call_tool("get_fulltext", {"id": "doi:10.1000/none"})
 
         anyio.run(go)
         return asked
@@ -208,12 +238,57 @@ class ElicitationTests(unittest.TestCase):
         self.assertEqual(len(asked), 1)
         self.assertEqual(config.get_config()["email"], "me@university.edu")
 
-    def test_declined_email_is_not_saved_and_not_asked_again(self):
+    def test_declined_email_is_not_saved_and_never_asked_again(self):
         from noul import config
 
         asked = self.call_twice(lambda: types.ElicitResult(action="decline"))
         self.assertEqual(len(asked), 1)
         self.assertIsNone(config.get_config()["email"])
+        self.assertTrue(config.get_config()["email_prompt_declined"])
+        self.assertEqual(self.call_twice(lambda: types.ElicitResult(action="accept", content={"email": "x@y.org"})), [])
+
+    def test_offline_tools_never_ask(self):
+        from noul.server.mcp import build_server
+
+        asked = []
+
+        async def on_elicit(ctx, params):
+            asked.append(1)
+            return types.ElicitResult(action="decline")
+
+        async def go():
+            async with Client(InMemoryTransport(build_server(elicit_email=True)), elicitation_callback=on_elicit) as c:
+                await c.call_tool("suggest_boolean_queries", {"query": "LLM quantization"})
+                await c.call_tool("evidence_meter", {"items": []})
+
+        anyio.run(go)
+        self.assertEqual(asked, [])
+
+    def test_parallel_calls_open_a_single_prompt_on_both_protocol_generations(self):
+        from noul.server.mcp import build_server
+
+        for mode in ("legacy", "auto"):
+            with self.subTest(mode=mode):
+                from noul import config
+
+                config.set_config(clear=True)
+                asked = []
+
+                async def slow(ctx, params, asked=asked):
+                    asked.append(1)
+                    await anyio.sleep(0.2)
+                    return types.ElicitResult(action="accept", content={"email": "me@lab.org"})
+
+                async def go(mode=mode):
+                    server = build_server(elicit_email=True)
+                    async with Client(InMemoryTransport(server), elicitation_callback=slow, mode=mode) as c:
+                        async with anyio.create_task_group() as tg:
+                            for _ in range(3):
+                                tg.start_soon(c.call_tool, "get_fulltext", {"id": "doi:10.1000/none"})
+
+                anyio.run(go)
+                self.assertEqual(len(asked), 1)
+                self.assertEqual(config.get_config()["email"], "me@lab.org")
 
     def test_existing_email_is_never_overwritten_by_elicitation(self):
         from noul import config
@@ -244,7 +319,7 @@ class ElicitationTests(unittest.TestCase):
                 "jsonrpc": "2.0",
                 "id": 2,
                 "method": "tools/call",
-                "params": {"name": "suggest_boolean_queries", "arguments": {"query": "LLM quantization"}},
+                "params": {"name": "get_fulltext", "arguments": {"id": "doi:10.1000/none"}},
             },
         ]
         proc = subprocess.Popen(

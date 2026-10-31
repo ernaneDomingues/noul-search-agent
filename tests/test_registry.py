@@ -102,7 +102,7 @@ class ContractTests(unittest.TestCase):
 
         names = {p: {t["name"] for t in registry.catalog(p)} for p in registry.PROFILES}
         self.assertEqual(len(names["all"]), 41)
-        self.assertEqual(len(names["research"]), 15)
+        self.assertEqual(len(names["research"]), 17)
         self.assertLess(names["research"], names["review"])
         self.assertLess(names["research"], names["write"])
         self.assertEqual(names["review"] | names["write"], names["all"])
@@ -129,6 +129,11 @@ class ContractTests(unittest.TestCase):
         self.assertFalse(tools["sanitize_bibtex"]["readOnlyHint"])  # writes with output_path
         self.assertTrue(tools["configure_noul"]["destructiveHint"])
         self.assertFalse(tools["evidence_meter"]["openWorldHint"])
+        self.assertFalse(tools["suggest_boolean_queries"]["openWorldHint"])  # offline heuristics
+        self.assertTrue(tools["download_papers"]["idempotentHint"])  # skips existing files
+        self.assertTrue(tools["export_obsidian_notes"]["destructiveHint"])  # overwrites vault notes
+        self.assertTrue(tools["sanitize_bibtex"]["destructiveHint"])  # output_path overwrites a file
+        self.assertEqual(tools["sanitize_bibtex"]["title"], "Sanitize BibTeX")
 
     def test_output_schemas_describe_the_returned_models(self):
         import jsonschema
