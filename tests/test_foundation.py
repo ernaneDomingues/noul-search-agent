@@ -57,7 +57,8 @@ class PackagingTests(unittest.TestCase):
         self.assertEqual(setuptools_cfg["dynamic"]["version"], {"attr": "noul.__version__"})
         self.assertEqual(setuptools_cfg["packages"]["find"]["where"], ["src"])
         self.assertTrue((ROOT / "src/noul/__init__.py").exists())
-        self.assertIn("pydantic>=2.7.0", pyproject["project"]["dependencies"])
+        self.assertIn("pydantic>=2.12.0", pyproject["project"]["dependencies"])
+        self.assertIn("mcp>=2.3,<3", pyproject["project"]["dependencies"])
         for script, target in pyproject["project"]["scripts"].items():
             self.assertTrue(target.startswith("noul."), (script, target))
         plugin = json.loads((ROOT / "plugin.json").read_text(encoding="utf-8"))

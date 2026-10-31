@@ -1044,6 +1044,7 @@ name = "noul-search-agent"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
+    { name = "mcp" },
     { name = "pydantic" },
     { name = "pypdf" },
 ]
@@ -1071,9 +1072,10 @@ pro = [
 requires-dist = [
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "httpx", marker = "extra == 'pro'", specifier = ">=0.27.0" },
+    { name = "mcp", specifier = ">=2.3,<3" },
     { name = "mcp", marker = "extra == 'pro'", specifier = ">=1.6.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11" },
-    { name = "pydantic", specifier = ">=2.7.0" },
+    { name = "pydantic", specifier = ">=2.12.0" },
     { name = "pydantic", marker = "extra == 'pro'", specifier = ">=2.7.0" },
     { name = "pypdf", specifier = ">=4.0.0" },
     { name = "pypdf", marker = "extra == 'pdf'", specifier = ">=4.0" },

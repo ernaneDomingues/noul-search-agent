@@ -48,7 +48,7 @@
     },
     {
       "name": "detect_paper_domain",
-      "description": "Detect a paper's scientific macro-domain (computer_science, biomedical, economics, general_stem) from arXiv categories, fields of study, PubMed indexing and title/abstract vocabulary, explaining the signals used. Use it to pick domain-appropriate evaluation criteria.",
+      "description": "Detect a paper's scientific macro-domain (computer_science, biomedical, economics, general_stem) from arXiv categories, fields of study, PubMed indexing, the journal/venue name and title/abstract vocabulary, explaining the signals used. `method` says which signal decided, strongest first: override, categories, fields_of_study, pubmed, venue, text, default; treat venue, text and default as weaker and confirm them against the abstract (`text_scores`). Use it to pick domain-appropriate evaluation criteria.",
       "required": [
         "paper_id"
       ],

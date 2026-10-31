@@ -34,9 +34,46 @@ class Tool:
     profiles: tuple[str, ...] = ("all",)
     # Arguments that make an otherwise read-only call write to disk (e.g. `output_path`).
     write_args: tuple[str, ...] = ()
+    # Pydantic model the tool's result is a dump of (advertised as MCP outputSchema).
+    output: type[BaseModel] | None = None
+    # Overwrites or deletes user data (MCP destructiveHint).
+    destructive: bool = False
+    title: str | None = None
 
 
 REGISTRY: dict[str, Tool] = {}
+
+# Tool profiles: `research` is the core every profile includes; `all` is every tool.
+PROFILES = ("research", "review", "write", "all")
+
+
+def in_profile(tool: Tool, profile: str | None) -> bool:
+    if profile in (None, "all"):
+        return True
+    if profile not in PROFILES:
+        raise ValueError(f"Unknown tool profile {profile!r}; use one of: {', '.join(PROFILES)}")
+    return "research" in tool.profiles or profile in tool.profiles
+
+
+def tool_title(tool: Tool) -> str:
+    return tool.title or tool.name.replace("_", " ").capitalize()
+
+
+def tool_annotations(tool: Tool) -> dict[str, Any]:
+    """MCP tool annotations derived from the registry flags (hints for clients, not security boundaries)."""
+    read_only = not tool.writes and not tool.write_args
+    return {
+        "title": tool_title(tool),
+        "readOnlyHint": read_only,
+        "destructiveHint": tool.destructive,
+        "idempotentHint": read_only,
+        "openWorldHint": tool.network,
+    }
+
+
+def output_schema(name: str) -> dict[str, Any] | None:
+    model = _loaded()[name].output
+    return model.model_json_schema(mode="serialization") if model is not None else None
 
 
 def _loaded() -> dict[str, Tool]:
@@ -55,13 +92,28 @@ def tool(
     network: bool = True,
     profiles: tuple[str, ...] = ("all",),
     write_args: tuple[str, ...] = (),
+    output: type[BaseModel] | None = None,
+    destructive: bool = False,
+    title: str | None = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Register the decorated function as tool `name` (the function itself is returned unchanged)."""
 
     def register(fn: Callable[..., Any]) -> Callable[..., Any]:
         if name in REGISTRY:
             raise ValueError(f"tool {name!r} registered twice")
-        REGISTRY[name] = Tool(name, description, input, fn, writes, network, tuple(profiles), tuple(write_args))
+        REGISTRY[name] = Tool(
+            name,
+            description,
+            input,
+            fn,
+            writes,
+            network,
+            tuple(profiles),
+            tuple(write_args),
+            output,
+            destructive,
+            title,
+        )
         return fn
 
     return register
@@ -136,19 +188,23 @@ def input_schema(name: str) -> dict[str, Any]:
     return _object_schema(_loaded()[name].input)
 
 
-def catalog() -> list[dict[str, Any]]:
-    """Name, description, flags and input schema of every tool, in registration order."""
+def catalog(profile: str | None = None) -> list[dict[str, Any]]:
+    """Name, description, flags, annotations and schemas of every tool in `profile` (None/"all": every tool)."""
     return [
         {
             "name": t.name,
+            "title": tool_title(t),
             "description": t.description,
             "inputSchema": input_schema(t.name),
+            "outputSchema": output_schema(t.name),
+            "annotations": tool_annotations(t),
             "writes": t.writes,
             "network": t.network,
             "profiles": list(t.profiles),
             "write_args": list(t.write_args),
         }
         for t in _loaded().values()
+        if in_profile(t, profile)
     ]
 
 

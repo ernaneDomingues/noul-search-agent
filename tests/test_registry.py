@@ -22,9 +22,12 @@ class ContractTests(unittest.TestCase):
         expected = {t["name"]: t for t in json.loads(FIXTURE.read_text(encoding="utf-8"))}
         actual = {t["name"]: t for t in legacy.tools_list()}
         self.assertEqual(sorted(actual), sorted(expected))
+        # Intentional description changes since v1, each with the phase that made it.
+        changed_descriptions = {"detect_paper_domain": "2a: venue signal and `method` values"}
         for name in expected:
             with self.subTest(tool=name):
-                self.assertEqual(actual[name]["description"], expected[name]["description"])
+                if name not in changed_descriptions:
+                    self.assertEqual(actual[name]["description"], expected[name]["description"])
                 self.assertEqual(actual[name]["inputSchema"], expected[name]["inputSchema"])
 
     def test_every_tool_function_is_registered_once_with_a_matching_signature(self):
@@ -93,6 +96,53 @@ class ContractTests(unittest.TestCase):
             log.logger.setLevel("WARNING")
         self.assertIn("tool error name=configure_noul", stream.getvalue())
         self.assertNotIn("secret", stream.getvalue())
+
+    def test_profiles_are_cumulative_and_cover_every_tool(self):
+        from noul import registry
+
+        names = {p: {t["name"] for t in registry.catalog(p)} for p in registry.PROFILES}
+        self.assertEqual(len(names["all"]), 41)
+        self.assertEqual(len(names["research"]), 15)
+        self.assertLess(names["research"], names["review"])
+        self.assertLess(names["research"], names["write"])
+        self.assertEqual(names["review"] | names["write"], names["all"])
+        self.assertIn("search_papers", names["research"])
+        self.assertNotIn("review_paper", names["write"])
+        with self.assertRaises(ValueError):
+            registry.catalog("everything")
+
+    def test_annotations_follow_the_write_and_network_flags(self):
+        from noul import registry
+
+        tools = {t["name"]: t["annotations"] for t in registry.catalog()}
+        self.assertEqual(
+            tools["search_papers"],
+            {
+                "title": "Search papers",
+                "readOnlyHint": True,
+                "destructiveHint": False,
+                "idempotentHint": True,
+                "openWorldHint": True,
+            },
+        )
+        self.assertFalse(tools["download_papers"]["readOnlyHint"])
+        self.assertFalse(tools["sanitize_bibtex"]["readOnlyHint"])  # writes with output_path
+        self.assertTrue(tools["configure_noul"]["destructiveHint"])
+        self.assertFalse(tools["evidence_meter"]["openWorldHint"])
+
+    def test_output_schemas_describe_the_returned_models(self):
+        import jsonschema
+
+        from noul import registry
+
+        with_schema = {t["name"] for t in registry.catalog() if t["outputSchema"]}
+        self.assertEqual(len(with_schema), 10)
+        sample = registry.call(
+            "generate_manuscript_blueprint", {"topic": "Sparse attention", "hypothesis": "It is faster"}
+        )
+        jsonschema.validate(json.loads(json.dumps(sample)), registry.output_schema("generate_manuscript_blueprint"))
+        bib = registry.call("sanitize_bibtex", {"bibtex_input": "@article{a, title={T}, author={A}, year={2020}}"})
+        jsonschema.validate(json.loads(json.dumps(bib)), registry.output_schema("sanitize_bibtex"))
 
     def test_duplicate_registration_is_rejected(self):
         from noul import api, registry  # noqa: F401  (api registers the tools)

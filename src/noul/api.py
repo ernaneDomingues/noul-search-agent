@@ -20,6 +20,7 @@ from noul.net import cache as _cache
 from noul.providers import artifact_radar as _artifact_radar
 from noul.providers import domain_classifier as _domain_classifier
 from noul.schemas import tool_inputs as _inputs
+from noul.schemas import tool_outputs as _out
 from noul.search import engine as _engine
 from noul.tools import authoring_tools as _authoring_tools
 from noul.tools import comparative_tools as _comparative_tools
@@ -162,6 +163,7 @@ def _resolve(id_or_doi):
         "not a JCR quartile) and scientific `domain`. YOU classify each paper's stance and synthesize."
     ),
     input=_inputs.SearchPapersInput,
+    profiles=("research",),
 )
 def search_papers(
     query,
@@ -227,6 +229,7 @@ def search_papers(
         "study_types, sources, sort) for search_papers. Skip it when the user already gave a precise query."
     ),
     input=_inputs.ClarifySearchScopeInput,
+    profiles=("research",),
 )
 def clarify_search_scope(query, answers=None, domain=None):
     return _search_tools.clarify_search_scope(query, answers=answers, domain=domain)
@@ -239,6 +242,7 @@ def clarify_search_scope(query, answers=None, domain=None):
         "Scholar ID. Includes its scientific `domain`; pass `domain` to override it."
     ),
     input=_inputs.GetPaperInput,
+    profiles=("research",),
 )
 def get_paper(id, domain=None):
     forced = _domain_override(domain)
@@ -258,10 +262,14 @@ def get_paper(id, domain=None):
     "detect_paper_domain",
     description=(
         "Detect a paper's scientific macro-domain (computer_science, biomedical, economics, general_stem) "
-        "from arXiv categories, fields of study, PubMed indexing and title/abstract vocabulary, explaining "
-        "the signals used. Use it to pick domain-appropriate evaluation criteria."
+        "from arXiv categories, fields of study, PubMed indexing, the journal/venue name and title/abstract "
+        "vocabulary, explaining the signals used. `method` says which signal decided, strongest first: "
+        "override, categories, fields_of_study, pubmed, venue, text, default; treat venue, text and default "
+        "as weaker and confirm them against the abstract (`text_scores`). Use it to pick domain-appropriate "
+        "evaluation criteria."
     ),
     input=_inputs.DetectPaperDomainInput,
+    profiles=("research",),
 )
 def detect_paper_domain(paper_id, domain=None):
     """Classify a paper into computer_science | biomedical | economics | general_stem and explain why."""
@@ -294,6 +302,7 @@ def detect_paper_domain(paper_id, domain=None):
         "'available on request' statements. Set inspect_fulltext=true to also scan the open-access full text."
     ),
     input=_inputs.ScanPaperArtifactsInput,
+    profiles=("review",),
 )
 def scan_paper_artifacts(id, verify_http=True, inspect_fulltext=False):
     """Detect code repositories, model weights and datasets linked from a paper and check they are reachable."""
@@ -336,6 +345,7 @@ def scan_paper_artifacts(id, verify_http=True, inspect_fulltext=False):
         "you can chain get_paper, get_paper_references or download_papers on it."
     ),
     input=_inputs.GetPaperReferencesInput,
+    profiles=("research",),
 )
 def get_paper_references(paper_id, limit=10, direction="both", sort_by="influential"):
     return _search_tools.get_paper_references(paper_id, limit, direction, sort_by)
@@ -351,6 +361,7 @@ def get_paper_references(paper_id, limit=10, direction="both", sort_by="influent
         "also mine open-access full text."
     ),
     input=_inputs.ComparePapersInput,
+    profiles=("review",),
 )
 def compare_papers(paper_ids, inspect_fulltext=False):
     return _comparative_tools.compare_papers(paper_ids, inspect_fulltext=inspect_fulltext)
@@ -366,6 +377,7 @@ def compare_papers(paper_ids, inspect_fulltext=False):
         "Every statement cites [Author et al., Year]; `citations_map` maps each tag to paper ids."
     ),
     input=_inputs.GetThematicInsightsInput,
+    profiles=("review",),
 )
 def get_thematic_insights(paper_ids, topic=None):
     return _comparative_tools.get_thematic_insights(paper_ids, topic=topic)
@@ -382,6 +394,7 @@ def get_thematic_insights(paper_ids, topic=None):
         "`evaluation_metrics`."
     ),
     input=_inputs.GenerateResearchHypothesesInput,
+    profiles=("review",),
 )
 def generate_research_hypotheses(paper_ids, topic=None, max_hypotheses=3):
     return _comparative_tools.generate_research_hypotheses(paper_ids, topic=topic, max_hypotheses=max_hypotheses)
@@ -398,6 +411,7 @@ def generate_research_hypotheses(paper_ids, topic=None, max_hypotheses=3):
     ),
     input=_inputs.ExportObsidianNotesInput,
     writes=True,
+    profiles=("write",),
 )
 def export_obsidian_notes(paper_ids, vault_dir=None, include_related_wikilinks=True):
     return _comparative_tools.export_obsidian_notes(
@@ -414,6 +428,7 @@ def export_obsidian_notes(paper_ids, vault_dir=None, include_related_wikilinks=T
         "exclusion (NOT)."
     ),
     input=_inputs.SuggestBooleanQueriesInput,
+    profiles=("research",),
 )
 def suggest_boolean_queries(query="", paper_ids=None):
     return _search_tools.suggest_boolean_queries(query=query, paper_ids=paper_ids)
@@ -429,6 +444,7 @@ def suggest_boolean_queries(query="", paper_ids=None):
         "to numbers. Returns `tables` and a cross-table `normalized_summary` (by_metric, best_by_metric)."
     ),
     input=_inputs.ExtractBenchmarkTablesInput,
+    profiles=("review",),
 )
 def extract_benchmark_tables(paper_id):
     return _technical_tools.extract_benchmark_tables(paper_id)
@@ -446,6 +462,7 @@ def extract_benchmark_tables(paper_id):
         "Override sizes with total_params_b / active_params_b."
     ),
     input=_inputs.EstimateHardwareSpecsInput,
+    profiles=("review",),
 )
 def estimate_hardware_specs(paper_id, total_params_b=None, active_params_b=None, context_length=8192):
     return _hardware_tools.estimate_hardware_specs(
@@ -464,6 +481,7 @@ def estimate_hardware_specs(paper_id, total_params_b=None, active_params_b=None,
         "'[EXTRAPOLAÇÃO NÃO LITERAL ...]' warning. Use it before stating numbers from a paper."
     ),
     input=_inputs.VerifyPaperClaimsInput,
+    profiles=("review",),
 )
 def verify_paper_claims(paper_id, claims=None):
     return _technical_tools.verify_paper_claims(paper_id, claims=claims)
@@ -479,6 +497,7 @@ def verify_paper_claims(paper_id, claims=None):
         "original LaTeX in the docstring), always validated with ast.parse; mode='both' returns both."
     ),
     input=_inputs.ExtractPaperMathInput,
+    profiles=("review",),
 )
 def extract_paper_math(paper_id, mode="latex"):
     return _technical_tools.extract_paper_math(paper_id, mode=mode)
@@ -494,6 +513,7 @@ def extract_paper_math(paper_id, mode="latex"):
         "component accounting for >= 60% of the total reported gain."
     ),
     input=_inputs.AnalyzeAblationTablesInput,
+    profiles=("review",),
 )
 def analyze_ablation_tables(paper_id):
     return _technical_tools.analyze_ablation_tables(paper_id)
@@ -510,6 +530,7 @@ def analyze_ablation_tables(paper_id):
         "JSON output schemas shown in the paper."
     ),
     input=_inputs.ExtractPromptsAndDecodingInput,
+    profiles=("review",),
 )
 def extract_prompts_and_decoding(paper_id):
     return _technical_tools.extract_prompts_and_decoding(paper_id)
@@ -526,6 +547,8 @@ def extract_prompts_and_decoding(paper_id):
         "Ours), and extracts operational_limits."
     ),
     input=_inputs.DetectFailureModesInput,
+    profiles=("review",),
+    output=_out.FailureModesReport,
 )
 def detect_failure_modes(paper_id, inspect_fulltext=True):
     return _technical_tools.detect_failure_modes(paper_id, inspect_fulltext=bool(inspect_fulltext))
@@ -540,6 +563,8 @@ def detect_failure_modes(paper_id, inspect_fulltext=True):
         "(`new_baselines_or_datasets`) and a structured `markdown_diff` report."
     ),
     input=_inputs.DiffArxivVersionsInput,
+    profiles=("review",),
+    output=_out.ArxivVersionDiffReport,
 )
 def diff_arxiv_versions(arxiv_id, from_version="v1", to_version="v2"):
     return _technical_tools.diff_arxiv_versions(arxiv_id, from_version=from_version, to_version=to_version)
@@ -556,6 +581,7 @@ def diff_arxiv_versions(arxiv_id, from_version="v1", to_version="v2"):
         "Meta-Reviewer into a PeerReviewReport with verdict, scores, cited flaws/omissions, and questions."
     ),
     input=_inputs.ReviewPaperInput,
+    profiles=("review",),
 )
 def review_paper(paper_id, domain=None, inspect_fulltext=True):
     return _review_tools.review_paper(paper_id, domain=domain, inspect_fulltext=bool(inspect_fulltext))
@@ -565,6 +591,7 @@ def review_paper(paper_id, domain=None, inspect_fulltext=True):
     "review_paper_scientific",
     description=("Alias for review_paper: domain-adaptive 3-persona scientific peer-review committee (#17, #20)."),
     input=_inputs.ReviewPaperScientificInput,
+    profiles=("review",),
 )
 def review_paper_scientific(paper_id, domain=None, inspect_fulltext=True):
     return _review_tools.review_paper_scientific(paper_id, domain=domain, inspect_fulltext=bool(inspect_fulltext))
@@ -580,6 +607,8 @@ def review_paper_scientific(paper_id, domain=None, inspect_fulltext=True):
         "analytical pipeline for Biomedical/STEM)."
     ),
     input=_inputs.ScaffoldImplementationInput,
+    profiles=("review",),
+    output=_out.CodeScaffold,
 )
 def scaffold_implementation(paper_id, target=None, domain=None):
     return _scaffold_tools.scaffold_implementation(paper_id, target=target, domain=domain)
@@ -592,6 +621,7 @@ def scaffold_implementation(paper_id, target=None, domain=None):
         "code + unit tests."
     ),
     input=_inputs.ScaffoldPaperCodeInput,
+    profiles=("review",),
 )
 def scaffold_paper_code(paper_id, target_language=None, domain=None):
     return _scaffold_tools.scaffold_paper_code(paper_id, target_language=target_language, domain=domain)
@@ -607,6 +637,8 @@ def scaffold_paper_code(paper_id, target_language=None, domain=None):
         "deduplicated BibTeX block."
     ),
     input=_inputs.RecommendCitationsInput,
+    profiles=("write",),
+    output=_out.CitationInfillerReport,
 )
 def recommend_citations(draft_text, max_per_claim=2, citation_style="latex"):
     return _authoring_tools.recommend_citations(draft_text, max_per_claim=max_per_claim, citation_style=citation_style)
@@ -622,6 +654,8 @@ def recommend_citations(draft_text, max_per_claim=2, citation_style="latex"):
         "collective gap, and exports Markdown or `\\section{Related Work}` LaTeX plus BibTeX."
     ),
     input=_inputs.SynthesizeRelatedWorkInput,
+    profiles=("write",),
+    output=_out.RelatedWorkSynthesis,
 )
 def synthesize_related_work(paper_ids, proposal, citation_style="latex", output_format="markdown"):
     return _authoring_tools.synthesize_related_work(
@@ -637,6 +671,8 @@ def synthesize_related_work(paper_ids, proposal, citation_style="latex", output_
         "guidance and required elements in Markdown or LaTeX."
     ),
     input=_inputs.GenerateManuscriptBlueprintInput,
+    profiles=("write",),
+    output=_out.ManuscriptBlueprint,
 )
 def generate_manuscript_blueprint(topic, venue="neurips", hypothesis="", key_findings=None, output_format="markdown"):
     return _authoring_tools.generate_manuscript_blueprint(
@@ -652,6 +688,8 @@ def generate_manuscript_blueprint(topic, venue="neurips", hypothesis="", key_fin
         "and reproducibility omissions (seeds, hyperparameters, sample size N, error bars, compute hardware)."
     ),
     input=_inputs.AuditManuscriptDraftInput,
+    profiles=("write",),
+    output=_out.DraftAuditReport,
 )
 def audit_manuscript_draft(draft_input, venue="neurips", output_format="markdown"):
     return _authoring_tools.audit_manuscript_draft(draft_input, venue=venue, output_format=output_format)
@@ -667,6 +705,8 @@ def audit_manuscript_draft(draft_input, venue="neurips", output_format="markdown
     ),
     input=_inputs.SanitizeBibtexInput,
     write_args=("output_path",),
+    profiles=("write",),
+    output=_out.BibtexSanitizeReport,
 )
 def sanitize_bibtex(bibtex_input, update_preprints=True, output_path=None):
     return _authoring_tools.sanitize_bibtex(
@@ -683,6 +723,8 @@ def sanitize_bibtex(bibtex_input, update_preprints=True, output_path=None):
         "and LaTeX."
     ),
     input=_inputs.ParseAndDraftRebuttalInput,
+    profiles=("write",),
+    output=_out.RebuttalReport,
 )
 def parse_and_draft_rebuttal(reviews_input, paper_id=None, draft_input=None, output_format="markdown"):
     return _authoring_tools.parse_and_draft_rebuttal(
@@ -700,6 +742,8 @@ def parse_and_draft_rebuttal(reviews_input, paper_id=None, draft_input=None, out
         "`desk_reject_risk`."
     ),
     input=_inputs.AuditSubmissionReadinessInput,
+    profiles=("write",),
+    output=_out.SubmissionGatekeeperReport,
 )
 def audit_submission_readiness(draft_path, venue="neurips"):
     return _gatekeeper_tools.audit_submission_readiness(draft_path, venue=venue)
@@ -712,6 +756,7 @@ def audit_submission_readiness(draft_path, venue="neurips"):
         "to `question`."
     ),
     input=_inputs.GetFulltextInput,
+    profiles=("research",),
 )
 def get_fulltext(id, question=""):
     p = _resolve(id)
@@ -733,6 +778,7 @@ def get_fulltext(id, question=""):
         "or abstract fallback). Ideal for conversing over a set of papers."
     ),
     input=_inputs.QueryFulltextsInput,
+    profiles=("research",),
 )
 def query_fulltexts(ids, question, max_chunks_per_paper=4):
     """Query across multiple papers (full text when Open Access, or abstract fallback) to answer follow-up questions."""
@@ -786,6 +832,7 @@ def query_fulltexts(ids, question, max_chunks_per_paper=4):
         "Papers this paper cites (references) and papers citing it (OpenAlex), automatically cached for follow-up."
     ),
     input=_inputs.CitationGraphInput,
+    profiles=("research",),
 )
 def citation_graph(id):
     p = _resolve(id)
@@ -805,6 +852,7 @@ def citation_graph(id):
         "it. Supports filtering by study_types and year_min."
     ),
     input=_inputs.RelatedPapersInput,
+    profiles=("research",),
 )
 def related_papers(id, relation="all", study_types=None, year_min=None, limit=15):
     """Find similar papers, cited references, or citing papers for a given paper ID/DOI."""
@@ -828,6 +876,7 @@ def related_papers(id, relation="all", study_types=None, year_min=None, limit=15
     ),
     input=_inputs.DownloadPapersInput,
     writes=True,
+    profiles=("write",),
 )
 def download_papers(ids, output_dir=None):
     """Download Open Access PDFs for the given paper IDs/DOIs to `output_dir` (confined to the workspace)."""
@@ -853,6 +902,7 @@ def download_papers(ids, output_dir=None):
     "export_papers",
     description=("Export papers as bibtex, ris or csv."),
     input=_inputs.ExportPapersInput,
+    profiles=("research",),
 )
 def export_papers(ids, format="bibtex"):
     papers = []
@@ -889,6 +939,8 @@ def _dossier_paths(directory):
     input=_inputs.SaveResearchDossierInput,
     writes=True,
     network=False,
+    profiles=("write",),
+    destructive=True,
 )
 def save_research_dossier(topic, synthesis_markdown, paper_ids=None, output_dir=None):
     """Save a structured research dossier (README.md, papers.json, references.bib) so the user can
@@ -952,6 +1004,7 @@ def save_research_dossier(topic, synthesis_markdown, paper_ids=None, output_dir=
     description=("List saved research dossiers available for follow-up conversation."),
     input=_inputs.ListResearchDossiersInput,
     network=False,
+    profiles=("research",),
 )
 def list_research_dossiers(output_dir=None):
     """List saved research dossiers from both the workspace directory and the index."""
@@ -996,6 +1049,7 @@ def list_research_dossiers(output_dir=None):
     description=("Load a saved research dossier (Markdown report and paper metadata) by slug or topic."),
     input=_inputs.GetResearchDossierInput,
     network=False,
+    profiles=("research",),
 )
 def get_research_dossier(slug, output_dir=None):
     """Load a saved research dossier (Markdown synthesis + cached paper records) to continue a discussion."""
@@ -1034,6 +1088,8 @@ def get_research_dossier(slug, output_dir=None):
     input=_inputs.ConfigureNoulInput,
     writes=True,
     network=False,
+    profiles=("research",),
+    destructive=True,
 )
 def configure_noul(email=None, workspace=None, download_dir=None, research_dir=None, clear=False):
     """View or update persistent Noul configuration (email for Unpaywall/polite pool, workspace, default folders).
@@ -1066,6 +1122,7 @@ def _cached_paper(pid):
     ),
     input=_inputs.EvidenceMeterInput,
     network=False,
+    profiles=("research",),
 )
 def evidence_meter(items):
     """Compute reproducible raw and design-weighted Evidence Meter (Noul Meter) percentages from LLM stance
