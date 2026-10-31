@@ -39,7 +39,7 @@ Issues = "https://github.com/ernaneDomingues/noul-search-agent/issues"
 [project.scripts]
 noul = "noul.cli:main"
 noul-search-agent = "noul.cli:main"
-noul-mcp = "noul.server.legacy:main"
+noul-mcp = "noul.server.mcp:main"
 noul-install = "noul.install:main"
 
 [tool.setuptools.dynamic]

@@ -1,12 +1,15 @@
 """Multi-source search orchestration, deduplication, ranking and paper resolution."""
 
 import concurrent.futures
+import contextvars
 import hashlib
 import json
 import re
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 
 from noul import errors as _errors
 from noul import ids as _ids
@@ -120,6 +123,32 @@ def _score_paper(p, query=""):
     return ev_score + cites + has_abs + overlap
 
 
+# Optional progress callback `(source, completed, total)`, set by servers that stream progress (MCP). A context
+# variable keeps search()'s signature unchanged; the callback runs in worker threads and must never raise.
+SOURCE_PROGRESS: contextvars.ContextVar[Callable[[str, int, int], None] | None] = contextvars.ContextVar(
+    "noul_source_progress", default=None
+)
+
+
+def _report_progress(futs, total):
+    callback = SOURCE_PROGRESS.get()
+    if callback is None:
+        return
+    lock, done = threading.Lock(), [0]
+
+    def notify(fut, source):
+        with lock:
+            done[0] += 1
+            completed = done[0]
+        try:
+            callback(source, completed, total)
+        except Exception:
+            pass  # progress is best-effort: it must never break a search
+
+    for fut, source in futs.items():
+        fut.add_done_callback(lambda f, s=source: notify(f, s))
+
+
 def search(query, mode="quick", _unused=None, filters=None, lang="en", sources=None):
     filters = filters or {}
     chosen = [s for s in (sources or DEFAULT_SOURCES) if s in SOURCES]
@@ -160,6 +189,7 @@ def search(query, mode="quick", _unused=None, filters=None, lang="en", sources=N
     # No `with` block: its implicit shutdown(wait=True) would block on the slowest source.
     ex = concurrent.futures.ThreadPoolExecutor(max_workers=len(chosen))
     futs = {ex.submit(_run_source, s): s for s in chosen}
+    _report_progress(futs, len(chosen))
     done, not_done = concurrent.futures.wait(futs.keys(), timeout=SEARCH_TIMEOUT)
     for fut in futs:
         src = futs[fut]

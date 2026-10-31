@@ -51,13 +51,14 @@ def setUpModule():
     unittest.addModuleCleanup(env_patch.stop)
 
     import noul_core as c
-    import noul_mcp as m
     import noul_tools as t
+
+    from noul.server import legacy as m  # v1 server tests; SDK server: test_mcp_server.py
 
 
 def rpc(*msgs):
     p = subprocess.run(
-        [sys.executable, str(ROOT / "noul_mcp.py")],
+        [sys.executable, str(ROOT / "noul_mcp.py"), "--legacy"],  # v1 protocol tests; SDK server: test_mcp_server.py
         input="\n".join(json.dumps(m) for m in msgs),
         capture_output=True,
         text=True,
