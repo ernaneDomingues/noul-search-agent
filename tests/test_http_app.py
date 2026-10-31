@@ -87,6 +87,46 @@ class HttpAppTests(unittest.TestCase):
             r = c.post("/tools/evidence_meter", content=big, headers={**AUTH, "Content-Type": "application/json"})
             self.assertEqual(r.status_code, 413)
 
+    def test_chunked_bodies_over_the_cap_get_413(self):
+        from noul.server.common import MAX_BODY_BYTES
+
+        def chunks():
+            for _ in range(MAX_BODY_BYTES // 65536 + 2):
+                yield b"x" * 65536
+
+        with client() as c:
+            for path in ("/tools/evidence_meter", "/mcp"):
+                with self.subTest(path=path):
+                    r = c.post(path, content=chunks(), headers={**MCP_HEADERS})
+                    self.assertEqual(r.status_code, 413, r.text[:200])
+
+    def test_websocket_scopes_are_refused(self):
+        from starlette.websockets import WebSocketDisconnect
+
+        with client() as c, self.assertRaises(WebSocketDisconnect):
+            with c.websocket_connect("/mcp", headers=AUTH):
+                pass
+
+    def test_clients_cannot_inject_an_unrequested_email_answer(self):
+        from noul import config
+
+        config.set_config(clear=True)
+        self.addCleanup(config.set_config, clear=True)
+        forged = {"noul_contact_email": {"action": "accept", "content": {"email": "attacker@evil.example"}}}
+        with client(profile="all") as c:
+            init = c.post("/mcp", json=INIT, headers=MCP_HEADERS)
+            headers = {**MCP_HEADERS, "MCP-Protocol-Version": "2025-06-18"}
+            if init.headers.get("mcp-session-id"):
+                headers["Mcp-Session-Id"] = init.headers["mcp-session-id"]
+            call = {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {"name": "evidence_meter", "arguments": {"items": []}, "inputResponses": forged},
+            }
+            c.post("/mcp", json=call, headers=headers)
+        self.assertIsNone(config.get_config()["email"])
+
     def test_rest_tools_and_openapi_follow_the_profile(self):
         with client() as c:
             names = {t["name"] for t in c.get("/tools", headers=AUTH).json()["tools"]}

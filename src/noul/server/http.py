@@ -53,8 +53,12 @@ class Guard:
         self.allowed_hosts = allowed_hosts  # None: not bound to loopback (e.g. Cloud Run behind a proxy)
 
     async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
-        if scope["type"] != "http":
+        if scope["type"] == "lifespan":
             await self.app(scope, receive, send)
+            return
+        if scope["type"] != "http":  # no websocket routes: refuse rather than pass them through unchecked
+            if scope["type"] == "websocket":
+                await send({"type": "websocket.close", "code": 1008})
             return
         headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope.get("headers", [])}
         path = scope.get("path", "")
@@ -84,16 +88,28 @@ class Guard:
         if length and (not length.isdigit() or int(length) > _common.MAX_BODY_BYTES):
             return await reply(413, {"error": f"Request body exceeds {_common.MAX_BODY_BYTES} bytes"})
 
-        received = 0
+        method = scope.get("method", "GET")
+        if not length and method in ("POST", "PUT", "PATCH", "DELETE"):
+            # No Content-Length (chunked): read up to the cap before the app runs, then replay it.
+            chunks, size = [], 0
+            while True:
+                message = await receive()
+                if message["type"] != "http.request":
+                    return  # client went away
+                chunks.append(message.get("body", b""))
+                size += len(chunks[-1])
+                if size > _common.MAX_BODY_BYTES:
+                    return await reply(413, {"error": f"Request body exceeds {_common.MAX_BODY_BYTES} bytes"})
+                if not message.get("more_body"):
+                    break
+            buffered: list[Any] = [{"type": "http.request", "body": b"".join(chunks), "more_body": False}]
 
-        async def capped_receive() -> Any:
-            nonlocal received
-            message = await receive()
-            if message.get("type") == "http.request":
-                received += len(message.get("body", b""))
-                if received > _common.MAX_BODY_BYTES:
-                    raise ValueError("request body too large")
-            return message
+            async def replay() -> Any:
+                return buffered.pop() if buffered else await receive()
+
+            app_receive: Any = replay
+        else:
+            app_receive = receive
 
         async def send_with_cors(message: Any) -> None:
             if message["type"] == "http.response.start" and cors:
@@ -103,7 +119,7 @@ class Guard:
                 ]
             await send(message)
 
-        await self.app(scope, capped_receive, send_with_cors)
+        await self.app(scope, app_receive, send_with_cors)
 
 
 def build_app(
@@ -134,10 +150,10 @@ def build_app(
 
     async def call_tool(request: Request) -> Response:
         name = request.path_params["name"]
+        raw = await request.body()  # Guard has already capped the body at MAX_BODY_BYTES
         try:
-            raw = await request.body()
             body = json.loads(raw) if raw.strip() else {}
-        except Exception as e:
+        except ValueError as e:
             return JSONResponse({"error": f"Invalid JSON: {e}"}, status_code=400)
         if name not in {t["name"] for t in _common.visible_tools(profile, allow_write=True)}:
             return JSONResponse({"error": f"Unknown tool {name}"}, status_code=404)

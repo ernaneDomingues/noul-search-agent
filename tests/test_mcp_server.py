@@ -215,6 +215,14 @@ class ElicitationTests(unittest.TestCase):
         self.assertEqual(len(asked), 1)
         self.assertIsNone(config.get_config()["email"])
 
+    def test_existing_email_is_never_overwritten_by_elicitation(self):
+        from noul import config
+
+        config.set_config(email="owner@lab.org")
+        asked = self.call_twice(lambda: types.ElicitResult(action="accept", content={"email": "other@x.org"}))
+        self.assertEqual(asked, [])
+        self.assertEqual(config.get_config()["email"], "owner@lab.org")
+
     def test_clients_without_elicitation_are_never_asked(self):
         self.assertEqual(self.call_twice(None), [])
 

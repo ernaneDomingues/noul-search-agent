@@ -139,6 +139,9 @@ class _EmailPrompt:
     def __init__(self, enabled: bool) -> None:
         self.enabled = enabled
         self.asked = False
+        # True only between issuing an input_required request and receiving its answer: an `inputResponses`
+        # entry the server did not ask for is ignored (otherwise any client could overwrite the config).
+        self.pending = False
 
     def needed(self, tool: dict[str, Any], ctx: Any) -> bool:
         if not self.enabled or self.asked or not tool["network"]:
@@ -149,8 +152,8 @@ class _EmailPrompt:
         return not _config._email()
 
     def save(self, result: Any) -> None:
-        self.asked = True
-        if getattr(result, "action", None) != "accept":
+        self.asked, self.pending = True, False
+        if not self.enabled or _config._email() or getattr(result, "action", None) != "accept":
             return
         email = str((result.content or {}).get("email") or "").strip()
         try:
@@ -202,7 +205,7 @@ def build_server(profile: str = "all", allow_write: bool = True, elicit_email: b
         # One-time contact e-mail elicitation (stdio only): back-channel on handshake-era protocols,
         # input_required round trip on 2026-07-28+.
         answer = (params.input_responses or {}).get(EMAIL_REQUEST_KEY)
-        if answer is not None:
+        if answer is not None and email_prompt.pending:
             email_prompt.save(answer)
         elif email_prompt.needed(tools[name], ctx):
             message = "Noul uses a contact e-mail for the scholarly APIs' polite pools. Share one? (optional)"
@@ -213,7 +216,7 @@ def build_server(profile: str = "all", allow_write: bool = True, elicit_email: b
                     email_prompt.asked = True
                     _log.logger.info("e-mail elicitation failed: %s", type(e).__name__)
             else:
-                email_prompt.asked = True
+                email_prompt.asked, email_prompt.pending = True, True
                 return types.InputRequiredResult(
                     input_requests={
                         EMAIL_REQUEST_KEY: types.ElicitRequest(
