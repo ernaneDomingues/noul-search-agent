@@ -53,6 +53,7 @@ def setUpModule():
     import noul_cli as cli
     import noul_core as c
     import noul_tools as t
+
     from noul.tools import technical_tools as tt
 
 
@@ -60,7 +61,7 @@ class BenchmarkTablesTests(unittest.TestCase):
     def setUp(self):
         self.pid = _support.seed_fulltext_paper(c, "doi:10.1000/sparse7b", FULLTEXT, title="Sparse-7B")
         for name in ("_http_json", "_http_get"):
-            patcher = mock.patch.object(c, name, side_effect=_support.no_network)
+            patcher = mock.patch(_support.core_target(name), side_effect=_support.no_network)
             patcher.start()
             self.addCleanup(patcher.stop)
 

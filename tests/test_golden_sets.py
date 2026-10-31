@@ -96,6 +96,7 @@ class GoldenSetRegressionTests(unittest.TestCase):
 
     def test_labels_are_in_the_taxonomy(self):
         import noul_core
+
         from noul.schemas.domain import ScientificDomain
 
         allowed = {

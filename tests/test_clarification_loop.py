@@ -8,7 +8,6 @@ import unittest
 from unittest import mock
 
 import _support
-
 from noul.prompts import clarification as cl
 
 THIS_YEAR = datetime.date.today().year
@@ -133,7 +132,7 @@ class ToolAndCliTests(unittest.TestCase):
             self.assertEqual(ctx.exception.code, 400)
 
     def test_search_papers_clarify_flag(self):
-        with mock.patch.object(t.c, "search", return_value=FAKE_SEARCH):
+        with mock.patch(_support.core_target("search"), return_value=FAKE_SEARCH):
             broad = t.call("search_papers", {"query": "LLM quantization", "clarify": True})
             specific = t.call(
                 "search_papers", {"query": "QLoRA 4-bit quantization Llama-2 MMLU benchmark 2023", "clarify": True}
@@ -145,7 +144,7 @@ class ToolAndCliTests(unittest.TestCase):
 
     def test_cli_skip_flags_never_prompt(self):
         for flag in ("--skip-clarification", "--skip-clarify"):
-            with self.subTest(flag=flag), mock.patch.object(t.c, "search", return_value=FAKE_SEARCH) as s:
+            with self.subTest(flag=flag), mock.patch(_support.core_target("search"), return_value=FAKE_SEARCH) as s:
                 tty = FakeTTY("1\n")
                 code, out, err = run_cli("search", "LLM quantization", flag, "--interactive", stdin=tty)
                 self.assertEqual((code, json.loads(out)["query"]), (0, "LLM quantization"))
@@ -154,13 +153,13 @@ class ToolAndCliTests(unittest.TestCase):
                 self.assertEqual(err, "")
 
     def test_cli_interactive_non_tty_does_not_block(self):
-        with mock.patch.object(t.c, "search", return_value=FAKE_SEARCH):
+        with mock.patch(_support.core_target("search"), return_value=FAKE_SEARCH):
             code, out, err = run_cli("search", "LLM quantization", "--interactive", stdin=io.StringIO("1\n"))
         self.assertEqual((code, json.loads(out)["query"]), (0, "LLM quantization"))
         self.assertIn("not a terminal", err)
 
     def test_cli_interactive_tty_refines_search(self):
-        with mock.patch.object(t.c, "search", return_value=FAKE_SEARCH) as s:
+        with mock.patch(_support.core_target("search"), return_value=FAKE_SEARCH) as s:
             code, out, err = run_cli(
                 "search", "creatina", "--interactive", "--year-min", "2015", stdin=FakeTTY("1\n2\n\n")
             )

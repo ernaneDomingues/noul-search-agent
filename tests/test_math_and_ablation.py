@@ -58,7 +58,7 @@ def setUpModule():
 class _Offline(unittest.TestCase):
     def setUp(self):
         for name in ("_http_json", "_http_get"):
-            patcher = mock.patch.object(c, name, side_effect=_support.no_network)
+            patcher = mock.patch(_support.core_target(name), side_effect=_support.no_network)
             patcher.start()
             self.addCleanup(patcher.stop)
 

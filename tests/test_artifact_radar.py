@@ -8,7 +8,6 @@ import urllib.error
 from unittest import mock
 
 import _support
-
 from noul.providers import artifact_radar as ar
 
 
@@ -121,7 +120,7 @@ class VerificationTests(unittest.TestCase):
     def test_head_then_ranged_get_fallback(self):
         url = "https://github.com/a/b"
         opener, calls = fake_open({(url, "HEAD"): 405, (url, "GET"): 206})
-        with mock.patch.object(ar, "_open", opener), mock.patch.object(c, "_validate_public_url"):
+        with mock.patch.object(ar, "_open", opener), mock.patch(_support.core_target("_validate_public_url")):
             res = ar.verify_url(url)
         self.assertEqual(res, {"url": url, "verified": True, "status_code": 206})
         self.assertEqual([(m, r, to) for _, m, r, to in calls], [("HEAD", None, 5), ("GET", "bytes=0-1024", 5)])
@@ -143,7 +142,7 @@ class VerificationTests(unittest.TestCase):
             ("https://huggingface.co/datasets/acme/corpus", "HEAD"): 200,
         }
         opener, _ = fake_open(statuses)
-        with mock.patch.object(ar, "_open", opener), mock.patch.object(c, "_validate_public_url"):
+        with mock.patch.object(ar, "_open", opener), mock.patch(_support.core_target("_validate_public_url")):
             res = ar.scan_artifacts_from_paper(paper)
         self.assertFalse(res["has_code"])
         self.assertIsNone(res["code_url"])
@@ -189,7 +188,7 @@ class PipelineToolCliTests(unittest.TestCase):
 
     def test_tool_verifies_and_updates_cache(self):
         opener, calls = fake_open({})
-        with mock.patch.object(ar, "_open", opener), mock.patch.object(c, "_validate_public_url"):
+        with mock.patch.object(ar, "_open", opener), mock.patch(_support.core_target("_validate_public_url")):
             out = t.call("scan_paper_artifacts", {"id": PAPER["id"]})
         self.assertEqual(
             (out["has_code"], out["code_url"], out["artifacts"]["code_verified"]),

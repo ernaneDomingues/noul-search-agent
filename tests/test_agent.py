@@ -1,12 +1,15 @@
 import http.client
 import json
 import os
-import shutil
+import socket
+import sqlite3
 import subprocess
 import sys
 import tempfile
 import threading
 import unittest
+import urllib.parse
+import urllib.request
 from contextlib import contextmanager
 from pathlib import Path
 from unittest import mock
@@ -14,6 +17,8 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+import _support  # noqa: E402  (puts src/ on sys.path; core_target)
 
 ENV = {}
 
@@ -37,6 +42,8 @@ def setUpModule():
             "NOUL_HOME": str(base / "cache"),
             "NOUL_DB_PATH": str(base / "cache/cache.db"),
             "NOUL_WORKSPACE": str(base / "workspace"),
+            # Subprocesses get a fake HOME, which hides user site-packages: hand them our import path.
+            "PYTHONPATH": os.pathsep.join([str(ROOT / "src")] + [p for p in sys.path if p]),
         }
     )
     env_patch = mock.patch.dict(os.environ, ENV, clear=True)
@@ -163,7 +170,7 @@ def check_dossier_download_and_multi_paper_workflow():
             "source": "openalex",
         },
     )
-    with mock.patch.object(c, "_http_get", return_value=b"Full text unavailable") as fetch:
+    with mock.patch(_support.core_target("_http_get"), return_value=b"Full text unavailable") as fetch:
         q_res = t.query_fulltexts([p1["id"], p2["id"]], question="dosage grams per day")
     fetch.assert_called_once_with(p2["pdf_url"], timeout=20, binary=True, public_only=True)
     assert len(q_res["results"]) == 2
@@ -191,7 +198,7 @@ def check_dossier_download_and_multi_paper_workflow():
 
     # 3. Test download_papers with mocked PDF binary response
     pdf_dir = tmp_dir / "papers"
-    with mock.patch.object(c, "_http_get", return_value=b"%PDF-1.4 mock pdf content bytes" * 50):
+    with mock.patch(_support.core_target("_http_get"), return_value=b"%PDF-1.4 mock pdf content bytes" * 50):
         dl = t.download_papers([p1["id"]], output_dir=str(pdf_dir))
         assert dl["downloaded_count"] == 1
         assert Path(dl["files"][0]["filepath"]).exists()
@@ -305,7 +312,7 @@ def check_october_arxiv_id_not_confused_with_doi():
             "citationCount": 0,
         }
 
-    with mock.patch.object(c, "_http_json", side_effect=fake_json):
+    with mock.patch(_support.core_target("_http_json"), side_effect=fake_json):
         paper = c.resolve_paper("2410.12345")
     assert urls and "ARXIV:2410.12345" in urls[0], urls
     assert not any("doi.org" in u for u in urls), urls
@@ -348,14 +355,14 @@ def check_ssrf_protection():
             continue
         raise AssertionError(f"{url} was not blocked")
     addresses = [
-        (c.socket.AF_INET, c.socket.SOCK_STREAM, c.socket.IPPROTO_TCP, "", ("8.8.8.8", 443)),
-        (c.socket.AF_INET, c.socket.SOCK_STREAM, c.socket.IPPROTO_TCP, "", ("127.0.0.1", 443)),
+        (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("8.8.8.8", 443)),
+        (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("127.0.0.1", 443)),
     ]
-    with mock.patch.object(c.socket, "getaddrinfo", return_value=addresses):
+    with mock.patch("socket.getaddrinfo", return_value=addresses):
         assert_http_error(400, c._validate_public_url, "https://example.org/paper.pdf")
-    with mock.patch.object(c.socket, "getaddrinfo", return_value=addresses[:1]):
+    with mock.patch("socket.getaddrinfo", return_value=addresses[:1]):
         assert c._validate_public_url("https://example.org/paper.pdf") == "https://example.org/paper.pdf"
-    request = c.urllib.request.Request("https://example.org/paper.pdf")
+    request = urllib.request.Request("https://example.org/paper.pdf")
     assert_http_error(
         400, c._PublicRedirectHandler().redirect_request, request, None, 302, "Found", {}, "http://127.0.0.1/private"
     )
@@ -420,7 +427,7 @@ class AgentTestSuite(unittest.TestCase):
                 },
             ),
         ):
-            with mock.patch.object(c, "_http_json", return_value={}) as fetch:
+            with mock.patch(_support.core_target("_http_json"), return_value={}) as fetch:
                 c._search_openalex("offline")
                 c._search_crossref("offline")
                 self.assertTrue(all("mailto" not in call.args[0] for call in fetch.call_args_list))
@@ -437,42 +444,35 @@ class AgentTestSuite(unittest.TestCase):
             with mock.patch.dict(os.environ, {"NOUL_EMAIL": "research@noul.local"}):
                 self.assertIsNone(c.get_config()["email"])
 
-    def test_p0_6_external_core_requires_explicit_opt_in(self):
+    def test_p0_6_external_core_is_never_loaded(self):
+        # NOUL_APP_DIR (opt-in external core) was removed in v2 Phase 1a: the packaged modules are always used.
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            agent = root / "agent"
-            external = root / "noul-search-app"
-            agent.mkdir()
+            external = Path(temp) / "noul-search-app"
             (external / "noul").mkdir(parents=True)
-            for name in ("noul_core.py", "noul_tools.py"):
-                shutil.copyfile(ROOT / name, agent / name)
             (external / "noul/__init__.py").write_text("", encoding="utf-8")
-            (external / "noul/core.py").write_text("EV_W = {'other': 0.3}\nSOURCES = ()\n", encoding="utf-8")
+            (external / "noul/core.py").write_text("raise SystemExit('external core loaded')\n", encoding="utf-8")
             probe = (
-                "import os, noul_tools as t; print(t.c.__name__); "
+                "import os, noul.api as a; print(a._engine.__name__); "
                 "assert 'DB_PATH' not in os.environ; assert 'UNPAYWALL_EMAIL' not in os.environ"
             )
-            for explicit, expected in ((None, "noul_core"), (str(external), "noul.core")):
-                env = {**ENV}
-                if explicit:
-                    env["NOUL_APP_DIR"] = explicit
-                result = subprocess.run(
-                    [sys.executable, "-c", probe], cwd=agent, env=env, capture_output=True, text=True, timeout=30
-                )
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(result.stdout.strip(), expected)
+            env = {**ENV, "NOUL_APP_DIR": str(external)}
+            result = subprocess.run(
+                [sys.executable, "-c", probe], cwd=ROOT, env=env, capture_output=True, text=True, timeout=30
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "noul.search.engine")
 
     def test_p0_8_sqlite_connections_close_on_success_and_error(self):
         with c._conn() as conn:
             conn.execute("INSERT OR REPLACE INTO kv VALUES (?, ?, ?)", ("close-test", '{"committed": true}', 0))
         self.assertEqual(c.cache_get("close-test", max_age=0), {"committed": True})
-        with self.assertRaises(c.sqlite3.ProgrammingError):
+        with self.assertRaises(sqlite3.ProgrammingError):
             conn.execute("SELECT 1")
         with self.assertRaisesRegex(RuntimeError, "rollback"):
             with c._conn() as failed:
                 failed.execute("DELETE FROM kv WHERE k = 'close-test'")
                 raise RuntimeError("rollback")
-        with self.assertRaises(c.sqlite3.ProgrammingError):
+        with self.assertRaises(sqlite3.ProgrammingError):
             failed.execute("SELECT 1")
         self.assertEqual(c.cache_get("close-test", max_age=0), {"committed": True})
 
@@ -494,9 +494,9 @@ class AgentTestSuite(unittest.TestCase):
                 returned.set()
 
         with (
-            mock.patch.object(c, "_search_openalex", side_effect=slow),
-            mock.patch.object(c, "_search_europepmc", return_value=[]),
-            mock.patch.object(c, "SEARCH_TIMEOUT", 0.05),
+            mock.patch(_support.core_target("_search_openalex"), side_effect=slow),
+            mock.patch(_support.core_target("_search_europepmc"), return_value=[]),
+            mock.patch(_support.core_target("SEARCH_TIMEOUT"), 0.05),
         ):
             worker = threading.Thread(target=search)
             worker.start()
@@ -515,7 +515,7 @@ class AgentTestSuite(unittest.TestCase):
         response.__enter__.return_value = response
         response.headers = {}
         response.read.side_effect = [b"1234", b"5678", b""]
-        with mock.patch.object(c.urllib.request, "urlopen", return_value=response):
+        with mock.patch("urllib.request.urlopen", return_value=response):
             assert_http_error(413, c._http_get, "https://example.org/paper.pdf", max_bytes=6)
         self.assertEqual(response.read.call_args_list, [mock.call(65536), mock.call(65536)])
         response.__exit__.assert_called_once()
@@ -525,21 +525,21 @@ class AgentTestSuite(unittest.TestCase):
             f"<{tag}>{'boilerplate ' * 300}</{tag}>" for tag in ("script", "style", "nav", "header", "footer")
         )
         with (
-            mock.patch.object(c, "resolve_paper", return_value=paper),
-            mock.patch.object(c, "_http_get", return_value=(boilerplate + "<p>Sign in</p>").encode()),
+            mock.patch(_support.core_target("resolve_paper"), return_value=paper),
+            mock.patch(_support.core_target("_http_get"), return_value=(boilerplate + "<p>Sign in</p>").encode()),
         ):
             self.assertFalse(c.fulltext(paper["id"])["available"])
         article = "<article>" + ("Methods and results of our study. " * 100) + "</article>"
         with (
-            mock.patch.object(c, "resolve_paper", return_value=paper),
-            mock.patch.object(c, "_http_get", return_value=(boilerplate + article).encode()) as fetch,
+            mock.patch(_support.core_target("resolve_paper"), return_value=paper),
+            mock.patch(_support.core_target("_http_get"), return_value=(boilerplate + article).encode()) as fetch,
         ):
             self.assertTrue(c.fulltext(paper["id"])["available"])
         fetch.assert_called_once_with(paper["pdf_url"], timeout=20, binary=True, public_only=True)
         self.assertNotIn("boilerplate", c.cache_get("ft:" + paper["id"])["text"])
 
     def test_p0_12_tool_argument_validation(self):
-        with mock.patch.object(c, "search") as search:
+        with mock.patch(_support.core_target("search")) as search:
             for args in ([], "", {}, {"query": None}, {"query": "valid", "typo": 1}):
                 with self.subTest(args=args):
                     assert_http_error(400, t.call, "search_papers", args)
@@ -566,11 +566,11 @@ class AgentTestSuite(unittest.TestCase):
                 ]
             }
         }
-        with mock.patch.object(c, "_http_json", return_value=fixture) as fetch:
+        with mock.patch(_support.core_target("_http_json"), return_value=fixture) as fetch:
             result = c.search(
                 "Europe PMC regression", filters={"year_min": 2020, "open_access": True}, sources=["europepmc"]
             )
-        params = c.urllib.parse.parse_qs(c.urllib.parse.urlparse(fetch.call_args.args[0]).query)
+        params = urllib.parse.parse_qs(urllib.parse.urlparse(fetch.call_args.args[0]).query)
         self.assertEqual(params["resultType"], ["core"])
         self.assertIn("PUB_YEAR:[2020 TO 3000]", params["query"][0])
         self.assertIn("OPEN_ACCESS:y", params["query"][0])
@@ -674,7 +674,7 @@ class AgentTestSuite(unittest.TestCase):
             [r["result"]["protocolVersion"] for r in responses], ["2025-03-26", "2024-11-05", "2025-06-18"]
         )
         with (
-            mock.patch.object(m, "serve_http") as serve,
+            mock.patch("noul.server.legacy.serve_http") as serve,
             mock.patch.dict(os.environ, {"K_SERVICE": "test", "PORT": "8080", "NOUL_HTTP_HOST": ""}),
         ):
             m.main(["--http"])
@@ -697,7 +697,7 @@ class AgentTestSuite(unittest.TestCase):
                     "readme_path": str(outside / "README.md"),
                 }
             }
-            with mock.patch.object(c, "cache_get", return_value=index):
+            with mock.patch(_support.core_target("cache_get"), return_value=index):
                 self.assertEqual(t.list_research_dossiers()["dossiers"], [])
                 assert_http_error(404, t.get_research_dossier, "outside")
 
@@ -726,7 +726,7 @@ class AgentTestSuite(unittest.TestCase):
             pdf_dir = root / "papers"
             pdf_dir.mkdir()
             (pdf_dir / c._safe_filename(paper)).symlink_to(outside / "paper.pdf")
-            with mock.patch.object(c, "resolve_paper", return_value=paper):
+            with mock.patch(_support.core_target("resolve_paper"), return_value=paper):
                 assert_http_error(403, c.download_paper_pdf, paper["id"], str(pdf_dir))
             self.assertFalse((outside / "paper.pdf").exists())
 

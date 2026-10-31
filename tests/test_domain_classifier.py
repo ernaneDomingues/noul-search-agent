@@ -7,7 +7,6 @@ import unittest
 from unittest import mock
 
 import _support
-
 from noul.providers import domain_classifier as dc
 from noul.schemas.domain import ScientificDomain as D
 from noul.schemas.paper import UnifiedPaper
@@ -152,7 +151,7 @@ class PipelineIntegrationTests(unittest.TestCase):
           <summary>We decode signals.</summary><published>2024-02-01T00:00:00Z</published>
           <author><name>Ana Lima</name></author>
           <arxiv:primary_category term="q-bio.NC"/><category term="q-bio.NC"/><category term="cs.LG"/></entry></feed>"""
-        with mock.patch.object(c, "_http_get", return_value=atom):
+        with mock.patch(_support.core_target("_http_get"), return_value=atom):
             [paper] = c._search_arxiv("neural decoding")
         self.assertEqual(paper["primary_category"], "q-bio.NC")
         self.assertEqual(paper["categories"], ["q-bio.NC", "cs.LG"])
@@ -181,7 +180,7 @@ class PipelineIntegrationTests(unittest.TestCase):
     def test_search_papers_domain_filter_and_slim(self):
         bio = {**PAPER, "id": "pmid:1", "title": "Placebo trial", "pmid": "1", "domain": "biomedical"}
         fake = {"papers": [PAPER, bio], "sources": ["arxiv"], "warnings": []}
-        with mock.patch.object(t.c, "search", return_value=fake):
+        with mock.patch(_support.core_target("search"), return_value=fake):
             out = t.search_papers("routing", domain="cs")
             self.assertEqual([p["id"] for p in out["papers"]], [PAPER["id"]])
             self.assertEqual((out["domain"], out["papers"][0]["domain"]), ("computer_science", "computer_science"))
@@ -205,7 +204,9 @@ class PipelineIntegrationTests(unittest.TestCase):
         self.assertEqual((code, json.loads(out)["domain"]), (0, "biomedical"))
         code, out = run_cli("domain", PAPER["id"])
         self.assertEqual((code, json.loads(out)["domain"]), (0, "computer_science"))
-        with mock.patch.object(t.c, "search", return_value={"papers": [PAPER], "sources": [], "warnings": []}):
+        with mock.patch(
+            _support.core_target("search"), return_value={"papers": [PAPER], "sources": [], "warnings": []}
+        ):
             code, out = run_cli("search", "routing", "--domain", "econ")
         self.assertEqual((code, json.loads(out)["total_found"]), (0, 0))
         with contextlib.redirect_stderr(io.StringIO()):

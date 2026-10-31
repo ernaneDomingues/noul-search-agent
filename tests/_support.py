@@ -8,8 +8,10 @@ from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+SRC = ROOT / "src"
+for _path in (SRC, ROOT):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 
 
 def isolate_environment():
@@ -27,6 +29,8 @@ def isolate_environment():
             "NOUL_HOME": str(base / "cache"),
             "NOUL_DB_PATH": str(base / "cache/cache.db"),
             "NOUL_WORKSPACE": str(base / "workspace"),
+            # Subprocesses get a fake HOME, which hides user site-packages: hand them our import path.
+            "PYTHONPATH": os.pathsep.join([str(SRC)] + [p for p in sys.path if p]),
         }
     )
     patcher = mock.patch.dict(os.environ, env, clear=True)
@@ -154,3 +158,97 @@ def seed_fulltext_paper(core, pid, text, **meta):
     if text is not None:
         core.cache_set("ft:" + pid, {"text": text, "source": "test", "url": None})
     return pid
+
+
+# Where each former `noul_core` symbol lives now (Phase 1a split). Patch the new home: the `noul_core`
+# shim only re-exports objects, so patching the shim no longer reaches the code that uses them.
+CORE_HOMES = {
+    "ARXIV_RE": "noul.ids",
+    "DEFAULT_SOURCES": "noul.search.engine",
+    "DOI_RE": "noul.ids",
+    "EMAIL_RE": "noul.config",
+    "EV_W": "noul.evidence.classify",
+    "EXACT_ELITE_VENUES": "noul.evidence.impact",
+    "HTTPError": "noul.errors",
+    "MAX_DOWNLOAD_BYTES": "noul.net.http",
+    "MIN_HTML_FULLTEXT_CHARS": "noul.library.fulltext",
+    "NEG_PATTERNS": "noul.evidence.classify",
+    "S2_PAPER_FIELDS": "noul.providers.s2",
+    "SEARCH_TIMEOUT": "noul.search.engine",
+    "SOURCES": "noul.search.engine",
+    "UA": "noul.net.http",
+    "_EMPIRICAL_RE": "noul.evidence.classify",
+    "_HTML_BOILERPLATE_RE": "noul.library.fulltext",
+    "_META_RE": "noul.evidence.classify",
+    "_OBSERVATIONAL_RE": "noul.evidence.classify",
+    "_PRECLINICAL_RE": "noul.evidence.classify",
+    "_PROVIDERS": "noul.search.engine",
+    "_PUBLIC_OPENER": "noul.net.http",
+    "_PublicRedirectHandler": "noul.net.http",
+    "_RCT_RE": "noul.evidence.classify",
+    "_REVIEW_RE": "noul.evidence.classify",
+    "_SR_RE": "noul.evidence.classify",
+    "_STRONG_DESIGNS": "noul.evidence.classify",
+    "_annotate_paper": "noul.search.engine",
+    "_cache_dir": "noul.config",
+    "_clean_text": "noul.ids",
+    "_config_file": "noul.config",
+    "_conn": "noul.net.cache",
+    "_db_path": "noul.config",
+    "_email": "noul.config",
+    "_ensure_openalex_work": "noul.library.graph",
+    "_estimate_impact": "noul.evidence.impact",
+    "_europepmc_pdf_url": "noul.providers.europepmc",
+    "_eutils_params": "noul.providers.pubmed",
+    "_extract_pdf_text": "noul.library.fulltext",
+    "_fetch_openalex_batch": "noul.library.graph",
+    "_html_to_text": "noul.library.fulltext",
+    "_http_get": "noul.net.http",
+    "_http_json": "noul.net.http",
+    "_ip_is_public": "noul.net.http",
+    "_load_config_file": "noul.config",
+    "_mailto_qs": "noul.net.http",
+    "_merge_papers": "noul.search.engine",
+    "_norm_doi": "noul.ids",
+    "_norm_venue": "noul.evidence.impact",
+    "_paper_id": "noul.ids",
+    "_parse_europepmc_result": "noul.providers.europepmc",
+    "_parse_openalex_work": "noul.providers.openalex",
+    "_parse_pubmed_xml": "noul.providers.pubmed",
+    "_parse_s2_paper": "noul.providers.s2",
+    "_provider": "noul.search.engine",
+    "_reconstruct_openalex_abstract": "noul.providers.openalex",
+    "_resolve_email": "noul.config",
+    "_safe_filename": "noul.library.downloads",
+    "_score_paper": "noul.search.engine",
+    "_search_arxiv": "noul.providers.arxiv_search",
+    "_search_crossref": "noul.providers.crossref",
+    "_search_europepmc": "noul.providers.europepmc",
+    "_search_openalex": "noul.providers.openalex",
+    "_search_pubmed": "noul.providers.pubmed",
+    "_search_s2": "noul.providers.s2",
+    "_unique": "noul.ids",
+    "_user_agent": "noul.net.http",
+    "_valid_email": "noul.config",
+    "_validate_public_url": "noul.net.http",
+    "_with_mailto": "noul.net.http",
+    "cache_get": "noul.net.cache",
+    "cache_set": "noul.net.cache",
+    "citation_graph": "noul.library.graph",
+    "classify_evidence": "noul.evidence.classify",
+    "download_paper_pdf": "noul.library.downloads",
+    "export": "noul.library.export",
+    "fulltext": "noul.library.fulltext",
+    "get_config": "noul.config",
+    "pick_chunks": "noul.library.fulltext",
+    "related_papers": "noul.library.graph",
+    "resolve_paper": "noul.search.engine",
+    "resolve_pdf_url": "noul.library.fulltext",
+    "search": "noul.search.engine",
+    "set_config": "noul.config",
+}
+
+
+def core_target(name):
+    """`mock.patch` target for a former `noul_core` symbol, e.g. `core_target("_http_json")`."""
+    return f"{CORE_HOMES[name]}.{name}"

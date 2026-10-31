@@ -23,7 +23,7 @@ class BooleanExpansionTests(unittest.TestCase):
     def setUp(self):
         self.ids = _support.seed_phase2_papers(c)
         self.llm_ids = [i for i in self.ids if i.endswith(("qlora", "gptq"))]
-        patcher = mock.patch.object(c, "_http_json", side_effect=_support.no_network)
+        patcher = mock.patch(_support.core_target("_http_json"), side_effect=_support.no_network)
         patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -91,7 +91,7 @@ class BooleanExpansionTests(unittest.TestCase):
         expected = t.suggest_boolean_queries("llm quantization", self.llm_ids)["suggestions"][0]["boolean_query"]
         fake = {"papers": [], "sources": {}, "warnings": []}
         buf = io.StringIO()
-        with mock.patch.object(c, "search", return_value=fake) as search, contextlib.redirect_stdout(buf):
+        with mock.patch(_support.core_target("search"), return_value=fake) as search, contextlib.redirect_stdout(buf):
             code = cli.main(
                 ["expand", "llm quantization", "--ids", ",".join(self.llm_ids), "--run", "1", "--limit", "5"]
             )

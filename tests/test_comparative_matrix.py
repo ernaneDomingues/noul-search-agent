@@ -20,7 +20,7 @@ def setUpModule():
 class CompareTests(unittest.TestCase):
     def setUp(self):
         self.ids = _support.seed_phase2_papers(c, ["llm_a", "rct", "mice"])
-        patcher = mock.patch.object(c, "_http_json", side_effect=_support.no_network)
+        patcher = mock.patch(_support.core_target("_http_json"), side_effect=_support.no_network)
         patcher.start()
         self.addCleanup(patcher.stop)
 

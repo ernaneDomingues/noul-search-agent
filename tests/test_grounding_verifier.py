@@ -44,7 +44,7 @@ def setUpModule():
 class GroundingTests(unittest.TestCase):
     def setUp(self):
         for name in ("_http_json", "_http_get"):
-            patcher = mock.patch.object(c, name, side_effect=_support.no_network)
+            patcher = mock.patch(_support.core_target(name), side_effect=_support.no_network)
             patcher.start()
             self.addCleanup(patcher.stop)
         self.pid = _support.seed_fulltext_paper(c, "doi:10.1000/ground", FULLTEXT, title="Sparse-7B", abstract=ABSTRACT)

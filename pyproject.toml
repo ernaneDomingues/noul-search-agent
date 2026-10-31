@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "noul-search-agent"
-version = "1.0.0"
-description = "Autonomous Scientific Research & Document Intelligence Agent (Co-Scientist): MCP server, CLI, skill and subagent across CS/AI, Biomedical, Economics & STEM with deterministic Evidence Meter, benchmark/math/hardware/ablation extraction, multi-persona peer review, polyglot code/protocol scaffolding, academic authoring copilot, BibTeX sanitizer, rebuttal copilot and pre-submission desk-reject gatekeeper. Zero mandatory dependencies."
+dynamic = ["version"]
+description = "Autonomous Scientific Research & Document Intelligence Agent (Co-Scientist): MCP server, CLI, skill and subagent across CS/AI, Biomedical, Economics & STEM with deterministic Evidence Meter, benchmark/math/hardware/ablation extraction, multi-persona peer review, polyglot code/protocol scaffolding, academic authoring copilot, BibTeX sanitizer, rebuttal copilot and pre-submission desk-reject gatekeeper. Runs inside the user's own agent (no LLM of its own)."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
@@ -23,12 +23,12 @@ classifiers = [
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-dependencies = []
+dependencies = ["pydantic>=2.7.0", "pypdf>=4.0.0"]
 
 [project.optional-dependencies]
 pdf = ["pypdf>=4.0"]
 pro = ["mcp>=1.6.0", "pydantic>=2.7.0", "httpx>=0.27.0", "typer>=0.12.0", "rich>=13.7.0", "pypdf>=4.0.0"]
-dev = ["ruff>=0.6", "mypy>=1.11", "pytest>=8.0", "pytest-cov>=5.0", "pydantic>=2.7.0", "pypdf>=4.0.0"]
+dev = ["ruff>=0.6", "mypy>=1.11", "pytest>=8.0", "pytest-cov>=5.0"]
 
 [project.urls]
 Homepage = "https://ernanedomingues.github.io/noul-search-agent/"
@@ -37,14 +37,17 @@ Repository = "https://github.com/ernaneDomingues/noul-search-agent"
 Issues = "https://github.com/ernaneDomingues/noul-search-agent/issues"
 
 [project.scripts]
-noul = "noul_cli:main"
-noul-search-agent = "noul_cli:main"
-noul-mcp = "noul_mcp:main"
-noul-install = "install:main"
+noul = "noul.cli:main"
+noul-search-agent = "noul.cli:main"
+noul-mcp = "noul.server.legacy:main"
+noul-install = "noul.install:main"
 
-[tool.setuptools]
-py-modules = ["noul_core", "noul_tools", "noul_mcp", "noul_cli", "install"]
-packages = ["noul", "noul.schemas", "noul.providers", "noul.tools", "noul.prompts"]
+[tool.setuptools.dynamic]
+version = { attr = "noul.__version__" }
+
+# The root-level noul_*.py/install.py files are deprecated shims for source checkouts only; wheels ship `noul`.
+[tool.setuptools.packages.find]
+where = ["src"]
 
 # Templates used by `noul-install` (looked up under <prefix>/share/noul-search-agent).
 [tool.setuptools.data-files]
@@ -61,6 +64,7 @@ packages = ["noul", "noul.schemas", "noul.providers", "noul.tools", "noul.prompt
 line-length = 120
 target-version = "py310"
 extend-exclude = ["site"]
+src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
@@ -69,12 +73,11 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E402"]
-"noul_tools.py" = ["E402"]
-"noul/core.py" = ["F401", "F403"]
 
 [tool.mypy]
 python_version = "3.10"
-files = ["noul"]
+files = ["src/noul"]
+mypy_path = "src"
 ignore_missing_imports = true
 warn_unused_ignores = true
 # Gradual adoption: untyped defs are allowed; strict modules are opted in below as they are refactored.
@@ -87,11 +90,11 @@ check_untyped_defs = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-pythonpath = ["tests", "."]
+pythonpath = ["src", "tests", "."]
 addopts = "-q"
 
 [tool.coverage.run]
-source = ["noul", "noul_core", "noul_tools", "noul_mcp", "noul_cli", "install"]
+source = ["noul"]
 branch = true
 
 [tool.coverage.report]
