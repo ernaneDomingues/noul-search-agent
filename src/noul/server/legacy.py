@@ -127,9 +127,9 @@ def handle(msg, allow_write=True):
         elif m == "tools/call":
             name = params.get("name")
             try:
-                if not allow_write and name in WRITE_TOOLS:
+                if not allow_write and _registry.call_writes(name, params.get("arguments")):
                     raise PermissionError(
-                        f"Tool '{name}' writes to disk and is disabled over HTTP "
+                        f"Tool '{name}' writes to disk with these arguments and is disabled over HTTP "
                         "(set NOUL_HTTP_TOKEN and NOUL_HTTP_ALLOW_WRITE=1 to enable it)."
                     )
                 out = t.call(name, params.get("arguments"))
@@ -289,11 +289,11 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(200, out)
         if path.startswith("/tools/"):
             tool_name = path.split("/tools/", 1)[1].strip("/")
-            if tool_name in WRITE_TOOLS and not self.server.allow_write:
+            if not self.server.allow_write and _registry.call_writes(tool_name, body):
                 return self._send(
                     403,
                     {
-                        "error": f"Tool '{tool_name}' writes to disk and is disabled over HTTP "
+                        "error": f"Tool '{tool_name}' writes to disk with these arguments and is disabled over HTTP "
                         "(set NOUL_HTTP_TOKEN and NOUL_HTTP_ALLOW_WRITE=1 to enable it)."
                     },
                 )

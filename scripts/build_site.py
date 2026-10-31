@@ -78,10 +78,17 @@ def _inline_list(payload: dict) -> str:
 
 def _readme_table(payload: dict) -> str:
     rows = ["", "| Ferramenta | O que faz | Grava em disco |", "|---|---|---|"]
-    writes = {t["name"] for t in registry.catalog() if t["writes"]}
+    flags = {t["name"]: t for t in registry.catalog()}
+
+    def writes(name):
+        if flags[name]["writes"]:
+            return "sim"
+        args = flags[name]["write_args"]
+        return "só com " + ", ".join(f"`{a}`" for a in args) if args else "não"
+
     for t in payload["tools"]:
         first = re.split(r"(?<=[.!?])\s", t["description"], maxsplit=1)[0].replace("|", "\\|")
-        rows.append(f"| `{t['name']}` | {first} | {'sim' if t['name'] in writes else 'não'} |")
+        rows.append(f"| `{t['name']}` | {first} | {writes(t['name'])} |")
     return "\n".join(rows) + "\n"
 
 

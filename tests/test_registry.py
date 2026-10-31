@@ -49,6 +49,51 @@ class ContractTests(unittest.TestCase):
         )
         self.assertEqual(legacy.WRITE_TOOLS, registry.write_tools())
 
+    def test_write_arguments_are_blocked_over_http_without_write_permission(self):
+        """sanitize_bibtex is read-only unless `output_path` is set; with it, HTTP without write access refuses."""
+        from noul import registry
+        from noul.server import legacy
+
+        self.assertTrue(registry.call_writes("sanitize_bibtex", {"bibtex_input": "x", "output_path": "out.bib"}))
+        self.assertFalse(registry.call_writes("sanitize_bibtex", {"bibtex_input": "x"}))
+        self.assertFalse(registry.call_writes("sanitize_bibtex", {"bibtex_input": "x", "output_path": ""}))
+        self.assertTrue(registry.call_writes("download_papers", {"ids": ["a"]}))
+        self.assertFalse(registry.call_writes("no_such_tool", {}))
+
+        def call(args, allow_write):
+            msg = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "sanitize_bibtex"}}
+            msg["params"]["arguments"] = args
+            return legacy.handle(msg, allow_write=allow_write)["result"]
+
+        blocked = call({"bibtex_input": "@article{a, title={T}}", "output_path": "clean.bib"}, allow_write=False)
+        self.assertTrue(blocked["isError"])
+        self.assertIn("PermissionError", blocked["content"][0]["text"])
+        listed = {
+            t["name"]
+            for t in legacy.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, False)["result"]["tools"]
+        }
+        self.assertIn("sanitize_bibtex", listed)  # the read-only form stays available over HTTP
+
+    def test_error_logs_do_not_echo_exception_messages(self):
+        import io
+        import logging
+
+        from noul import log, registry
+        from noul.errors import HTTPError
+
+        stream = io.StringIO()
+        handler = logging.StreamHandler(stream)
+        log.logger.addHandler(handler)
+        log.logger.setLevel("INFO")
+        try:
+            with self.assertRaises(HTTPError):
+                registry.call("configure_noul", {"email": "not-an-email-secret@"})
+        finally:
+            log.logger.removeHandler(handler)
+            log.logger.setLevel("WARNING")
+        self.assertIn("tool error name=configure_noul", stream.getvalue())
+        self.assertNotIn("secret", stream.getvalue())
+
     def test_duplicate_registration_is_rejected(self):
         from noul import api, registry  # noqa: F401  (api registers the tools)
         from noul.schemas.tool_inputs import ConfigureNoulInput

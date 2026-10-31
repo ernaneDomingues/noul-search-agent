@@ -666,6 +666,7 @@ def audit_manuscript_draft(draft_input, venue="neurips", output_format="markdown
         "authors, escapes unescaped LaTeX (`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`)."
     ),
     input=_inputs.SanitizeBibtexInput,
+    write_args=("output_path",),
 )
 def sanitize_bibtex(bibtex_input, update_preprints=True, output_path=None):
     return _authoring_tools.sanitize_bibtex(

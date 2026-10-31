@@ -31,6 +31,8 @@ class Tool:
     writes: bool = False
     network: bool = True
     profiles: tuple[str, ...] = ("all",)
+    # Arguments that make an otherwise read-only call write to disk (e.g. `output_path`).
+    write_args: tuple[str, ...] = ()
 
 
 REGISTRY: dict[str, Tool] = {}
@@ -51,13 +53,14 @@ def tool(
     writes: bool = False,
     network: bool = True,
     profiles: tuple[str, ...] = ("all",),
+    write_args: tuple[str, ...] = (),
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Register the decorated function as tool `name` (the function itself is returned unchanged)."""
 
     def register(fn: Callable[..., Any]) -> Callable[..., Any]:
         if name in REGISTRY:
             raise ValueError(f"tool {name!r} registered twice")
-        REGISTRY[name] = Tool(name, description, input, fn, writes, network, tuple(profiles))
+        REGISTRY[name] = Tool(name, description, input, fn, writes, network, tuple(profiles), tuple(write_args))
         return fn
 
     return register
@@ -134,6 +137,7 @@ def catalog() -> list[dict[str, Any]]:
             "writes": t.writes,
             "network": t.network,
             "profiles": list(t.profiles),
+            "write_args": list(t.write_args),
         }
         for t in _loaded().values()
     ]
@@ -142,6 +146,18 @@ def catalog() -> list[dict[str, Any]]:
 def write_tools() -> frozenset[str]:
     """Tools that write to disk or change configuration (hidden and blocked over HTTP unless explicitly allowed)."""
     return frozenset(t.name for t in _loaded().values() if t.writes)
+
+
+def call_writes(name: Any, args: Any) -> bool:
+    """True when this call would write to disk: a write tool, or a write argument (e.g. `output_path`) is set.
+
+    Servers use it to block writes over HTTP; unknown tools return False (the call then fails with 404)."""
+    tool = _loaded().get(name) if isinstance(name, str) else None
+    if tool is None:
+        return False
+    if tool.writes:
+        return True
+    return isinstance(args, dict) and any(args.get(a) not in (None, "") for a in tool.write_args)
 
 
 class _ToolsView(Mapping[str, tuple[str, dict[str, Any], list[str], Callable[..., Any]]]):
@@ -205,13 +221,14 @@ def call(name: str, args: Any = None) -> Any:
     try:
         result = t.fn(**kwargs)
     except Exception as exc:
+        # Only the exception type and status: messages can echo user input (e-mail, paths) and the caller sees them.
         _log.logger.info(
-            "tool error name=%s trace_id=%s duration_ms=%.0f error=%s: %s",
+            "tool error name=%s trace_id=%s duration_ms=%.0f error=%s status=%s",
             name,
             trace_id,
             (time.perf_counter() - started) * 1000,
             type(exc).__name__,
-            exc,
+            getattr(exc, "code", None),
         )
         raise
     _log.logger.debug(
