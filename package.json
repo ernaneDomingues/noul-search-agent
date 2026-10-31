@@ -42,7 +42,8 @@
     "agents/",
     "commands/",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "!**/__pycache__"
   ],
   "engines": {
     "node": ">=16"
