@@ -98,6 +98,44 @@ class MetadataAndTextTests(unittest.TestCase):
         self.assertEqual(dc.resolve_domain(title="On lattices", abstract="An efficient algorithm."), D.GENERAL_STEM)
         self.assertEqual(dc.resolve_domain(title="A new compiler", abstract=""), D.COMPUTER_SCIENCE)
 
+    def test_venue_signal_is_conservative(self):
+        self.assertEqual(dc.map_venue("Proceedings of ACM SIGMOD"), D.COMPUTER_SCIENCE)
+        self.assertEqual(dc.map_venue("Journal of Health Economics"), D.ECONOMICS)
+        self.assertEqual(dc.map_venue("The Lancet Psychiatry"), D.BIOMEDICAL)
+        self.assertEqual(dc.map_venue("Physical Review Letters"), D.GENERAL_STEM)
+        for ambiguous in (
+            "Cellular Signalling",
+            "Science Signaling",
+            "Significance",
+            "IEEE Transactions on Medical Imaging",  # CS and biomedical patterns both match
+            "Computers in Biology and Medicine",
+            "Nature",
+            "Science",
+            "PLOS ONE",
+        ):
+            with self.subTest(venue=ambiguous):
+                self.assertIsNone(dc.map_venue(ambiguous))
+
+    def test_pubmed_indexing_beats_a_venue_and_venue_returns_text_scores(self):
+        paper = {"title": "Kinase pathways", "abstract": "", "journal": "ACM Computing Surveys", "pmid": "1"}
+        self.assertEqual(dc.resolve_domain(paper=paper), D.BIOMEDICAL)
+        info = dc.explain_domain(title="A study", abstract="", journal="Physical Review D")
+        self.assertEqual((info["method"], info["domain"]), ("venue", D.GENERAL_STEM))
+        self.assertIn("general_stem", info["text_scores"])
+
+    def test_generic_terms_do_not_decide_alone(self):
+        cases = [
+            ("Agent-based modelling of malaria transmission", "Simulations of mosquito populations.", D.BIOMEDICAL),
+            ("The price of anarchy in selfish routing", "We bound the inefficiency of Nash equilibria.", None),
+        ]
+        for title, abstract, expected in cases:
+            with self.subTest(title=title):
+                got = dc.resolve_domain(title=title, abstract=abstract)
+                if expected is None:
+                    self.assertNotEqual(got, D.ECONOMICS)  # one generic "price" must not decide economics
+                else:
+                    self.assertEqual(got, expected)
+
     def test_accepts_unified_paper(self):
         paper = UnifiedPaper(id="x", title="Monetary policy and inflation expectations")
         self.assertEqual(dc.resolve_domain(paper=paper), D.ECONOMICS)

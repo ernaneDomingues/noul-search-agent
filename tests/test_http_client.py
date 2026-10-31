@@ -61,11 +61,12 @@ class HttpClientTests(unittest.TestCase):
     def test_honours_retry_after_and_caps_it(self):
         self.serve(
             httpx.Response(429, headers={"Retry-After": "2"}),
-            httpx.Response(429, headers={"Retry-After": "600"}),
+            httpx.Response(429, headers={"Retry-After": "5"}),
             httpx.Response(200, text="done"),
         )
         self.assertEqual(self.http._http_get("https://api.crossref.org/works"), "done")
-        self.assertEqual(self.sleeps, [2.0, self.http.RETRY_AFTER_CAP])
+        self.assertEqual(self.sleeps, [2.0, 5.0])
+        self.assertEqual(self.http._retry_after(httpx.Response(429, headers={"Retry-After": "600"})), 30.0)
 
     def test_gives_up_after_max_attempts_with_status_code(self):
         seen = self.serve(*[httpx.Response(429)] * self.http.MAX_ATTEMPTS)
@@ -74,6 +75,19 @@ class HttpClientTests(unittest.TestCase):
         self.assertEqual(ctx.exception.code, 429)
         self.assertIn("HTTP Error 429", str(ctx.exception))
         self.assertEqual(len(seen), self.http.MAX_ATTEMPTS)
+
+    def test_retries_stop_at_the_budget_and_report_the_real_cause(self):
+        seen = self.serve(httpx.Response(429, headers={"Retry-After": "30"}))
+        with self.assertRaises(self.http._errors.HTTPError) as ctx:
+            self.http._http_get("https://api.semanticscholar.org/graph/v1/paper/search?query=x")
+        self.assertEqual((len(seen), self.sleeps), (1, []))  # waiting 30 s would blow the search deadline
+        self.assertIn("HTTP Error 429: Too Many Requests (rate limited; set S2_API_KEY", str(ctx.exception))
+
+    def test_non_transient_transport_errors_are_not_retried(self):
+        seen = self.serve(httpx.UnsupportedProtocol("ftp"))
+        with self.assertRaises(self.http._errors.HTTPError) as ctx:
+            self.http._http_get("https://example.org/a")
+        self.assertEqual((ctx.exception.code, len(seen), self.sleeps), (502, 1, []))
 
     def test_client_errors_are_not_retried(self):
         seen = self.serve(httpx.Response(404))

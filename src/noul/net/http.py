@@ -103,6 +103,16 @@ MAX_REDIRECTS = 5
 RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 RETRY_AFTER_CAP = 30.0  # seconds; a longer Retry-After is capped rather than honoured
 PUBLIC_RETRY_AFTER_CAP = 5.0  # third-party (public_only) hosts cannot make us sleep long
+# Total seconds one _http_get may sleep between retries: kept below the 18 s multi-source search deadline, so
+# callers get the real cause ("HTTP Error 429: Too Many Requests") instead of a generic source timeout.
+RETRY_BUDGET = 8.0
+# Only transient transport failures are retried (not UnsupportedProtocol, LocalProtocolError, ...).
+_TRANSIENT = (httpx.TimeoutException, httpx.ConnectError, httpx.ReadError, httpx.WriteError, httpx.RemoteProtocolError)
+_RATE_LIMIT_HINTS = {
+    "api.semanticscholar.org": " (rate limited; set S2_API_KEY for a dedicated quota)",
+    "api.openalex.org": " (rate limited; set OPENALEX_API_KEY and a contact e-mail)",
+    "eutils.ncbi.nlm.nih.gov": " (rate limited; set NCBI_API_KEY)",
+}
 _SENSITIVE_HEADERS = ("authorization", "cookie", "x-api-key")
 
 # httpx/httpcore log full request URLs (with mailto e-mails and api_key params) at INFO/DEBUG; keep them quiet
@@ -266,7 +276,8 @@ def _fetch_once(url, headers, timeout, max_bytes, public_only):
 
 
 def _http_get(url, headers=None, timeout=15, binary=False, max_bytes=MAX_DOWNLOAD_BYTES, public_only=False):
-    """GET with a byte cap, retries (429/5xx/network errors, honouring Retry-After) and per-host rate limits.
+    """GET with a byte cap, retries (429/5xx/transient network errors, honouring Retry-After within RETRY_BUDGET)
+    and per-host rate limits. `timeout` applies per phase (connect/read/write), like urllib's socket timeout.
 
     `public_only=True` applies the SSRF guard to the URL and every redirect (use it for URLs that come from
     third-party metadata, e.g. PDF/full-text links). Errors raise `noul.errors.HTTPError` with `.code`."""
@@ -274,30 +285,35 @@ def _http_get(url, headers=None, timeout=15, binary=False, max_bytes=MAX_DOWNLOA
     hdrs = {"User-Agent": _user_agent(), "Accept": "*/*", "Accept-Encoding": "identity"}
     if headers:
         hdrs.update(headers)
+    slept = 0.0
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
             status, reason, retry_after, data = _fetch_once(url, hdrs, timeout, max_bytes, public_only)
-        except httpx.TransportError as exc:
-            if attempt == MAX_ATTEMPTS:
+        except _TRANSIENT as exc:
+            wait = _backoff(attempt)
+            if attempt == MAX_ATTEMPTS or slept + wait > RETRY_BUDGET:
                 code = 504 if isinstance(exc, httpx.TimeoutException) else 502
                 raise _errors.HTTPError(code, f"Network error ({type(exc).__name__}) for {_where(url)}") from exc
-            wait = _backoff(attempt)
             _log.logger.debug(
                 "http retry %s error=%s attempt=%d wait=%.2f", _where(url), type(exc).__name__, attempt, wait
             )
             _sleep(wait)
+            slept += wait
             continue
         except (httpx.HTTPError, ValueError) as exc:
-            # Corrupt encodings, invalid redirect URLs...: fail closed with a clean error (no URL query in it).
+            # Corrupt encodings, invalid redirect URLs, unsupported schemes...: fail closed with a clean error.
             raise _errors.HTTPError(502, f"Invalid response ({type(exc).__name__}) from {_where(url)}") from exc
         if data is not None:
             return data if binary else data.decode("utf-8", errors="replace")
-        if status in RETRY_STATUSES and attempt < MAX_ATTEMPTS:
-            wait = retry_after if retry_after is not None else _backoff(attempt)
+        wait = retry_after if retry_after is not None else _backoff(attempt)
+        if status in RETRY_STATUSES and attempt < MAX_ATTEMPTS and slept + wait <= RETRY_BUDGET:
             _log.logger.debug("http retry %s status=%d attempt=%d wait=%.2f", _where(url), status, attempt, wait)
             _sleep(wait)
+            slept += wait
             continue
-        raise _errors.HTTPError(status, f"HTTP Error {status}: {reason}")
+        reason = reason or httpx.codes.get_reason_phrase(status)
+        hint = _RATE_LIMIT_HINTS.get((urllib.parse.urlsplit(url).hostname or "").lower(), "") if status == 429 else ""
+        raise _errors.HTTPError(status, f"HTTP Error {status}: {reason}{hint}")
     raise AssertionError("unreachable")
 
 

@@ -489,7 +489,7 @@ _VENUE_PATTERNS = (
             r"\bacm\b",
             r"\bieee\b",
             r"\busenix\b",
-            r"\bsig[a-z]+\b",
+            r"\bsig(?:mod|comm|graph|plan|kdd|ir|metrics|ops|arch|chi|cse|mobile|soft|ecom)\b",
             r"neural information processing",
             r"\b(?:neurips|icml|iclr|aaai|ijcai|cvpr|iccv|eccv|acl|emnlp|naacl|kdd|vldb|osdi|sosp)\b",
             r"very large data bases|programming languages|software engineering|computer|computing|computational linguistics",
@@ -517,14 +517,16 @@ _VENUE_RX = tuple((dom, re.compile("|".join(pats), re.I)) for dom, pats in _VENU
 
 
 def map_venue(journal):
-    """Domain implied by a journal/proceedings name, or None for unknown or multidisciplinary venues."""
+    """Domain implied by a journal/proceedings name, or None for unknown, multidisciplinary or ambiguous venues
+    (e.g. "IEEE Transactions on Medical Imaging" matches CS and biomedical). Economics wins any tie, so
+    "Journal of Health Economics" is economics."""
     name = str(journal or "").strip()
     if not name:
         return None
-    for dom, rx in _VENUE_RX:
-        if rx.search(name):
-            return dom
-    return None
+    matched = {dom for dom, rx in _VENUE_RX if rx.search(name)}
+    if ECON in matched:
+        return ECON
+    return matched.pop() if len(matched) == 1 else None
 
 
 def map_arxiv_category(category):
@@ -549,21 +551,62 @@ def map_field_of_study(name):
     return None
 
 
+# Broad terms that also occur outside their field ("price of anarchy", "agent-based model"): half weight.
+GENERIC_TERMS = frozenset(
+    {
+        "agent",
+        "price",
+        "market",
+        "training",
+        "survival",
+        "web",
+        "trade",
+        "dataset",
+        "inference",
+        "income",
+        "simulation",
+        "material",
+        "species",
+        "drug",
+        "cell",
+        "gene",
+        "protein",
+        "brain",
+        "query",
+        "cache",
+        "cluster",
+        "algorithm",
+        "benchmark",
+        "token",
+        "firm",
+        "competition",
+        "welfare",
+        "fluid",
+        "wind",
+        "proof",
+    }
+)
+
+
 def score_text(title="", abstract="", journal=""):
-    """Return {domain: {"score", "title_hits", "matches"}} using domain vocabularies."""
+    """Return {domain: {"score", "specific", "title_hits", "matches"}} using domain vocabularies.
+
+    `score` weighs generic terms (GENERIC_TERMS) at 0.5; `specific` counts the non-generic matches."""
     title = title or ""
     body = f"{title} {abstract or ''} {journal or ''}"
     out = {}
     for dom in DOMAIN_ORDER:
         matches = [kw for kw, rx in _KW_RX[dom] if rx.search(body)]
         title_hits = sum(1 for kw, rx in _KW_RX[dom] if rx.search(title))
-        out[dom] = {"score": len(matches), "title_hits": title_hits, "matches": matches}
+        specific = sum(1 for kw in matches if kw not in GENERIC_TERMS)
+        score = specific + 0.5 * (len(matches) - specific)
+        out[dom] = {"score": score, "specific": specific, "title_hits": title_hits, "matches": matches}
     return out
 
 
 def _qualifies(s):
-    # One domain-specific term is enough now that every domain (STEM included) has a vocabulary: the best-scoring
-    # domain wins instead of everything weak falling back to general_stem.
+    # One domain-specific term (or two generic ones) is enough now that every domain, STEM included, has a
+    # vocabulary: the best-scoring domain wins instead of everything weak falling back to general_stem.
     return s["score"] >= 1
 
 
@@ -573,7 +616,12 @@ def _best_text_domain(scores):
         return None
     return max(
         qualified,
-        key=lambda d: (scores[d]["score"] + scores[d]["title_hits"], scores[d]["title_hits"], -DOMAIN_ORDER.index(d)),
+        key=lambda d: (
+            scores[d]["score"] + scores[d]["title_hits"],
+            scores[d]["specific"],  # on a tie, the domain with the more specific vocabulary wins
+            scores[d]["title_hits"],
+            -DOMAIN_ORDER.index(d),
+        ),
     )
 
 
@@ -631,10 +679,6 @@ def explain_domain(paper=None, categories=None, title="", abstract="", journal="
         best = max(field_votes, key=lambda d: (field_votes[d], -DOMAIN_ORDER.index(d)))
         return {"domain": best, "method": "fields_of_study", "signals": fields, "text_scores": {}}
 
-    venue_dom = map_venue(journal)
-    if venue_dom is not None:
-        return {"domain": venue_dom, "method": "venue", "signals": [str(journal)], "text_scores": {}}
-
     scores = score_text(title, abstract, journal)
     text_scores = {d.value: s for d, s in scores.items()}
     text_best = _best_text_domain(scores)
@@ -657,6 +701,12 @@ def explain_domain(paper=None, categories=None, title="", abstract="", journal="
             "signals": ["pmid" if p.get("pmid") else "pubmed-index"],
             "text_scores": text_scores,
         }
+
+    # After PubMed indexing (MeSH/PMID beat a journal name): an unambiguous venue decides; text scores are
+    # returned too so the host LLM can cross-check a venue-only decision.
+    venue_dom = map_venue(journal)
+    if venue_dom is not None:
+        return {"domain": venue_dom, "method": "venue", "signals": [str(journal)], "text_scores": text_scores}
 
     if text_best is not None:
         return {
