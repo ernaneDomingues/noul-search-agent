@@ -47,6 +47,7 @@ Definir os modelos utilizando `_Model` e `_field` de `noul/schemas/_compat.py`:
 
 ```python
 """Schemas for Phase 6 (#22-#27): Academic Authoring, BibTeX Sanitizer, Rebuttal & Submission Gatekeeper."""
+
 from typing import List, Optional
 from noul.schemas._compat import _Model, _field
 

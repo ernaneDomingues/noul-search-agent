@@ -1,4 +1,5 @@
 """Scientific macro-domains (#19) and peer-review verdicts."""
+
 from enum import Enum
 
 

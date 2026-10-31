@@ -2,10 +2,10 @@
 
 Translates mathematical formulations, architectures, econometric specifications, or biomedical trial protocols
 into executable, syntax-verified Python/PyTorch, Statsmodels/R, or Clinical Protocol + analytical pipelines."""
+
 import ast
 import keyword
 import re
-from typing import List, Optional, Tuple
 
 from noul.prompts import scaffolding
 from noul.providers import domain_classifier, pdf_parser
@@ -41,7 +41,7 @@ def _class_ident(title: str) -> str:
     return name
 
 
-def _resolve_target(target: Optional[str], dom: ScientificDomain) -> str:
+def _resolve_target(target: str | None, dom: ScientificDomain) -> str:
     if target is None or not str(target).strip():
         norm = "auto"
     else:
@@ -62,9 +62,9 @@ def _resolve_target(target: Optional[str], dom: ScientificDomain) -> str:
     return norm
 
 
-def _extract_paper_variables(math_res: dict, text: str) -> Tuple[List[str], List[str]]:
-    vars_found: List[str] = []
-    eq_summaries: List[str] = []
+def _extract_paper_variables(math_res: dict, text: str) -> tuple[list[str], list[str]]:
+    vars_found: list[str] = []
+    eq_summaries: list[str] = []
     for item in math_res.get("items") or []:
         if item.get("latex"):
             clean_eq = re.sub(r"\s+", " ", item["latex"]).strip()
@@ -84,6 +84,7 @@ def _extract_paper_variables(math_res: dict, text: str) -> Tuple[List[str], List
 
 # --------------------------------------------------------------------------- 1. PyTorch Scaffolder (CS / AI)
 
+
 def _build_pytorch_scaffold(paper: dict, corpus: dict, math_res: dict, hw_res: dict, bench_res: dict) -> CodeScaffold:
     pid = str(paper.get("id") or "unknown")
     title = (paper.get("title") or pid).replace('"""', "'''").replace("\n", " ").strip()
@@ -102,7 +103,9 @@ def _build_pytorch_scaffold(paper: dict, corpus: dict, math_res: dict, hw_res: d
     metrics_list = (bench_res.get("normalized_summary") or {}).get("metrics") or ["Loss", "Accuracy"]
 
     var_fields = "\n".join(f"    {v}: float = {round(0.1 * (i + 1), 2)}" for i, v in enumerate(vars_list))
-    eq_doc_lines = "\n".join(f"  - {eq}" for eq in eq_summaries) if eq_summaries else "  - y = LayerNorm(x + alpha * Attention(x))"
+    eq_doc_lines = (
+        "\n".join(f"  - {eq}" for eq in eq_summaries) if eq_summaries else "  - y = LayerNorm(x + alpha * Attention(x))"
+    )
     primary_var = vars_list[0]
     secondary_var = vars_list[1] if len(vars_list) > 1 else vars_list[0]
 
@@ -287,6 +290,7 @@ if __name__ == "__main__":
 
 
 # --------------------------------------------------------------------------- 2. Econometrics Scaffolder (Statsmodels / R)
+
 
 def _detect_econ_design(text: str) -> str:
     if re.search(r"\b(?:difference[-\s]in[-\s]differences|diff[-\s]in[-\s]diff|\bDiD\b)\b", text, re.I):
@@ -496,7 +500,7 @@ def _build_r_scaffold(paper: dict, corpus: dict, math_res: dict) -> CodeScaffold
     vars_list, _ = _extract_paper_variables(math_res, corpus["text"])
     control_var = vars_list[0] if vars_list else "firm_scale"
 
-    source_code = f'''# Econometric Replication & Robustness Scaffold in R (fixest)
+    source_code = f"""# Econometric Replication & Robustness Scaffold in R (fixest)
 # Paper: {title} ({pid})
 # Identification Design: {design}
 # Packages: fixest, sandwich, lmtest
@@ -523,15 +527,15 @@ run_robustness_matrix <- function(df) {{
   m_placebo <- feols(outcome_y ~ placebo_post | entity_id + period, data = df_pre, cluster = ~entity_id)
   return(list(baseline = m_base, controls = m_ctrl, placebo = m_placebo))
 }}
-'''
+"""
 
-    unit_tests = '''# R stopifnot unit tests for synthetic panel and robustness matrix
+    unit_tests = """# R stopifnot unit tests for synthetic panel and robustness matrix
 df <- generate_synthetic_panel(n_entities = 40, n_periods = 6)
 stopifnot(nrow(df) == 240)
 stopifnot(all(c("entity_id", "period", "treated_post", "outcome_y") %in% colnames(df)))
 models <- run_robustness_matrix(df)
 stopifnot(length(models) == 3)
-'''
+"""
 
     return CodeScaffold(
         paper_id=pid,
@@ -551,6 +555,7 @@ stopifnot(length(models) == 3)
 
 
 # --------------------------------------------------------------------------- 3. Clinical / Biomedical Protocol Scaffolder
+
 
 def _build_clinical_protocol_scaffold(paper: dict, corpus: dict, dom: ScientificDomain) -> CodeScaffold:
     pid = str(paper.get("id") or "unknown")
@@ -730,8 +735,8 @@ if __name__ == "__main__":
 
 def scaffold_implementation(
     paper_id: str,
-    target: Optional[str] = None,
-    domain: Optional[str] = None,
+    target: str | None = None,
+    domain: str | None = None,
 ) -> dict:
     """Generate a domain-adaptive code or experimental protocol scaffold (#16, #21) from a paper's equations and setup."""
     core = _core()
@@ -742,7 +747,7 @@ def scaffold_implementation(
     try:
         dom = domain_classifier.resolve_domain(paper=paper, override_domain=domain)
     except ValueError as e:
-        raise core.HTTPError(400, str(e))
+        raise core.HTTPError(400, str(e)) from e
 
     resolved_target = _resolve_target(target, dom)
     corpus = pdf_parser.get_paper_corpus(paper["id"])
@@ -769,8 +774,8 @@ def scaffold_implementation(
 
 def scaffold_paper_code(
     paper_id: str,
-    target_language: Optional[str] = None,
-    domain: Optional[str] = None,
+    target_language: str | None = None,
+    domain: str | None = None,
 ) -> dict:
     """Alias for scaffold_implementation (#16, #21 specification compatibility)."""
     return scaffold_implementation(paper_id=paper_id, target=target_language, domain=domain)

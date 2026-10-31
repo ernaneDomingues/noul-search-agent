@@ -4,6 +4,7 @@ Uses `pydantic>=2` when installed (``pip install noul-search-agent[pro]`` / ``uv
 Python without pydantic, a lightweight stdlib-only ``BaseModel`` with the subset of the v2 API used by
 Noul is provided instead, so the package never fails with ``ModuleNotFoundError``.
 Set ``NOUL_FORCE_PYDANTIC_FALLBACK=1`` to force the fallback (used by the test-suite)."""
+
 import copy
 import datetime as _dt
 import json
@@ -61,8 +62,9 @@ class FieldInfo:
         return copy.deepcopy(self.default)
 
 
-def FallbackField(default=_MISSING, *, default_factory=None, ge=None, le=None, gt=None, lt=None,
-                  description=None, **_ignored):
+def FallbackField(
+    default=_MISSING, *, default_factory=None, ge=None, le=None, gt=None, lt=None, description=None, **_ignored
+):
     return FieldInfo(default, default_factory, ge, le, gt, lt, description)
 
 
@@ -124,8 +126,9 @@ def _coerce(tp, value):
         try:
             return tp(value)
         except ValueError:
-            raise ValueError(f"{value!r} is not a valid {tp.__name__}; expected one of "
-                             f"{[m.value for m in tp]}") from None
+            raise ValueError(
+                f"{value!r} is not a valid {tp.__name__}; expected one of {[m.value for m in tp]}"
+            ) from None
     if issubclass(tp, FallbackHttpUrl):
         return FallbackHttpUrl(value)
     if tp is bool:
@@ -229,7 +232,7 @@ class FallbackBaseModel:
                     break
             info = raw if isinstance(raw, FieldInfo) else FieldInfo(default=raw)
             fields[name] = (tp, info)
-        cls.__noul_fields__ = fields
+        cls.__noul_fields__ = fields  # type: ignore[attr-defined]
         return fields
 
     @classmethod
@@ -333,7 +336,16 @@ _Model = BaseModel
 _field = Field
 
 __all__ = [
-    "BaseModel", "Field", "HttpUrl", "ValidationError", "PYDANTIC_AVAILABLE",
-    "FallbackBaseModel", "FallbackField", "FallbackHttpUrl", "FallbackValidationError", "FieldInfo",
-    "_Model", "_field",
+    "BaseModel",
+    "Field",
+    "HttpUrl",
+    "ValidationError",
+    "PYDANTIC_AVAILABLE",
+    "FallbackBaseModel",
+    "FallbackField",
+    "FallbackHttpUrl",
+    "FallbackValidationError",
+    "FieldInfo",
+    "_Model",
+    "_field",
 ]

@@ -1,4 +1,5 @@
 """Unit tests for Phase 6 Issues #26 (parse_and_draft_rebuttal) & #27 (audit_submission_readiness)."""
+
 import io
 import unittest
 from contextlib import redirect_stdout
@@ -128,7 +129,9 @@ Reviewer #2:
 
     def test_cli_rebuttal_and_gatekeeper_pretty(self):
         rev_file = WS / "rev_cli.txt"
-        rev_file.write_text("Reviewer 1:\n- Please run additional ablation experiments with more seeds.", encoding="utf-8")
+        rev_file.write_text(
+            "Reviewer 1:\n- Please run additional ablation experiments with more seeds.", encoding="utf-8"
+        )
         buf1 = io.StringIO()
         with redirect_stdout(buf1):
             rc1 = cli.main(["rebuttal", "parse", "rev_cli.txt", "--format", "latex", "--pretty"])

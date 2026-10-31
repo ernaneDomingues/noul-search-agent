@@ -1,4 +1,5 @@
 """Etapa 3 (#05): get_thematic_insights — 3 cross-cutting axes, explicit citations, citations_map, CLI."""
+
 import contextlib
 import io
 import json
@@ -30,10 +31,15 @@ class InsightsTests(unittest.TestCase):
     def test_axes_and_citations_map(self):
         out = t.call("get_thematic_insights", {"paper_ids": self.ids, "topic": "Efficiency and BDNF"})
         self.assertEqual(out["topic"], "Efficiency and BDNF")
-        self.assertEqual(out["citations_map"], {
-            "[Smith et al., 2023]": ["doi:10.1000/qlora"], "[Brown & Green, 2024]": ["doi:10.1000/gptq"],
-            "[Garcia & Lee, 2021]": ["doi:10.1000/rct"], "[Tanaka, 2024]": ["doi:10.1000/mice"],
-        })
+        self.assertEqual(
+            out["citations_map"],
+            {
+                "[Smith et al., 2023]": ["doi:10.1000/qlora"],
+                "[Brown & Green, 2024]": ["doi:10.1000/gptq"],
+                "[Garcia & Lee, 2021]": ["doi:10.1000/rct"],
+                "[Tanaka, 2024]": ["doi:10.1000/mice"],
+            },
+        )
         for axis in AXES:
             self.assertTrue(out[axis], axis)
 
@@ -45,8 +51,11 @@ class InsightsTests(unittest.TestCase):
                 tags = CITATION.findall(item)
                 self.assertTrue(tags, f"{axis}: uncited statement {item!r}")
                 self.assertTrue(set(tags) <= known, item)
+
         # Synthesis crosses papers instead of listing isolated summaries.
-        crossing = lambda axis: [x for x in out[axis] if len(set(CITATION.findall(x))) >= 2]
+        def crossing(axis):
+            return [x for x in out[axis] if len(set(CITATION.findall(x))) >= 2]
+
         self.assertTrue(crossing("consolidated_consensuses"))
         self.assertTrue(crossing("methodological_tensions"))
         self.assertTrue(all(" vs. " in x for x in crossing("methodological_tensions")))
@@ -85,8 +94,12 @@ class InsightsTests(unittest.TestCase):
             code = cli.main(["insights", ",".join(self.ids), "--pretty"])
         text = buf.getvalue()
         self.assertEqual(code, 0)
-        for heading in ("## Consolidated consensuses", "## Methodological tensions", "## Emerging future work",
-                        "## References"):
+        for heading in (
+            "## Consolidated consensuses",
+            "## Methodological tensions",
+            "## Emerging future work",
+            "## References",
+        ):
             self.assertIn(heading, text)
 
 

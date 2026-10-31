@@ -2,6 +2,7 @@
 
 Extraction is regex-based and offline; the optional HTTP check goes through the core SSRF guard
 (`noul_core._validate_public_url`, also re-applied on every redirect) with short timeouts."""
+
 import concurrent.futures
 import re
 import urllib.error
@@ -22,10 +23,44 @@ _URL_RX = re.compile(
     re.I,
 )
 _CODE_HOSTS = ("github.com", "gitlab.com", "bitbucket.org", "codeberg.org")
-_HF_NON_MODEL = {"datasets", "spaces", "docs", "papers", "blog", "models", "learn", "tasks", "collections",
-                 "organizations", "join", "login", "pricing", "settings", "chat", "posts", "api"}
-_GIT_NON_REPO = {"features", "about", "pricing", "orgs", "topics", "marketplace", "sponsors", "settings",
-                 "explore", "login", "join", "search", "collections", "trending", "site", "help", "users"}
+_HF_NON_MODEL = {
+    "datasets",
+    "spaces",
+    "docs",
+    "papers",
+    "blog",
+    "models",
+    "learn",
+    "tasks",
+    "collections",
+    "organizations",
+    "join",
+    "login",
+    "pricing",
+    "settings",
+    "chat",
+    "posts",
+    "api",
+}
+_GIT_NON_REPO = {
+    "features",
+    "about",
+    "pricing",
+    "orgs",
+    "topics",
+    "marketplace",
+    "sponsors",
+    "settings",
+    "explore",
+    "login",
+    "join",
+    "search",
+    "collections",
+    "trending",
+    "site",
+    "help",
+    "users",
+}
 
 EVASIVE_RX = re.compile(
     r"available\s+(?:up)?on\s+(?:reasonable\s+)?request"
@@ -174,8 +209,7 @@ def _pick(entries, kind, verify_http):
     return bool(alive), (best or {}).get("url"), bool(verified)
 
 
-def scan_artifacts_from_paper(paper, fulltext="", verify_http=True, timeout=VERIFY_TIMEOUT,
-                              max_urls=MAX_VERIFY_URLS):
+def scan_artifacts_from_paper(paper, fulltext="", verify_http=True, timeout=VERIFY_TIMEOUT, max_urls=MAX_VERIFY_URLS):
     """Detect artifacts in a paper's abstract (+ optional full text), optionally verify them over HTTP,
     inject the result fields into `paper` (when it is a dict) and return them."""
     p = paper if isinstance(paper, dict) else (paper.model_dump(mode="json") if hasattr(paper, "model_dump") else {})
@@ -184,7 +218,7 @@ def scan_artifacts_from_paper(paper, fulltext="", verify_http=True, timeout=VERI
     for e in entries:
         e.update({"verified": False, "status_code": None})
     if verify_http and entries:
-        for e, res in zip(entries, verify_artifact_urls([e["url"] for e in entries], timeout=timeout)):
+        for e, res in zip(entries, verify_artifact_urls([e["url"] for e in entries], timeout=timeout), strict=False):
             e.update({k: v for k, v in res.items() if k != "url"})
 
     has_code, code_url, code_ok = _pick(entries, "code", verify_http)
@@ -192,10 +226,17 @@ def scan_artifacts_from_paper(paper, fulltext="", verify_http=True, timeout=VERI
     has_dataset, dataset_url, dataset_ok = _pick(entries, "dataset", verify_http)
     evasive = has_evasive_statement(text)
     status = dict(
-        has_code=has_code, code_url=code_url, code_verified=code_ok,
-        has_weights=has_weights, weights_url=weights_url, weights_verified=weights_ok,
-        has_dataset=has_dataset, dataset_url=dataset_url, dataset_verified=dataset_ok,
-        urls=[e["url"] for e in entries], evasive_availability_statement=evasive,
+        has_code=has_code,
+        code_url=code_url,
+        code_verified=code_ok,
+        has_weights=has_weights,
+        weights_url=weights_url,
+        weights_verified=weights_ok,
+        has_dataset=has_dataset,
+        dataset_url=dataset_url,
+        dataset_verified=dataset_ok,
+        urls=[e["url"] for e in entries],
+        evasive_availability_statement=evasive,
     )
     try:
         artifacts = ArtifactStatus(**status).model_dump(mode="json")

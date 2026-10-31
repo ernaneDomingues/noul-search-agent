@@ -1,4 +1,5 @@
 """Etapa 1 (#19): scientific-domain detection, pipeline integration, CLI/MCP overrides."""
+
 import contextlib
 import io
 import json
@@ -30,27 +31,40 @@ def run_cli(*argv):
 class ArxivTaxonomyTests(unittest.TestCase):
     def test_prefix_mapping(self):
         cases = {
-            "cs.CL": D.COMPUTER_SCIENCE, "stat.ML": D.COMPUTER_SCIENCE, "math.OC": D.COMPUTER_SCIENCE,
-            "eess.IV": D.COMPUTER_SCIENCE, "q-bio.NC": D.BIOMEDICAL, "econ.EM": D.ECONOMICS,
-            "q-fin.PM": D.ECONOMICS, "physics.optics": D.GENERAL_STEM, "math.AG": D.GENERAL_STEM,
-            "hep-th": D.GENERAL_STEM, "cond-mat.str-el": D.GENERAL_STEM, "quant-ph": D.GENERAL_STEM,
+            "cs.CL": D.COMPUTER_SCIENCE,
+            "stat.ML": D.COMPUTER_SCIENCE,
+            "math.OC": D.COMPUTER_SCIENCE,
+            "eess.IV": D.COMPUTER_SCIENCE,
+            "q-bio.NC": D.BIOMEDICAL,
+            "econ.EM": D.ECONOMICS,
+            "q-fin.PM": D.ECONOMICS,
+            "physics.optics": D.GENERAL_STEM,
+            "math.AG": D.GENERAL_STEM,
+            "hep-th": D.GENERAL_STEM,
+            "cond-mat.str-el": D.GENERAL_STEM,
+            "quant-ph": D.GENERAL_STEM,
         }
         for cat, expected in cases.items():
             with self.subTest(cat=cat):
                 self.assertEqual(dc.resolve_domain(categories=[cat]), expected)
 
     def test_primary_category_outweighs_cross_lists_and_beats_text(self):
-        paper = {"title": "Randomized placebo trial of patients", "primary_category": "cs.LG",
-                 "categories": ["cs.LG", "q-bio.QM"]}
+        paper = {
+            "title": "Randomized placebo trial of patients",
+            "primary_category": "cs.LG",
+            "categories": ["cs.LG", "q-bio.QM"],
+        }
         self.assertEqual(dc.resolve_domain(paper=paper), D.COMPUTER_SCIENCE)
 
 
 class MetadataAndTextTests(unittest.TestCase):
     def test_fields_of_study_and_pubmed_signals(self):
-        self.assertEqual(dc.resolve_domain(paper={"fields_of_study": ["Computer Science"], "pmid": "1"}),
-                         D.COMPUTER_SCIENCE)
-        self.assertEqual(dc.resolve_domain(paper={"fields_of_study": ["Economics, Econometrics and Finance"]}),
-                         D.ECONOMICS)
+        self.assertEqual(
+            dc.resolve_domain(paper={"fields_of_study": ["Computer Science"], "pmid": "1"}), D.COMPUTER_SCIENCE
+        )
+        self.assertEqual(
+            dc.resolve_domain(paper={"fields_of_study": ["Economics, Econometrics and Finance"]}), D.ECONOMICS
+        )
         self.assertEqual(dc.resolve_domain(paper={"fields_of_study": ["Psychology"]}), D.BIOMEDICAL)
         self.assertEqual(dc.resolve_domain(paper={"title": "A study", "pmid": "123"}), D.BIOMEDICAL)
         self.assertEqual(dc.resolve_domain(paper={"title": "A study", "sources": ["europepmc"]}), D.BIOMEDICAL)
@@ -59,12 +73,22 @@ class MetadataAndTextTests(unittest.TestCase):
 
     def test_semantic_fallback_for_uncategorized_pdfs(self):
         cases = [
-            ("Efficient attention for large language models",
-             "We fine-tune a transformer and report GPU memory and benchmark results.", D.COMPUTER_SCIENCE),
-            ("Effects of a new drug", "A randomized placebo-controlled clinical trial in 300 patients; "
-             "mortality and adverse events were recorded.", D.BIOMEDICAL),
-            ("Minimum wages and employment", "Using difference-in-differences and panel data we estimate the "
-             "elasticity of labour demand.", D.ECONOMICS),
+            (
+                "Efficient attention for large language models",
+                "We fine-tune a transformer and report GPU memory and benchmark results.",
+                D.COMPUTER_SCIENCE,
+            ),
+            (
+                "Effects of a new drug",
+                "A randomized placebo-controlled clinical trial in 300 patients; "
+                "mortality and adverse events were recorded.",
+                D.BIOMEDICAL,
+            ),
+            (
+                "Minimum wages and employment",
+                "Using difference-in-differences and panel data we estimate the elasticity of labour demand.",
+                D.ECONOMICS,
+            ),
             ("Spectral properties of crystalline lattices", "We study phonon modes in a lattice.", D.GENERAL_STEM),
         ]
         for title, abstract, expected in cases:
@@ -82,9 +106,15 @@ class MetadataAndTextTests(unittest.TestCase):
 
 class OverrideTests(unittest.TestCase):
     def test_aliases(self):
-        for alias, expected in (("cs", D.COMPUTER_SCIENCE), ("Computer_Science", D.COMPUTER_SCIENCE),
-                                ("bio", D.BIOMEDICAL), ("med", D.BIOMEDICAL), ("econ", D.ECONOMICS),
-                                ("stem", D.GENERAL_STEM), ("general_stem", D.GENERAL_STEM)):
+        for alias, expected in (
+            ("cs", D.COMPUTER_SCIENCE),
+            ("Computer_Science", D.COMPUTER_SCIENCE),
+            ("bio", D.BIOMEDICAL),
+            ("med", D.BIOMEDICAL),
+            ("econ", D.ECONOMICS),
+            ("stem", D.GENERAL_STEM),
+            ("general_stem", D.GENERAL_STEM),
+        ):
             with self.subTest(alias=alias):
                 self.assertEqual(dc.resolve_domain(categories=["q-bio.NC"], override_domain=alias), expected)
 
@@ -94,10 +124,21 @@ class OverrideTests(unittest.TestCase):
 
 
 PAPER = {
-    "id": "arxiv:2401.99999", "title": "Mixture of experts routing", "authors": ["A. B."], "year": 2024,
-    "journal": "arXiv", "doi": None, "arxiv_id": "2401.99999", "citations": 3, "abstract": "Routing tokens.",
-    "evidence": "empirical", "open_access": True, "sources": ["arxiv"], "primary_category": "cs.LG",
-    "categories": ["cs.LG"], "domain": "computer_science",
+    "id": "arxiv:2401.99999",
+    "title": "Mixture of experts routing",
+    "authors": ["A. B."],
+    "year": 2024,
+    "journal": "arXiv",
+    "doi": None,
+    "arxiv_id": "2401.99999",
+    "citations": 3,
+    "abstract": "Routing tokens.",
+    "evidence": "empirical",
+    "open_access": True,
+    "sources": ["arxiv"],
+    "primary_category": "cs.LG",
+    "categories": ["cs.LG"],
+    "domain": "computer_science",
 }
 
 
@@ -118,10 +159,16 @@ class PipelineIntegrationTests(unittest.TestCase):
         self.assertEqual(paper["domain"], "biomedical")
 
     def test_openalex_s2_and_merge_annotate_domain(self):
-        work = {"id": "https://openalex.org/W1", "title": "Inflation targeting", "publication_year": 2020,
-                "primary_topic": {"field": {"display_name": "Economics, Econometrics and Finance"},
-                                  "domain": {"display_name": "Social Sciences"},
-                                  "subfield": {"display_name": "Finance"}}}
+        work = {
+            "id": "https://openalex.org/W1",
+            "title": "Inflation targeting",
+            "publication_year": 2020,
+            "primary_topic": {
+                "field": {"display_name": "Economics, Econometrics and Finance"},
+                "domain": {"display_name": "Social Sciences"},
+                "subfield": {"display_name": "Finance"},
+            },
+        }
         oa = c._parse_openalex_work(work)
         self.assertEqual((oa["domain"], oa["primary_category"]), ("economics", "Finance"))
         s2 = c._parse_s2_paper({"paperId": "abc", "title": "Inflation targeting", "fieldsOfStudy": ["Economics"]})
@@ -149,8 +196,9 @@ class PipelineIntegrationTests(unittest.TestCase):
         self.assertEqual((forced["domain"], forced["domain_overridden"]), ("economics", True))
         detected = t.call("detect_paper_domain", {"paper_id": PAPER["id"]})
         self.assertEqual((detected["domain"], detected["method"]), ("computer_science", "categories"))
-        self.assertEqual(t.call("detect_paper_domain", {"paper_id": PAPER["id"], "domain": "bio"})["domain"],
-                         "biomedical")
+        self.assertEqual(
+            t.call("detect_paper_domain", {"paper_id": PAPER["id"], "domain": "bio"})["domain"], "biomedical"
+        )
 
     def test_cli_domain_override(self):
         code, out = run_cli("paper", PAPER["id"], "--domain", "bio")

@@ -5,6 +5,7 @@ OpenAPI tool API (ChatGPT Actions, Cloud Run). No dependencies.
 HTTP security model: loopback by default, Host-header check on loopback (DNS rebinding), CORS only for
 origins in NOUL_CORS_ORIGINS (any other Origin is rejected), optional bearer token (NOUL_HTTP_TOKEN), and
 write tools disabled unless NOUL_HTTP_ALLOW_WRITE=1 *and* a token is set."""
+
 import argparse
 import hmac
 import ipaddress
@@ -81,9 +82,7 @@ def openapi_spec(host=f"http://localhost:{DEFAULT_PORT}", exclude=()):
                 "requestBody": {
                     "required": True,
                     "content": {
-                        "application/json": {
-                            "schema": {"type": "object", "properties": props, "required": req}
-                        }
+                        "application/json": {"schema": {"type": "object", "properties": props, "required": req}}
                     },
                 },
                 "responses": {"200": {"description": "Tool response"}},
@@ -239,11 +238,15 @@ class _Handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         if not self._guard(require_auth=False):
             return
-        self._send(204, None, {
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization, Mcp-Session-Id, MCP-Protocol-Version",
-            "Access-Control-Max-Age": "600",
-        })
+        self._send(
+            204,
+            None,
+            {
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Mcp-Session-Id, MCP-Protocol-Version",
+                "Access-Control-Max-Age": "600",
+            },
+        )
 
     def do_GET(self):
         path = urlparse(self.path).path
@@ -288,10 +291,13 @@ class _Handler(BaseHTTPRequestHandler):
         if path.startswith("/tools/"):
             tool_name = path.split("/tools/", 1)[1].strip("/")
             if tool_name in WRITE_TOOLS and not self.server.allow_write:
-                return self._send(403, {
-                    "error": f"Tool '{tool_name}' writes to disk and is disabled over HTTP "
-                             "(set NOUL_HTTP_TOKEN and NOUL_HTTP_ALLOW_WRITE=1 to enable it)."
-                })
+                return self._send(
+                    403,
+                    {
+                        "error": f"Tool '{tool_name}' writes to disk and is disabled over HTTP "
+                        "(set NOUL_HTTP_TOKEN and NOUL_HTTP_ALLOW_WRITE=1 to enable it)."
+                    },
+                )
             try:
                 res = t.call(tool_name, body)
                 return self._send(200, res if isinstance(res, dict) else {"result": res})
@@ -303,7 +309,7 @@ class _Handler(BaseHTTPRequestHandler):
 
     def log_message(self, fmt, *args):
         if os.environ.get("NOUL_HTTP_LOG") == "1":
-            sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
+            sys.stderr.write(f"{self.address_string()} - {fmt % args}\n")
 
 
 def make_server(host="127.0.0.1", port=DEFAULT_PORT, token=None, cors_origins=None, allow_write=None):
@@ -321,8 +327,11 @@ def serve_http(port=DEFAULT_PORT, host="127.0.0.1"):
     shown = f"[{host}]" if ":" in host else host
     print(f"Noul HTTP server listening on http://{shown}:{bound} (MCP: /mcp, OpenAPI: /openapi.json)", file=sys.stderr)
     if not srv.loopback and not srv.token:
-        print("WARNING: bound to a non-loopback address without NOUL_HTTP_TOKEN; anyone who can reach this port "
-              "can use the API (write tools stay disabled).", file=sys.stderr)
+        print(
+            "WARNING: bound to a non-loopback address without NOUL_HTTP_TOKEN; anyone who can reach this port "
+            "can use the API (write tools stay disabled).",
+            file=sys.stderr,
+        )
     if os.environ.get("NOUL_HTTP_ALLOW_WRITE") == "1" and not srv.token:
         print("WARNING: NOUL_HTTP_ALLOW_WRITE=1 ignored because NOUL_HTTP_TOKEN is not set.", file=sys.stderr)
     try:
@@ -350,8 +359,14 @@ def run_stdio():
 
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="noul-mcp", description="Noul Search MCP server (stdio by default).")
-    ap.add_argument("--http", nargs="?", const="", default=None, metavar="PORT",
-                    help="Serve HTTP (MCP at /mcp + OpenAPI) instead of stdio. Port: PORT arg, $PORT, or 8765.")
+    ap.add_argument(
+        "--http",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="PORT",
+        help="Serve HTTP (MCP at /mcp + OpenAPI) instead of stdio. Port: PORT arg, $PORT, or 8765.",
+    )
     ap.add_argument("--host", help="HTTP bind address (default: $NOUL_HTTP_HOST, 0.0.0.0 on Cloud Run, else 127.0.0.1)")
     ap.add_argument("--version", action="version", version=f"noul-search-agent {VERSION}")
     a = ap.parse_args(argv)

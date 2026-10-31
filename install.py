@@ -5,6 +5,7 @@ Usage: noul-install [claude] [claude-desktop] [copilot] [codex] [gemini] [antigr
        (from a checkout: python install.py ...)
 Everything is user-level (~/.claude, ~/.config/Claude, ~/.copilot, ~/.codex, ~/.gemini). Idempotent; an existing
 config file gets a one-time `.bak` copy before it is first modified."""
+
 import argparse
 import json
 import os
@@ -259,9 +260,12 @@ def main(argv=None):
     ap = argparse.ArgumentParser(prog="noul-install", description="Install Noul Search into coding & desktop agents.")
     ap.add_argument("targets", nargs="*", metavar="TARGET", help=f"Any of: {', '.join(TARGETS)} (default: all)")
     ap.add_argument("--all", action="store_true", help="Install into every supported agent")
-    ap.add_argument("--runner", choices=RUNNERS,
-                    help="How agents start the MCP server: this Python interpreter (default), `uvx` or `npx` "
-                         "(default from $NOUL_INSTALL_RUNNER)")
+    ap.add_argument(
+        "--runner",
+        choices=RUNNERS,
+        help="How agents start the MCP server: this Python interpreter (default), `uvx` or `npx` "
+        "(default from $NOUL_INSTALL_RUNNER)",
+    )
     ap.add_argument("--dry-run", action="store_true", help="Only print what would change")
     ap.add_argument("--uninstall", action="store_true", help="Remove everything installed by Noul")
     a = ap.parse_args(argv)
@@ -274,14 +278,16 @@ def main(argv=None):
     ASSETS = _asset_root()
     ERRORS.clear()
     if not (ASSETS / "skills/noul-search/SKILL.md").is_file():
-        print(f"ERROR: Noul skill/agent templates not found (looked in {HERE} and {sys.prefix}/share/{PKG}).",
-              file=sys.stderr)
+        print(
+            f"ERROR: Noul skill/agent templates not found (looked in {HERE} and {sys.prefix}/share/{PKG}).",
+            file=sys.stderr,
+        )
         return 1
 
     if not UNINSTALL:
         cmd, args = mcp_command()
         print(f"MCP server command ({RUNNER}): {' '.join(_q(x) for x in [cmd, *args])}")
-    for name in (list(TARGETS) if a.all or not a.targets else a.targets):
+    for name in list(TARGETS) if a.all or not a.targets else a.targets:
         print(f"== {name}")
         try:
             TARGETS[name]()
@@ -292,9 +298,11 @@ def main(argv=None):
         print(f"\nFinished with {len(ERRORS)} error(s); the affected files were not modified.", file=sys.stderr)
         return 1
     if not UNINSTALL and not DRY:
-        print("\nDone. Next: set a contact email so Unpaywall / polite API pools can be used (optional):\n"
-              "  - Claude Code: /noul-search-config email:you@university.edu\n"
-              f"  - Any terminal: {cli_command()} config --email you@university.edu   (or export NOUL_EMAIL)")
+        print(
+            "\nDone. Next: set a contact email so Unpaywall / polite API pools can be used (optional):\n"
+            "  - Claude Code: /noul-search-config email:you@university.edu\n"
+            f"  - Any terminal: {cli_command()} config --email you@university.edu   (or export NOUL_EMAIL)"
+        )
     return 0
 
 

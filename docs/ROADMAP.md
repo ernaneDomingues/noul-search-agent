@@ -1,5 +1,29 @@
 # Roadmap — noul-search-agent
 
+> **Status em 31/10/2026.** Este roadmap foi escrito em 27/10/2026, antes das Fases 1–6 e da v1.0.0. A evolução
+> agora segue o plano de refatoração aprovado em [`REFACTOR_PLAN.md`](REFACTOR_PLAN.md) (v2.0, um PR por fase);
+> as seções abaixo ficam como histórico e lista de ideias. Estado dos itens P0 da seção 1:
+>
+> | P0 | Situação |
+> |---|---|
+> | 1 — HTTP sem autenticação/CORS `*` | Resolvido (Bearer, validação de `Host`, CORS por allowlist, escrita bloqueada via HTTP) |
+> | 2 — arXiv `YY10.*` tratado como DOI | Resolvido (regex de DOI; teste de regressão) |
+> | 3 — "Q1" falso | Resolvido (`tier` sem rótulo de quartil; teste de regressão) |
+> | 4 — falsos positivos do classificador | Parcial: padrões negativos implementados; golden set mede 0,854 de acurácia (`tests/golden/`) |
+> | 5 — variáveis de ambiente genéricas | Resolvido (`NOUL_DB_PATH`, sem mutar `os.environ`) |
+> | 6 — import implícito de código vizinho | Resolvido (só com `NOUL_APP_DIR` explícito; removido na Fase 1 do refactor) |
+> | 7 — instalador no Windows / sem backup | Resolvido (`sys.executable`, TOML seguro, `.bak`, JSON inválido não é tocado) |
+> | 8 — conexões SQLite abertas | Resolvido (conexão fechada, WAL) |
+> | 9 — timeout global da busca | Resolvido (`concurrent.futures.wait` + `cancel_futures`) |
+> | 10 — fulltext falso-positivo / downloads sem limite | Resolvido (limite de 50 MB, mínimo de caracteres no HTML) |
+> | 11 — User-Agent/e-mail falsos | Resolvido |
+> | 12 — MCP parcialmente conforme | Parcial: versão negociada; Streamable HTTP, `outputSchema` e *annotations* na Fase 2a do refactor |
+> | 13 — diretório relativo indefinido | Resolvido (`NOUL_WORKSPACE`) |
+> | 14 — Europe PMC fora das fontes | Resolvido |
+>
+> Novo achado do golden set: o classificador de domínio acerta 0,62 (recall biomédico 0,44 e de economia 0,32;
+> a maioria dos erros cai em `general_stem`). Proposta: corrigir na Fase 1 do refactor, com o golden set como gate.
+
 Plano de melhorias, implementações e disponibilização ao público. Baseado na análise do código em 27/10/2026.
 
 ## 0. Diagnóstico
@@ -9,7 +33,7 @@ Plano de melhorias, implementações e disponibilização ao público. Baseado n
 - Uma única camada de ferramentas (`noul_tools.TOOLS`) exposta por MCP (stdio), HTTP/OpenAPI e CLI.
 - Instalador idempotente com desinstalação limpa para 6 clientes (Claude Code/Desktop, Copilot, Codex, Gemini, Antigravity).
 - Skill bem estruturada (Evidence Meter, tabela de estudos, limitações, dossiês persistentes).
-- Testes offline passando (`python3 -m unittest discover -s tests` → 3 testes OK).
+- Testes offline passando (em 27/10/2026: 3 testes; em 31/10/2026: 155 testes + golden sets).
 
 **Pontos fracos**
 - Repositório com apenas o commit inicial; quase todo o código está fora do controle de versão.

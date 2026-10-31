@@ -1,4 +1,5 @@
 """Unit tests for Phase 5 Multi-Persona Peer-Review Committee (#17 NeurIPS/ICLR AI reviewer, #20 domain-adaptive committee)."""
+
 import io
 import unittest
 from contextlib import redirect_stdout

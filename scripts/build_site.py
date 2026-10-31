@@ -4,6 +4,7 @@
 Reads `noul_tools.TOOLS` and `noul_core.__version__`, generates `site/tools-reference.json`,
 and synchronizes the interactive MCP Tools Catalog inside `site/index.html`.
 Run with `--check` in CI to verify that `site/` artifacts are up-to-date."""
+
 import argparse
 import html
 import json
@@ -73,13 +74,15 @@ END_MARKER = "<!-- TOOLS_CATALOG_END -->"
 def build_tools_payload() -> dict:
     tools_list = []
     for name, (desc, props, req, _) in noul_tools.TOOLS.items():
-        tools_list.append({
-            "name": name,
-            "description": desc,
-            "required": list(req),
-            "Optional": [k for k in props if k not in req],
-            "cli_equivalent": CLI_MAPPING.get(name, f"noul {name}"),
-        })
+        tools_list.append(
+            {
+                "name": name,
+                "description": desc,
+                "required": list(req),
+                "Optional": [k for k in props if k not in req],
+                "cli_equivalent": CLI_MAPPING.get(name, f"noul {name}"),
+            }
+        )
     return {
         "version": noul_core.__version__,
         "tool_count": len(tools_list),
@@ -111,7 +114,9 @@ def render_catalog_html(payload: dict) -> str:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Build or check the Noul static documentation site.")
-    parser.add_argument("--check", action="store_true", help="Verify that site files are up-to-date without modifying them.")
+    parser.add_argument(
+        "--check", action="store_true", help="Verify that site files are up-to-date without modifying them."
+    )
     args = parser.parse_args(argv)
 
     if not INDEX_HTML.is_file():

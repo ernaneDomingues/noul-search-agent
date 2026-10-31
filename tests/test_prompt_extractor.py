@@ -1,5 +1,6 @@
 """Fase 3 / Etapa 6 (#13): extract_prompts_and_decoding — verbatim prompt templates, decoding hyperparameters,
 JSON schemas and the `noul prompts` CLI."""
+
 import contextlib
 import io
 import json
@@ -63,7 +64,9 @@ class PromptExtractorTests(unittest.TestCase):
         out = self._extract()
         system, user, template = out["prompts"]
         self.assertEqual((system["type"], system["page"]), ("system", 1))
-        self.assertEqual(system["text"], "You are an expert research assistant. Answer using only the provided context.")
+        self.assertEqual(
+            system["text"], "You are an expert research assistant. Answer using only the provided context."
+        )
         self.assertEqual(user["type"], "user")
         self.assertEqual(user["text"], "Context: {context}\nQuestion: {question}\nLet's think step by step.")
         self.assertEqual(user["variables"], ["context", "question"])
@@ -82,22 +85,31 @@ class PromptExtractorTests(unittest.TestCase):
         self.assertIsInstance(hp["top_k"], int)
 
     def test_alternative_hyperparameter_phrasings(self):
-        pid = _support.seed_fulltext_paper(c, "doi:10.1000/prompts-alt", (
-            "We decode with a temp of 0.0. Sampling baselines use T = 0.2, nucleus sampling p = 0.9, top_k=40 and "
-            "max_tokens = 2048.\n"), title="Alt")
+        pid = _support.seed_fulltext_paper(
+            c,
+            "doi:10.1000/prompts-alt",
+            (
+                "We decode with a temp of 0.0. Sampling baselines use T = 0.2, nucleus sampling p = 0.9, top_k=40 and "
+                "max_tokens = 2048.\n"
+            ),
+            title="Alt",
+        )
         out = self._extract(pid)
         hp = out["hyperparameters"]
         self.assertEqual(hp["temperature"], [0.0, 0.2])
         self.assertEqual((hp["top_p"], hp["top_k"], hp["max_tokens"]), (0.9, 40, 2048))
-        self.assertIn({"parameter": "top_p", "value": 0.9, "quote": "nucleus sampling p = 0.9", "page": 1},
-                      out["hyperparameter_evidence"])
+        self.assertIn(
+            {"parameter": "top_p", "value": 0.9, "quote": "nucleus sampling p = 0.9", "page": 1},
+            out["hyperparameter_evidence"],
+        )
 
     def test_json_schemas_are_captured(self):
         self.assertEqual(self._extract()["json_schemas"], ['{"answer": "<string>", "confidence": 0.0}'])
 
     def test_paper_without_prompts_warns(self):
-        pid = _support.seed_fulltext_paper(c, "doi:10.1000/prompts-none", "We study sparse transformers.\n",
-                                           title="None")
+        pid = _support.seed_fulltext_paper(
+            c, "doi:10.1000/prompts-none", "We study sparse transformers.\n", title="None"
+        )
         out = self._extract(pid)
         self.assertEqual((out["prompts"], out["hyperparameters"], out["json_schemas"]), ([], {}, []))
         self.assertTrue(any("No prompt templates" in w for w in out["warnings"]))

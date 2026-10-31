@@ -1,4 +1,5 @@
 """Etapa 2 (#04): compare_papers — 5 dimensions, Markdown matrix, convergence/divergence, CLI."""
+
 import contextlib
 import io
 import json
@@ -54,12 +55,21 @@ class CompareTests(unittest.TestCase):
         self.assertIn("Evasive availability statement", lims)
 
     def test_markdown_table_and_summaries(self):
-        c.cache_set("paper:doi:10.1000/pipe", {**_support.PHASE2_PAPERS["llm_a"], "id": "doi:10.1000/pipe",
-                                                "title": "A | B\nsplit title", "abstract": ""})
+        c.cache_set(
+            "paper:doi:10.1000/pipe",
+            {
+                **_support.PHASE2_PAPERS["llm_a"],
+                "id": "doi:10.1000/pipe",
+                "title": "A | B\nsplit title",
+                "abstract": "",
+            },
+        )
         out = t.compare_papers(self.ids + ["doi:10.1000/pipe"])
         rows = out["markdown_table"].splitlines()
-        self.assertEqual(rows[0], "| Paper | Core Problem | Methodology | Datasets / Population | Key Results | "
-                                  "Declared Limitations |")
+        self.assertEqual(
+            rows[0],
+            "| Paper | Core Problem | Methodology | Datasets / Population | Key Results | Declared Limitations |",
+        )
         self.assertEqual(rows[1], "| :--- | :--- | :--- | :--- | :--- | :--- |")
         self.assertEqual(len(rows), 2 + 4)
         self.assertIn("A \\| B split title (2023)", rows[-1])

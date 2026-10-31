@@ -1,4 +1,5 @@
 """Fase 3 / Etapa 2 (#08): extract_benchmark_tables — Markdown, LaTeX and plain-text tables, normalization, CLI."""
+
 import contextlib
 import io
 import json
@@ -74,10 +75,13 @@ class BenchmarkTablesTests(unittest.TestCase):
         self.assertEqual((md["format"], md["page"], md["label"]), ("markdown", 4, "Table 2"))
         self.assertEqual(md["caption"], "Main results on reasoning benchmarks.")
         self.assertEqual(md["headers"], ["Model", "MMLU", "GSM8K", "HumanEval"])
-        self.assertEqual(md["rows"], [
-            {"Model": "Llama-2 7B", "MMLU": 45.3, "GSM8K": 14.6, "HumanEval": 12.8},
-            {"Model": "Sparse-7B (ours)", "MMLU": 78.4, "GSM8K": 56.2, "HumanEval": 33},
-        ])
+        self.assertEqual(
+            md["rows"],
+            [
+                {"Model": "Llama-2 7B", "MMLU": 45.3, "GSM8K": 14.6, "HumanEval": 12.8},
+                {"Model": "Sparse-7B (ours)", "MMLU": 78.4, "GSM8K": 56.2, "HumanEval": 33},
+            ],
+        )
         self.assertIsInstance(md["rows"][1]["MMLU"], float)
         self.assertIsInstance(md["rows"][1]["HumanEval"], int)
         self.assertEqual(md["normalized_metrics"]["Llama-2 7B"], {"MMLU": 45.3, "GSM8K": 14.6, "HumanEval": 12.8})
@@ -88,8 +92,9 @@ class BenchmarkTablesTests(unittest.TestCase):
         self.assertEqual(tex["caption"], "Commonsense benchmarks.")
         self.assertEqual(tex["page"], 5)
         self.assertEqual(tex["headers"], ["Model", "HellaSwag", "ARC-Challenge", "TruthfulQA"])
-        self.assertEqual(tex["rows"][1], {"Model": "Sparse-7B", "HellaSwag": 80.1, "ARC-Challenge": 51.7,
-                                          "TruthfulQA": 45.0})
+        self.assertEqual(
+            tex["rows"][1], {"Model": "Sparse-7B", "HellaSwag": 80.1, "ARC-Challenge": 51.7, "TruthfulQA": 45.0}
+        )
         self.assertEqual(len(tex["rows"]), 2)
 
     def test_plain_text_table_and_inline_pairs(self):
@@ -97,10 +102,13 @@ class BenchmarkTablesTests(unittest.TestCase):
         txt = tables["table_3"]
         self.assertEqual((txt["format"], txt["caption"]), ("text", "Inference efficiency."))
         self.assertEqual(txt["headers"], ["Model", "Latency_ms", "Throughput", "Perplexity"])
-        self.assertEqual(txt["rows"], [
-            {"Model": "Llama-2 7B", "Latency_ms": 42.1, "Throughput": 1250, "Perplexity": 5.47},
-            {"Model": "Sparse-7B", "Latency_ms": 12.4, "Throughput": 3900, "Perplexity": 5.12},
-        ])
+        self.assertEqual(
+            txt["rows"],
+            [
+                {"Model": "Llama-2 7B", "Latency_ms": 42.1, "Throughput": 1250, "Perplexity": 5.47},
+                {"Model": "Sparse-7B", "Latency_ms": 12.4, "Throughput": 3900, "Perplexity": 5.12},
+            ],
+        )
         inline = tables["inline_metrics"]
         self.assertEqual(inline["normalized_metrics"]["reported"], {"MMLU": 78.4, "BLEU": 31.2})
         best = out["normalized_summary"]["best_by_metric"]
@@ -115,14 +123,23 @@ class BenchmarkTablesTests(unittest.TestCase):
         self.assertEqual(tt.parse_number("42"), 42)
         self.assertIsNone(tt.parse_number("-"))
         self.assertEqual(tt.parse_number("n-gram"), "n-gram")
-        for raw, canon in (("gsm-8k", "GSM8K"), ("human-eval", "HumanEval"), ("arc_challenge", "ARC-Challenge"),
-                           ("ROUGE-L", "ROUGE-L"), ("f1-score", "F1"), ("AUROC", "AUC"), ("acc", "Accuracy"),
-                           ("MMLU (5-shot)", "MMLU"), ("Latency (ms)", "Latency_ms")):
+        for raw, canon in (
+            ("gsm-8k", "GSM8K"),
+            ("human-eval", "HumanEval"),
+            ("arc_challenge", "ARC-Challenge"),
+            ("ROUGE-L", "ROUGE-L"),
+            ("f1-score", "F1"),
+            ("AUROC", "AUC"),
+            ("acc", "Accuracy"),
+            ("MMLU (5-shot)", "MMLU"),
+            ("Latency (ms)", "Latency_ms"),
+        ):
             self.assertEqual(tt.normalize_metric_name(raw), canon, raw)
 
     def test_abstract_fallback_and_validation(self):
-        pid = _support.seed_fulltext_paper(c, "doi:10.1000/abs", None, open_access=False,
-                                           abstract="Our model scores 67.1% accuracy on GSM8K.")
+        pid = _support.seed_fulltext_paper(
+            c, "doi:10.1000/abs", None, open_access=False, abstract="Our model scores 67.1% accuracy on GSM8K."
+        )
         out = t.extract_benchmark_tables(pid)
         self.assertEqual(out["source"], "abstract")
         self.assertEqual(out["normalized_summary"]["by_metric"]["GSM8K"], {"reported": 67.1})

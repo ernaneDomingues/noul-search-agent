@@ -1,4 +1,5 @@
 """Etapa 0: pydantic compatibility layer, Phase 1 data contracts and package foundation."""
+
 import json
 import subprocess
 import sys
@@ -12,6 +13,7 @@ try:
 except ImportError:  # Python 3.10
     tomllib = None
 
+
 import noul
 import noul_core
 from noul.schemas import _compat
@@ -23,7 +25,6 @@ from noul.schemas._compat import (
 )
 from noul.schemas.domain import ReviewVerdict, ScientificDomain
 from noul.schemas.paper import ArtifactStatus, PaperReference, UnifiedPaper
-from typing import Dict, List, Optional
 
 
 class _Color(str, __import__("enum").Enum):
@@ -31,23 +32,30 @@ class _Color(str, __import__("enum").Enum):
 
 
 class _Inner(FallbackBaseModel):
-    url: Optional[FallbackHttpUrl] = None
+    url: FallbackHttpUrl | None = None
 
 
 class _Model(FallbackBaseModel):
     name: str
     score: int = FallbackField(default=0, ge=0, le=10)
-    tags: List[str] = FallbackField(default_factory=list)
-    meta: Dict[str, int] = FallbackField(default_factory=dict)
+    tags: list[str] = FallbackField(default_factory=list)
+    meta: dict[str, int] = FallbackField(default_factory=dict)
     color: _Color = _Color.RED
     inner: _Inner = FallbackField(default_factory=_Inner)
-    when: Optional[date] = None
+    when: date | None = None
 
 
 class FallbackBaseModelTests(unittest.TestCase):
     def test_init_defaults_and_coercion(self):
-        m = _Model(name="x", score="7", tags=["a"], meta={"k": "2"}, color="red",
-                   inner={"url": "https://github.com/a/b"}, when="2024-05-01")
+        m = _Model(
+            name="x",
+            score="7",
+            tags=["a"],
+            meta={"k": "2"},
+            color="red",
+            inner={"url": "https://github.com/a/b"},
+            when="2024-05-01",
+        )
         self.assertEqual((m.score, m.meta, m.color), (7, {"k": 2}, _Color.RED))
         self.assertIsInstance(m.inner, _Inner)
         self.assertEqual(m.when, date(2024, 5, 1))
@@ -55,8 +63,15 @@ class FallbackBaseModelTests(unittest.TestCase):
         self.assertIsNot(_Model(name="y").tags, _Model(name="z").tags)
 
     def test_validation_errors(self):
-        for kwargs in ({}, {"name": "x", "score": 11}, {"name": "x", "score": -1}, {"name": "x", "color": "blue"},
-                       {"name": "x", "tags": "nope"}, {"name": "x", "inner": {"url": "ftp://x"}}, {"name": 3}):
+        for kwargs in (
+            {},
+            {"name": "x", "score": 11},
+            {"name": "x", "score": -1},
+            {"name": "x", "color": "blue"},
+            {"name": "x", "tags": "nope"},
+            {"name": "x", "inner": {"url": "ftp://x"}},
+            {"name": 3},
+        ):
             with self.subTest(kwargs=kwargs), self.assertRaises(FallbackValidationError):
                 _Model(**kwargs)
         with self.assertRaises(ValueError):
@@ -78,13 +93,18 @@ class FallbackBaseModelTests(unittest.TestCase):
 
 class SchemaTests(unittest.TestCase):
     def test_enums(self):
-        self.assertEqual([d.value for d in ScientificDomain],
-                         ["computer_science", "biomedical", "economics", "general_stem"])
+        self.assertEqual(
+            [d.value for d in ScientificDomain], ["computer_science", "biomedical", "economics", "general_stem"]
+        )
         self.assertEqual(ReviewVerdict("borderline"), ReviewVerdict.BORDERLINE)
 
     def test_unified_paper_defaults_and_nested(self):
-        p = UnifiedPaper(id="arxiv:1", title="T", artifacts={"has_code": True, "code_url": "https://github.com/a/b"},
-                         backward_citations=[{"paper_id": "doi:x", "title": "R", "citation_count": 3}])
+        p = UnifiedPaper(
+            id="arxiv:1",
+            title="T",
+            artifacts={"has_code": True, "code_url": "https://github.com/a/b"},
+            backward_citations=[{"paper_id": "doi:x", "title": "R", "citation_count": 3}],
+        )
         self.assertEqual(p.domain, ScientificDomain.GENERAL_STEM)
         self.assertEqual(p.primary_category, "general")
         self.assertIsInstance(p.artifacts, ArtifactStatus)
@@ -122,8 +142,9 @@ class PackagingTests(unittest.TestCase):
         self.assertEqual(pyproject["project"]["version"], noul_core.__version__)
         setuptools_cfg = pyproject["tool"]["setuptools"]
         self.assertIn("noul_core", setuptools_cfg["py-modules"])
-        self.assertEqual(set(setuptools_cfg["packages"]),
-                         {"noul", "noul.schemas", "noul.providers", "noul.tools", "noul.prompts"})
+        self.assertEqual(
+            set(setuptools_cfg["packages"]), {"noul", "noul.schemas", "noul.providers", "noul.tools", "noul.prompts"}
+        )
         for pkg in setuptools_cfg["packages"]:
             self.assertTrue((ROOT / pkg.replace(".", "/") / "__init__.py").exists(), pkg)
         self.assertEqual(pyproject["project"]["dependencies"], [])

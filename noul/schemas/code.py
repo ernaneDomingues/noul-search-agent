@@ -1,5 +1,5 @@
 """Code and experimental protocol scaffolding data contracts (Phase 5: #16, #21)."""
-from typing import List
+
 from noul.schemas._compat import BaseModel, Field
 
 
@@ -14,6 +14,6 @@ class CodeScaffold(BaseModel):
     unit_tests: str
     syntax_valid: bool = True
     shape_verified: bool = True
-    dependencies: List[str] = Field(default_factory=list)
+    dependencies: list[str] = Field(default_factory=list)
     requirements_txt: str = ""
     execution_notes: str = ""

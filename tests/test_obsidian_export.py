@@ -1,4 +1,5 @@
 """Etapa 4 (#06): export_obsidian_notes — atomic notes, YAML frontmatter, wikilinks, BibTeX, workspace confinement."""
+
 import contextlib
 import io
 import json
@@ -54,24 +55,39 @@ class ObsidianExportTests(unittest.TestCase):
         out = t.call("export_obsidian_notes", {"paper_ids": self.ids, "vault_dir": "vault"})
         self.assertEqual((out["vault_dir"], out["exported_count"]), (str(WS / "vault"), 3))
         names = [Path(n["filepath"]).name for n in out["notes"]]
-        self.assertEqual(names, [
-            "2023 - Smith - Efficient 4-bit Quantization for LLM Fine-Tuning.md",
-            "2021 - Garcia - Aerobic Exercise and Serum BDNF in Older Adults.md",
-            "2024 - Tanaka - Exercise Induces Hippocampal BDNF Expression in Mice.md",
-        ])
-        self.assertEqual(out["notes"][0]["wikilink"], "[[2023 - Smith - Efficient 4-bit Quantization for LLM Fine-Tuning]]")
+        self.assertEqual(
+            names,
+            [
+                "2023 - Smith - Efficient 4-bit Quantization for LLM Fine-Tuning.md",
+                "2021 - Garcia - Aerobic Exercise and Serum BDNF in Older Adults.md",
+                "2024 - Tanaka - Exercise Induces Hippocampal BDNF Expression in Mice.md",
+            ],
+        )
+        self.assertEqual(
+            out["notes"][0]["wikilink"], "[[2023 - Smith - Efficient 4-bit Quantization for LLM Fine-Tuning]]"
+        )
 
         text = Path(out["notes"][0]["filepath"]).read_text(encoding="utf-8")
         fm = frontmatter(text)
         self.assertEqual(fm["title"], "Efficient 4-bit Quantization for LLM Fine-Tuning")
         self.assertEqual((fm["paper_id"], fm["doi"], fm["year"]), ("doi:10.1000/qlora", "10.1000/qlora", 2023))
         self.assertEqual(fm["authors"], ["Alice Smith", "Bob Jones", "Carol White"])
-        self.assertEqual((fm["venue"], fm["domain"], fm["evidence_level"]), ("NeurIPS", "computer_science", "empirical"))
-        self.assertEqual((fm["citations"], fm["open_access"], fm["has_code"], fm["has_weights"]), (420, True, True, False))
+        self.assertEqual(
+            (fm["venue"], fm["domain"], fm["evidence_level"]), ("NeurIPS", "computer_science", "empirical")
+        )
+        self.assertEqual(
+            (fm["citations"], fm["open_access"], fm["has_code"], fm["has_weights"]), (420, True, True, False)
+        )
         self.assertEqual(fm["tags"], ["noul/paper", "domain/computer_science", "evidence/empirical"])
 
-        for heading in ("# Efficient 4-bit Quantization", "## TL;DR", "## Key Findings & Methodology",
-                        "## Open Artifacts", "## Related Notes (Wikilinks)", "## BibTeX"):
+        for heading in (
+            "# Efficient 4-bit Quantization",
+            "## TL;DR",
+            "## Key Findings & Methodology",
+            "## Open Artifacts",
+            "## Related Notes (Wikilinks)",
+            "## BibTeX",
+        ):
             self.assertIn(heading, text)
         self.assertIn("- **Code:** <https://github.com/example/qlora> — not verified", text)
         self.assertIn("- [[2021 - Garcia - Aerobic Exercise and Serum BDNF in Older Adults]]", text)
@@ -85,8 +101,10 @@ class ObsidianExportTests(unittest.TestCase):
         self.assertIn("Evasive availability statement", mice)
 
     def test_filename_sanitized_and_wikilinks_optional(self):
-        c.cache_set("paper:oa:W7", {"id": "oa:W7", "title": 'What? A/B: "tests" <x> | y*', "authors": [],
-                                    "abstract": "", "year": None})
+        c.cache_set(
+            "paper:oa:W7",
+            {"id": "oa:W7", "title": 'What? A/B: "tests" <x> | y*', "authors": [], "abstract": "", "year": None},
+        )
         out = t.export_obsidian_notes(["oa:W7", "oa:W7 "], vault_dir="v2", include_related_wikilinks=False)
         self.assertEqual(out["exported_count"], 1)
         name = Path(out["notes"][0]["filepath"]).name
@@ -120,10 +138,18 @@ class ObsidianExportTests(unittest.TestCase):
 
     def test_is_write_tool_for_http_mcp(self):
         self.assertIn("export_obsidian_notes", m.WRITE_TOOLS)
-        res = m.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
-                        "params": {"name": "export_obsidian_notes",
-                                   "arguments": {"paper_ids": self.ids, "vault_dir": "vault-http"}}},
-                       allow_write=False)
+        res = m.handle(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {
+                    "name": "export_obsidian_notes",
+                    "arguments": {"paper_ids": self.ids, "vault_dir": "vault-http"},
+                },
+            },
+            allow_write=False,
+        )
         self.assertTrue(res["result"]["isError"])
         self.assertFalse((WS / "vault-http").exists())
 
@@ -144,8 +170,10 @@ class ObsidianExportTests(unittest.TestCase):
             code, out = self._cli("search", "exercise bdnf", "--export-obsidian", "./vault-search")
         exp = out["obsidian_export"]
         self.assertEqual((code, exp["exported_count"], exp["vault_dir"]), (0, 2, str(WS / "vault-search")))
-        self.assertEqual(sorted(p.name for p in (WS / "vault-search").iterdir()), sorted(
-            Path(n["filepath"]).name for n in exp["notes"]))
+        self.assertEqual(
+            sorted(p.name for p in (WS / "vault-search").iterdir()),
+            sorted(Path(n["filepath"]).name for n in exp["notes"]),
+        )
 
 
 if __name__ == "__main__":

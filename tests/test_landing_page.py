@@ -1,4 +1,5 @@
 """Unit tests for Phase 6 Issue #28 (GitHub Pages Landing Page, Docs Portal & CI Workflow)."""
+
 import json
 import subprocess
 import sys
@@ -36,7 +37,9 @@ class LandingPageAndDocsPortalTests(unittest.TestCase):
 
         # Hero & SEO Open Graph meta tags
         self.assertIn("Noul Search Agent", html_text)
-        self.assertIn("Deterministic Multi-Model Search Agent &amp; Autonomous Scientific Research Assistant", html_text)
+        self.assertIn(
+            "Deterministic Multi-Model Search Agent &amp; Autonomous Scientific Research Assistant", html_text
+        )
         self.assertIn('property="og:title"', html_text)
         self.assertIn('property="og:description"', html_text)
         self.assertIn('property="og:image" content="og-card.svg"', html_text)
