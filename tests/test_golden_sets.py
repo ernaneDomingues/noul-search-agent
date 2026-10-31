@@ -23,7 +23,7 @@ def _load(name):
 
 
 def _predict_design(case):
-    import noul_core
+    from noul.evidence import classify as noul_core
 
     return noul_core.classify_evidence(case.get("title", ""), case.get("abstract", ""), case.get("pub_types"))
 
@@ -95,8 +95,7 @@ class GoldenSetRegressionTests(unittest.TestCase):
                     )
 
     def test_labels_are_in_the_taxonomy(self):
-        import noul_core
-
+        from noul.evidence import classify as noul_core
         from noul.schemas.domain import ScientificDomain
 
         allowed = {

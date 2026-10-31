@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Deterministic static site builder and validator for Phase 6 (#28).
 
-Reads `noul.api.TOOLS` and `noul.__version__`, generates `site/tools-reference.json`,
-and synchronizes the interactive MCP Tools Catalog inside `site/index.html`.
+Reads the tool registry (`noul.registry`) and `noul.__version__`, generates `site/tools-reference.json`,
+synchronizes the interactive MCP Tools Catalog inside `site/index.html`, and rewrites the generated tool lists
+between `<!-- noul:tools:start -->` / `<!-- noul:tools:end -->` in the SKILL, agent templates and README.
 Run with `--check` in CI to verify that `site/` artifacts are up-to-date."""
 
 import argparse
@@ -17,7 +18,7 @@ if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))  # dev script: run from a checkout without installing
 
 import noul  # noqa: E402
-from noul import api as noul_tools  # noqa: E402
+from noul import registry  # noqa: E402
 
 SITE_DIR = ROOT / "site"
 INDEX_HTML = SITE_DIR / "index.html"
@@ -67,13 +68,61 @@ CLI_MAPPING = {
     "configure_noul": "noul config",
 }
 
+DOC_START = "<!-- noul:tools:start -->"
+DOC_END = "<!-- noul:tools:end -->"
+
+
+def _inline_list(payload: dict) -> str:
+    return ", ".join(f"`{t['name']}`" for t in payload["tools"])
+
+
+def _readme_table(payload: dict) -> str:
+    rows = ["", "| Ferramenta | O que faz | Grava em disco |", "|---|---|---|"]
+    flags = {t["name"]: t for t in registry.catalog()}
+
+    def writes(name):
+        if flags[name]["writes"]:
+            return "sim"
+        args = flags[name]["write_args"]
+        return "só com " + ", ".join(f"`{a}`" for a in args) if args else "não"
+
+    for t in payload["tools"]:
+        first = re.split(r"(?<=[.!?])\s", t["description"], maxsplit=1)[0].replace("|", "\\|")
+        rows.append(f"| `{t['name']}` | {first} | {writes(t['name'])} |")
+    return "\n".join(rows) + "\n"
+
+
+# file -> renderer of the text placed between DOC_START and DOC_END
+DOC_TARGETS = {
+    ROOT / "skills/noul-search/SKILL.md": _inline_list,
+    ROOT / "agents/AGENTS.snippet.md": _inline_list,
+    ROOT / "agents/claude-noul-researcher.md": _inline_list,
+    ROOT / "README.md": _readme_table,
+}
+
+
+def render_docs(payload: dict) -> dict:
+    """{path: (current_text, expected_text)} for every generated tool list."""
+    out = {}
+    pattern = re.compile(re.escape(DOC_START) + r".*?" + re.escape(DOC_END), re.S)
+    for path, render in DOC_TARGETS.items():
+        current = path.read_text(encoding="utf-8")
+        if DOC_START not in current or DOC_END not in current:
+            raise SystemExit(f"error: markers {DOC_START} / {DOC_END} missing from {path.relative_to(ROOT)}")
+        block = DOC_START + render(payload) + DOC_END
+        out[path] = (current, pattern.sub(lambda _, b=block: b, current, count=1))
+    return out
+
+
 START_MARKER = "<!-- TOOLS_CATALOG_START -->"
 END_MARKER = "<!-- TOOLS_CATALOG_END -->"
 
 
 def build_tools_payload() -> dict:
     tools_list = []
-    for name, (desc, props, req, _) in noul_tools.TOOLS.items():
+    for item in registry.catalog():
+        name, desc = item["name"], item["description"]
+        props, req = item["inputSchema"]["properties"], item["inputSchema"]["required"]
         tools_list.append(
             {
                 "name": name,
@@ -140,16 +189,23 @@ def main(argv=None) -> int:
             print("error: site/tools-reference.json does not exist (run scripts/build_site.py)", file=sys.stderr)
             return 1
         if TOOLS_JSON.read_text(encoding="utf-8") != expected_json:
-            print("error: site/tools-reference.json is out of sync with noul.api.TOOLS", file=sys.stderr)
+            print("error: site/tools-reference.json is out of sync with the tool registry", file=sys.stderr)
             return 1
         if updated_html != current_html:
-            print("error: site/index.html tools catalog is out of sync with noul.api.TOOLS", file=sys.stderr)
+            print("error: site/index.html tools catalog is out of sync with the tool registry", file=sys.stderr)
             return 1
-        print(f"ok: site/ is in sync ({payload['tool_count']} MCP tools documented).")
+        stale = [p.relative_to(ROOT).as_posix() for p, (cur, exp) in render_docs(payload).items() if cur != exp]
+        if stale:
+            print(f"error: generated tool lists are stale in: {', '.join(stale)}", file=sys.stderr)
+            return 1
+        print(f"ok: site/ and generated tool lists are in sync ({payload['tool_count']} MCP tools documented).")
         return 0
 
     TOOLS_JSON.write_text(expected_json, encoding="utf-8")
     INDEX_HTML.write_text(updated_html, encoding="utf-8")
+    for path, (current, expected) in render_docs(payload).items():
+        if current != expected:
+            path.write_text(expected, encoding="utf-8")
     print(f"Built site/tools-reference.json and updated site/index.html ({payload['tool_count']} tools).")
     return 0
 

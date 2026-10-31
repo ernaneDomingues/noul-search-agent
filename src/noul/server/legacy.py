@@ -18,23 +18,22 @@ from urllib.parse import urlparse
 
 from noul import __version__ as VERSION
 from noul import api as t
+from noul import log as _log
+from noul import registry as _registry
 
 SUPPORTED_PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
 PROTOCOL = SUPPORTED_PROTOCOLS[0]
-WRITE_TOOLS = frozenset({"download_papers", "save_research_dossier", "export_obsidian_notes", "configure_noul"})
+# Tools that write to disk or change configuration, from the registry (`writes=True`).
+WRITE_TOOLS = _registry.write_tools()
 MAX_BODY_BYTES = 1024 * 1024
 DEFAULT_PORT = 8765
 
 
 def tools_list(exclude=()):
     return [
-        {
-            "name": n,
-            "description": d,
-            "inputSchema": {"type": "object", "properties": props, "required": req},
-        }
-        for n, (d, props, req, _) in t.TOOLS.items()
-        if n not in exclude
+        {"name": item["name"], "description": item["description"], "inputSchema": item["inputSchema"]}
+        for item in _registry.catalog()
+        if item["name"] not in exclude
     ]
 
 
@@ -128,9 +127,9 @@ def handle(msg, allow_write=True):
         elif m == "tools/call":
             name = params.get("name")
             try:
-                if not allow_write and name in WRITE_TOOLS:
+                if not allow_write and _registry.call_writes(name, params.get("arguments")):
                     raise PermissionError(
-                        f"Tool '{name}' writes to disk and is disabled over HTTP "
+                        f"Tool '{name}' writes to disk with these arguments and is disabled over HTTP "
                         "(set NOUL_HTTP_TOKEN and NOUL_HTTP_ALLOW_WRITE=1 to enable it)."
                     )
                 out = t.call(name, params.get("arguments"))
@@ -290,11 +289,11 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(200, out)
         if path.startswith("/tools/"):
             tool_name = path.split("/tools/", 1)[1].strip("/")
-            if tool_name in WRITE_TOOLS and not self.server.allow_write:
+            if not self.server.allow_write and _registry.call_writes(tool_name, body):
                 return self._send(
                     403,
                     {
-                        "error": f"Tool '{tool_name}' writes to disk and is disabled over HTTP "
+                        "error": f"Tool '{tool_name}' writes to disk with these arguments and is disabled over HTTP "
                         "(set NOUL_HTTP_TOKEN and NOUL_HTTP_ALLOW_WRITE=1 to enable it)."
                     },
                 )
@@ -358,6 +357,7 @@ def run_stdio():
 
 
 def main(argv=None):
+    _log.configure()
     ap = argparse.ArgumentParser(prog="noul-mcp", description="Noul Search MCP server (stdio by default).")
     ap.add_argument(
         "--http",
