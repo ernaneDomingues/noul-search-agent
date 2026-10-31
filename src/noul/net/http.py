@@ -2,8 +2,10 @@
 Retry-After, per-host rate limits and optional API keys (OPENALEX_API_KEY, S2_API_KEY, NCBI_API_KEY)."""
 
 import email.utils
+import http.cookiejar
 import ipaddress
 import json
+import logging
 import os
 import random
 import socket
@@ -100,6 +102,13 @@ MAX_ATTEMPTS = 3
 MAX_REDIRECTS = 5
 RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 RETRY_AFTER_CAP = 30.0  # seconds; a longer Retry-After is capped rather than honoured
+PUBLIC_RETRY_AFTER_CAP = 5.0  # third-party (public_only) hosts cannot make us sleep long
+_SENSITIVE_HEADERS = ("authorization", "cookie", "x-api-key")
+
+# httpx/httpcore log full request URLs (with mailto e-mails and api_key params) at INFO/DEBUG; keep them quiet
+# even when an embedding application turns root logging up. Noul's own logs show host + path only.
+for _name in ("httpx", "httpcore"):
+    logging.getLogger(_name).setLevel(logging.WARNING)
 BACKOFF_BASE = 0.5  # seconds: 0.5, 1, 2 ... plus jitter
 
 # Minimum seconds between requests per host (polite defaults for anonymous use).
@@ -120,7 +129,11 @@ def _client() -> httpx.Client:
     global _client_instance
     with _client_lock:
         if _client_instance is None:
-            _client_instance = httpx.Client(follow_redirects=False, transport=_transport, http2=False)
+            # No cookies: third-party hosts must not be able to track tool calls across a session.
+            no_cookies = http.cookiejar.CookieJar(policy=http.cookiejar.DefaultCookiePolicy(allowed_domains=[]))
+            _client_instance = httpx.Client(
+                follow_redirects=False, transport=_transport, http2=False, cookies=no_cookies
+            )
         return _client_instance
 
 
@@ -236,10 +249,16 @@ def _fetch_once(url, headers, timeout, max_bytes, public_only):
         )
         try:
             if response.is_redirect and response.headers.get("Location"):
-                url = urllib.parse.urljoin(url, response.headers["Location"])
+                new_url = urllib.parse.urljoin(url, response.headers["Location"])
+                if urllib.parse.urlsplit(new_url).hostname != urllib.parse.urlsplit(url).hostname:
+                    headers = {k: v for k, v in headers.items() if k.lower() not in _SENSITIVE_HEADERS}
+                url = new_url
                 continue
             if response.status_code >= 400:
-                return response.status_code, response.reason_phrase, _retry_after(response), None
+                wait = _retry_after(response)
+                if wait is not None and public_only:
+                    wait = min(wait, PUBLIC_RETRY_AFTER_CAP)
+                return response.status_code, response.reason_phrase, wait, None
             return response.status_code, response.reason_phrase, None, _read_capped(response, max_bytes)
         finally:
             response.close()
@@ -251,7 +270,8 @@ def _http_get(url, headers=None, timeout=15, binary=False, max_bytes=MAX_DOWNLOA
 
     `public_only=True` applies the SSRF guard to the URL and every redirect (use it for URLs that come from
     third-party metadata, e.g. PDF/full-text links). Errors raise `noul.errors.HTTPError` with `.code`."""
-    hdrs = {"User-Agent": _user_agent(), "Accept": "*/*"}
+    # identity: never let a server send a compression bomb that expands past the byte cap before we count it.
+    hdrs = {"User-Agent": _user_agent(), "Accept": "*/*", "Accept-Encoding": "identity"}
     if headers:
         hdrs.update(headers)
     for attempt in range(1, MAX_ATTEMPTS + 1):
@@ -267,6 +287,9 @@ def _http_get(url, headers=None, timeout=15, binary=False, max_bytes=MAX_DOWNLOA
             )
             _sleep(wait)
             continue
+        except (httpx.HTTPError, ValueError) as exc:
+            # Corrupt encodings, invalid redirect URLs...: fail closed with a clean error (no URL query in it).
+            raise _errors.HTTPError(502, f"Invalid response ({type(exc).__name__}) from {_where(url)}") from exc
         if data is not None:
             return data if binary else data.decode("utf-8", errors="replace")
         if status in RETRY_STATUSES and attempt < MAX_ATTEMPTS:

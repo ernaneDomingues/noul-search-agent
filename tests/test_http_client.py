@@ -132,6 +132,52 @@ class HttpClientTests(unittest.TestCase):
             self.http._http_get("https://example.org/big", max_bytes=6)
         self.assertEqual(ctx.exception.code, 413)
 
+    def test_requests_ask_for_uncompressed_bodies(self):
+        seen = self.serve(httpx.Response(200, text="x"))
+        self.http._http_get("https://example.org/a")
+        self.assertEqual(seen[0].headers["Accept-Encoding"], "identity")
+
+    def test_sensitive_headers_and_keys_do_not_follow_cross_host_redirects(self):
+        seen = self.serve(
+            httpx.Response(302, headers={"Location": "https://other.example.net/x"}),
+            httpx.Response(200, text="ok"),
+        )
+        with mock.patch.dict(os.environ, {"S2_API_KEY": "s2-key"}):
+            self.http._http_get(
+                "https://api.semanticscholar.org/graph/v1/paper/x", headers={"Authorization": "Bearer t"}
+            )
+        self.assertEqual(seen[0].headers["x-api-key"], "s2-key")
+        self.assertEqual(seen[0].headers["Authorization"], "Bearer t")
+        self.assertNotIn("x-api-key", seen[1].headers)
+        self.assertNotIn("Authorization", seen[1].headers)
+
+    def test_cookies_are_never_stored_or_replayed(self):
+        seen = self.serve(
+            httpx.Response(200, headers={"Set-Cookie": "track=1; Path=/"}, text="a"),
+            httpx.Response(200, text="b"),
+        )
+        self.http._http_get("https://example.org/a")
+        self.http._http_get("https://example.org/b")
+        self.assertNotIn("cookie", {k.lower() for k in seen[1].headers})
+
+    def test_third_party_hosts_get_a_short_retry_after_cap(self):
+        self.serve(httpx.Response(503, headers={"Retry-After": "30"}), httpx.Response(200, text="ok"))
+        self.http._http_get("https://pdfs.example.org/p.pdf", public_only=True)
+        self.assertEqual(self.sleeps, [self.http.PUBLIC_RETRY_AFTER_CAP])
+
+    def test_malformed_responses_become_clean_502s(self):
+        self.serve(httpx.Response(302, headers={"Location": "http://[127.0.0.1/x"}))
+        with self.assertRaises(self.http._errors.HTTPError) as ctx:
+            self.http._http_get("https://example.org/a?mailto=me@example.org")
+        self.assertEqual(ctx.exception.code, 502)
+        self.assertNotIn("me@example.org", str(ctx.exception))
+
+    def test_httpx_internal_loggers_stay_quiet(self):
+        import logging
+
+        self.assertGreaterEqual(logging.getLogger("httpx").level, logging.WARNING)
+        self.assertGreaterEqual(logging.getLogger("httpcore").level, logging.WARNING)
+
     def test_logs_never_contain_query_strings(self):
         import io
         import logging
