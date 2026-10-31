@@ -120,7 +120,7 @@ gcloud run deploy noul-search --source . --set-secrets NOUL_HTTP_TOKEN=noul-toke
 ```
 
 ## Desenvolvimento
-Testes (offline): `python3 -m unittest discover -s tests -p "test_*.py" -v`. Pacotes: `uv build` (wheel/sdist) e `npm pack`.
+Ambiente: `uv venv .venv && uv pip install -e ".[dev]"`. Qualidade: `ruff check .`, `ruff format --check .`, `mypy` e `python -m pytest --cov` (testes offline, com piso de cobertura). Golden sets dos classificadores: `python tests/test_golden_sets.py --report`. Pacotes: `uv build` (wheel/sdist) e `npm pack`. Orientações para agentes de código: [`CLAUDE.md`](CLAUDE.md); plano da v2.0: [`docs/REFACTOR_PLAN.md`](docs/REFACTOR_PLAN.md).
 
 Roadmap de melhorias e de distribuição: [`docs/ROADMAP.md`](docs/ROADMAP.md) · plano de implementação: [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md).
 
