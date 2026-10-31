@@ -40,7 +40,7 @@ uv sync --extra dev                                   # once (creates .venv from
 .venv/bin/mypy
 .venv/bin/python -m pytest -p no:cacheprovider --cov   # coverage gate: fail_under in pyproject
 .venv/bin/python -m unittest discover -s tests -p "test_*.py"  # must keep working too
-python3 scripts/build_site.py --check                   # site catalog in sync with TOOLS
+.venv/bin/python scripts/build_site.py --check                 # site catalog in sync with TOOLS
 .venv/bin/python tests/test_golden_sets.py --report     # classifier precision/recall + misses
 ```
 
