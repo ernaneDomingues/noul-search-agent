@@ -10,7 +10,9 @@ data = json.load(sys.stdin)
 path = (data.get("tool_input") or {}).get("file_path") or ""
 if not path.endswith(".py") or not os.path.exists(path):
     sys.exit(0)
-root = os.environ.get("CLAUDE_PROJECT_DIR", ".")
+root = os.path.realpath(os.environ.get("CLAUDE_PROJECT_DIR", "."))
+if not os.path.realpath(path).startswith(root + os.sep):
+    sys.exit(0)  # only files inside this project
 local = os.path.join(root, ".venv", "Scripts" if os.name == "nt" else "bin", "ruff")
 ruff = local if os.path.exists(local) else shutil.which("ruff")
 if not ruff:

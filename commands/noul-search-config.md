@@ -4,7 +4,7 @@ argument-hint: "[email:you@university.edu] [workspace:/path] [download_dir:paper
 allowed-tools: mcp__noul__configure_noul, mcp__plugin_noul-search-agent_noul__configure_noul, Bash
 ---
 Configure the Noul Search agent with the `configure_noul` MCP tool. If the MCP tool is unavailable, run the CLI
-instead: `python3 ${CLAUDE_PLUGIN_ROOT}/noul_cli.py config [email:...] [--workspace W] [--download-dir D] [--research-dir R] [--clear]`.
+instead: `uv run --project ${CLAUDE_PLUGIN_ROOT} noul config [email:...] [--workspace W] [--download-dir D] [--research-dir R] [--clear]`.
 
 User arguments: $ARGUMENTS
 

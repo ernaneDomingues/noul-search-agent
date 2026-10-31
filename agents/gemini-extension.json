@@ -6,7 +6,7 @@
   "mcpServers": {
     "noul": {
       "command": "python3",
-      "args": ["__NOUL_DIR__/noul_mcp.py"],
+      "args": ["-m", "noul", "mcp"],
       "cwd": "__NOUL_DIR__"
     }
   }

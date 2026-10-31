@@ -6,29 +6,33 @@ Copilot, Cursor…) reasons and writes the verdicts. Keep it that way.
 
 ## Status: v2 refactor in progress
 
-The approved plan lives in `docs/REFACTOR_PLAN.md` (one PR per phase). Current phase: **0 — quality foundation**.
-Do not start a later phase's work in an earlier phase's PR.
-
-Today's layout (legacy, being unified in Phase 1):
+The approved plan lives in `docs/REFACTOR_PLAN.md` (one PR per phase). Phase 0 is merged; Phase 1 ships as
+three PRs: **1a** (src layout, this structure), 1b (tool registry + generated artifacts), 1c (resilient HTTP +
+domain classifier). Do not start a later PR's work in an earlier one.
 
 | Path | Role |
 |---|---|
-| `noul_core.py` | sources (OpenAlex, PubMed, S2, Crossref, arXiv, Europe PMC, Unpaywall), cache, ranking, fulltext, downloads, SSRF guard, config |
-| `noul_tools.py` | `TOOLS` registry (41 tools) + `call()` validation; bridges to `noul/tools/*` via `_phase1()` |
-| `noul_mcp.py` | hand-written MCP (stdio) and hardened HTTP server (`--http`) |
-| `noul_cli.py` | `noul` CLI |
-| `noul/` | `providers/`, `tools/` (Phases 1–6 features), `schemas/` (Pydantic + stdlib fallback), `prompts/` |
-| `install.py` | `noul-install` for Claude Code/Desktop, Copilot, Codex, Gemini, Antigravity |
-| `skills/`, `agents/`, `commands/`, `.claude-plugin/` | distribution to agent clients |
+| `src/noul/config.py`, `errors.py`, `ids.py` | configuration (e-mail, workspace), `HTTPError`, identifier normalisation |
+| `src/noul/net/` | `http.py` (User-Agent, SSRF guard `_validate_public_url`, size-capped GETs), `cache.py` (SQLite) |
+| `src/noul/providers/` | one module per source (`openalex`, `s2`, `pubmed`, `crossref`, `arxiv_search`, `europepmc`) + domain classifier, artifact radar, PDF parser, arXiv version client |
+| `src/noul/search/engine.py` | multi-source search, dedupe, ranking, `resolve_paper` |
+| `src/noul/evidence/`, `src/noul/library/` | study-design classifier + impact band; full text, citation graph, downloads, export |
+| `src/noul/tools/` | feature tools (Phases 1–6 of v1) |
+| `src/noul/api.py` | `TOOLS` (41 tools) + `call()` validation — the single tool layer |
+| `src/noul/server/legacy.py` | hand-written MCP (stdio) + hardened HTTP server (`--http`); replaced by the SDK in Phase 2a |
+| `src/noul/cli/`, `src/noul/install.py` | `noul` CLI (`python -m noul`), `noul-install` |
+| `noul_core.py`, `noul_tools.py`, `noul_mcp.py`, `noul_cli.py`, `install.py` | deprecated root shims (removed in 2.0.0) |
+| `skills/`, `agents/`, `commands/`, `.claude-plugin/` | distribution to agent clients (plugin runs `uv run --project ${CLAUDE_PLUGIN_ROOT} noul-mcp`) |
 | `site/`, `scripts/build_site.py` | GitHub Pages portal; `site/tools-reference.json` is **generated** |
 
-Target (Phase 1+): single package `src/noul/` with a decorator-based tool registry that generates MCP, OpenAPI,
-CLI, site and the SKILL tool list.
+Import rule: modules reference each other through module attributes (`from noul.net import http as _nhttp`, then
+`_nhttp._http_json(...)`), never `from noul.net.http import _http_json`, so every function has exactly one
+`mock.patch` target. Tests patch former `noul_core` names with `_support.core_target("<name>")`.
 
 ## Commands
 
 ```bash
-uv venv .venv && uv pip install -e ".[dev]"     # once
+uv sync --extra dev                                   # once (creates .venv from uv.lock)
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
 .venv/bin/mypy
 .venv/bin/python -m pytest -p no:cacheprovider --cov   # coverage gate: fail_under in pyproject

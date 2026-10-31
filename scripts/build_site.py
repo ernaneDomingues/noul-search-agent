@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Deterministic static site builder and validator for Phase 6 (#28).
 
-Reads `noul_tools.TOOLS` and `noul_core.__version__`, generates `site/tools-reference.json`,
+Reads `noul.api.TOOLS` and `noul.__version__`, generates `site/tools-reference.json`,
 and synchronizes the interactive MCP Tools Catalog inside `site/index.html`.
 Run with `--check` in CI to verify that `site/` artifacts are up-to-date."""
 
@@ -13,11 +13,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))  # dev script: run from a checkout without installing
 
-import noul_core  # noqa: E402
-import noul_tools  # noqa: E402
+import noul  # noqa: E402
+from noul import api as noul_tools  # noqa: E402
 
 SITE_DIR = ROOT / "site"
 INDEX_HTML = SITE_DIR / "index.html"
@@ -84,7 +84,7 @@ def build_tools_payload() -> dict:
             }
         )
     return {
-        "version": noul_core.__version__,
+        "version": noul.__version__,
         "tool_count": len(tools_list),
         "tools": tools_list,
     }
@@ -140,10 +140,10 @@ def main(argv=None) -> int:
             print("error: site/tools-reference.json does not exist (run scripts/build_site.py)", file=sys.stderr)
             return 1
         if TOOLS_JSON.read_text(encoding="utf-8") != expected_json:
-            print("error: site/tools-reference.json is out of sync with noul_tools.TOOLS", file=sys.stderr)
+            print("error: site/tools-reference.json is out of sync with noul.api.TOOLS", file=sys.stderr)
             return 1
         if updated_html != current_html:
-            print("error: site/index.html tools catalog is out of sync with noul_tools.TOOLS", file=sys.stderr)
+            print("error: site/index.html tools catalog is out of sync with noul.api.TOOLS", file=sys.stderr)
             return 1
         print(f"ok: site/ is in sync ({payload['tool_count']} MCP tools documented).")
         return 0

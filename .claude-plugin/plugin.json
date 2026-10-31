@@ -10,13 +10,30 @@
   "homepage": "https://ernanedomingues.github.io/noul-search-agent/",
   "repository": "https://github.com/ernaneDomingues/noul-search-agent",
   "license": "Apache-2.0",
-  "keywords": ["research", "scientific-literature", "evidence", "pubmed", "openalex", "mcp"],
-  "commands": ["./commands/noul-search-config.md"],
-  "agents": ["./agents/claude-noul-researcher.md"],
+  "keywords": [
+    "research",
+    "scientific-literature",
+    "evidence",
+    "pubmed",
+    "openalex",
+    "mcp"
+  ],
+  "commands": [
+    "./commands/noul-search-config.md"
+  ],
+  "agents": [
+    "./agents/claude-noul-researcher.md"
+  ],
   "mcpServers": {
     "noul": {
-      "command": "python3",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/noul_mcp.py"]
+      "command": "uv",
+      "args": [
+        "run",
+        "--project",
+        "${CLAUDE_PLUGIN_ROOT}",
+        "--quiet",
+        "noul-mcp"
+      ]
     }
   }
 }

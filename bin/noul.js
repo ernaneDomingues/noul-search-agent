@@ -1,54 +1,42 @@
 #!/usr/bin/env node
-// Thin npx/npm launcher: finds a Python >= 3.10 and runs noul_cli.py with the same arguments and stdio
-// (so `npx -y noul-search-agent mcp` is a stdio MCP server). Override the interpreter with NOUL_PYTHON.
+// Thin npx/npm launcher: runs the bundled Python package through uv (`uv run --project <package> noul ...`),
+// which provisions Python and the dependencies on first use. `npx -y noul-search-agent mcp` is a stdio MCP
+// server. Override the uv executable with NOUL_UV.
 "use strict";
 const { spawn, spawnSync } = require("child_process");
 const os = require("os");
 const path = require("path");
 
-const CLI = path.join(__dirname, "..", "noul_cli.py");
-const MIN_MINOR = 10;
+const ROOT = path.join(__dirname, "..");
+const UV = process.env.NOUL_UV || "uv";
 
-function candidates() {
-  const list = [];
-  if (process.env.NOUL_PYTHON) list.push([process.env.NOUL_PYTHON]);
-  if (process.platform === "win32") list.push(["py", "-3"], ["python"], ["python3"]);
-  else list.push(["python3"], ["python"]);
-  return list;
+function hasUv() {
+  const r = spawnSync(UV, ["--version"], { encoding: "utf8", windowsHide: true });
+  return r.status === 0;
 }
 
-function findPython() {
-  for (const [cmd, ...pre] of candidates()) {
-    const r = spawnSync(cmd, [...pre, "-c", "import sys; print('%d.%d' % sys.version_info[:2])"], {
-      encoding: "utf8",
-      windowsHide: true,
-    });
-    if (r.status !== 0 || !r.stdout) continue;
-    const [major, minor] = r.stdout.trim().split(".").map(Number);
-    if (major > 3 || (major === 3 && minor >= MIN_MINOR)) return [cmd, pre];
-  }
-  return null;
-}
-
-const py = findPython();
-if (!py) {
+if (!hasUv()) {
   console.error(
-    `noul-search-agent needs Python 3.${MIN_MINOR}+ (no packages required). Install it from https://www.python.org/downloads/ ` +
-      "or point NOUL_PYTHON at an existing interpreter."
+    "noul-search-agent needs uv (https://docs.astral.sh/uv/getting-started/installation/), which installs Python " +
+      "and the dependencies automatically.\n" +
+      "  macOS/Linux: curl -LsSf https://astral.sh/uv/install.sh | sh\n" +
+      '  Windows:     powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"\n' +
+      "Then run this command again (or set NOUL_UV to the uv executable)."
   );
   process.exit(1);
 }
 
 const env = { ...process.env };
 if (!env.NOUL_INSTALL_RUNNER) env.NOUL_INSTALL_RUNNER = "npx";
-const child = spawn(py[0], [...py[1], CLI, ...process.argv.slice(2)], { stdio: "inherit", env, windowsHide: true });
+const args = ["run", "--project", ROOT, "--quiet", "noul", ...process.argv.slice(2)];
+const child = spawn(UV, args, { stdio: "inherit", env, windowsHide: true });
 for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
   process.on(sig, () => {
     if (child.exitCode === null) child.kill(sig);
   });
 }
 child.on("error", (err) => {
-  console.error(`noul-search-agent: failed to start ${py[0]}: ${err.message}`);
+  console.error(`noul-search-agent: failed to start ${UV}: ${err.message}`);
   process.exit(1);
 });
 child.on("exit", (code, signal) => {
