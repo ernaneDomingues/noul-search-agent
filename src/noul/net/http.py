@@ -1,15 +1,24 @@
-"""Outbound HTTP: User-Agent/mailto, SSRF guard (public addresses only) and size-capped GETs."""
+"""Outbound HTTP: User-Agent/mailto, SSRF guard (public addresses only), size-capped GETs with retries,
+Retry-After, per-host rate limits and optional API keys (OPENALEX_API_KEY, S2_API_KEY, NCBI_API_KEY)."""
 
+import email.utils
 import ipaddress
 import json
+import os
+import random
 import socket
+import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 
+import httpx
+
 from noul import __version__
 from noul import config as _config
 from noul import errors as _errors
+from noul import log as _log
 
 UA = "noul-search-agent/" + __version__ + " (+https://github.com/ernanedomingues/noul-search-agent)"
 
@@ -74,6 +83,7 @@ def _validate_public_url(url):
     return url
 
 
+# urllib opener kept for artifact_radar's HEAD/Range liveness probes; it re-validates every redirect target.
 class _PublicRedirectHandler(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         _validate_public_url(newurl)
@@ -83,32 +93,189 @@ class _PublicRedirectHandler(urllib.request.HTTPRedirectHandler):
 _PUBLIC_OPENER = urllib.request.build_opener(_PublicRedirectHandler)
 
 
+# ---------------------------------------------------------------------------------------------------------------
+# Resilient client (httpx): retries with backoff + Retry-After, per-host rate limits, optional API keys.
+
+MAX_ATTEMPTS = 3
+MAX_REDIRECTS = 5
+RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+RETRY_AFTER_CAP = 30.0  # seconds; a longer Retry-After is capped rather than honoured
+BACKOFF_BASE = 0.5  # seconds: 0.5, 1, 2 ... plus jitter
+
+# Minimum seconds between requests per host (polite defaults for anonymous use).
+_HOST_INTERVALS = {
+    "api.semanticscholar.org": 1.0,
+    "eutils.ncbi.nlm.nih.gov": 1 / 3,
+    "export.arxiv.org": 3.0,
+}
+
+_sleep = time.sleep  # patched in tests
+_monotonic = time.monotonic
+_client_lock = threading.Lock()
+_client_instance: httpx.Client | None = None
+_transport: httpx.BaseTransport | None = None  # tests inject an httpx.MockTransport
+
+
+def _client() -> httpx.Client:
+    global _client_instance
+    with _client_lock:
+        if _client_instance is None:
+            _client_instance = httpx.Client(follow_redirects=False, transport=_transport, http2=False)
+        return _client_instance
+
+
+def _reset_client(transport: httpx.BaseTransport | None = None) -> None:
+    """Drop the shared client (tests pass an httpx.MockTransport)."""
+    global _client_instance, _transport
+    with _client_lock:
+        if _client_instance is not None:
+            _client_instance.close()
+        _client_instance, _transport = None, transport
+    _limiter.reset()
+
+
+class _RateLimiter:
+    """Spaces requests to the same host by a minimum interval (thread-safe)."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._next: dict[str, float] = {}
+
+    def reset(self) -> None:
+        with self._lock:
+            self._next.clear()
+
+    def wait(self, host: str) -> None:
+        interval = _host_interval(host)
+        if not interval:
+            return
+        with self._lock:
+            now = _monotonic()
+            start = max(now, self._next.get(host, 0.0))
+            self._next[host] = start + interval
+        if start > now:
+            _sleep(start - now)
+
+
+_limiter = _RateLimiter()
+
+
+def _host_interval(host: str) -> float:
+    if host == "eutils.ncbi.nlm.nih.gov" and os.environ.get("NCBI_API_KEY"):
+        return 1 / 10
+    if host == "api.semanticscholar.org" and os.environ.get("S2_API_KEY"):
+        return 0.0  # keyed S2 has its own per-key quota
+    return _HOST_INTERVALS.get(host, 0.0)
+
+
+def _apply_api_keys(url: str, headers: dict[str, str]) -> str:
+    """Attach optional API keys (OPENALEX_API_KEY, S2_API_KEY, NCBI_API_KEY) to requests for their own hosts."""
+    parts = urllib.parse.urlsplit(url)
+    host = (parts.hostname or "").lower()
+    param = None
+    if host == "api.openalex.org" and os.environ.get("OPENALEX_API_KEY"):
+        param = ("api_key", os.environ["OPENALEX_API_KEY"])
+    elif host == "eutils.ncbi.nlm.nih.gov" and os.environ.get("NCBI_API_KEY"):
+        param = ("api_key", os.environ["NCBI_API_KEY"])
+    elif host == "api.semanticscholar.org" and os.environ.get("S2_API_KEY"):
+        headers["x-api-key"] = os.environ["S2_API_KEY"]
+    if param:
+        query = urllib.parse.parse_qsl(parts.query, keep_blank_values=True)
+        query = [(k, v) for k, v in query if k != param[0]] + [param]
+        url = urllib.parse.urlunsplit(parts._replace(query=urllib.parse.urlencode(query)))
+    return url
+
+
+def _retry_after(response: httpx.Response) -> float | None:
+    value = response.headers.get("Retry-After")
+    if not value:
+        return None
+    try:
+        seconds = float(value)
+    except ValueError:
+        try:
+            when = email.utils.parsedate_to_datetime(value)
+        except (TypeError, ValueError):
+            return None
+        seconds = when.timestamp() - time.time()
+    return max(0.0, min(seconds, RETRY_AFTER_CAP))
+
+
+def _backoff(attempt: int) -> float:
+    return BACKOFF_BASE * (2 ** (attempt - 1)) + random.uniform(0, BACKOFF_BASE / 2)
+
+
+def _where(url: str) -> str:
+    """Host + path for logs: never the query string (it carries mailto e-mails and API keys)."""
+    parts = urllib.parse.urlsplit(url)
+    return f"{parts.hostname}{parts.path}"
+
+
+def _read_capped(response: httpx.Response, max_bytes: int) -> bytes:
+    length = response.headers.get("Content-Length")
+    if length and length.isdigit() and int(length) > max_bytes:
+        raise _errors.HTTPError(413, f"Response too large ({length} bytes > {max_bytes})")
+    buf = bytearray()
+    for chunk in response.iter_bytes(65536):
+        buf.extend(chunk)
+        if len(buf) > max_bytes:
+            raise _errors.HTTPError(413, f"Response exceeded {max_bytes} bytes")
+    return bytes(buf)
+
+
+def _fetch_once(url, headers, timeout, max_bytes, public_only):
+    """One logical GET following up to MAX_REDIRECTS redirects (each re-validated when `public_only`)."""
+    for _ in range(MAX_REDIRECTS + 1):
+        if public_only:
+            _validate_public_url(url)
+        _limiter.wait((urllib.parse.urlsplit(url).hostname or "").lower())
+        request_headers = dict(headers)
+        request_url = _apply_api_keys(url, request_headers)
+        response = _client().send(
+            _client().build_request("GET", request_url, headers=request_headers, timeout=timeout), stream=True
+        )
+        try:
+            if response.is_redirect and response.headers.get("Location"):
+                url = urllib.parse.urljoin(url, response.headers["Location"])
+                continue
+            if response.status_code >= 400:
+                return response.status_code, response.reason_phrase, _retry_after(response), None
+            return response.status_code, response.reason_phrase, None, _read_capped(response, max_bytes)
+        finally:
+            response.close()
+    raise _errors.HTTPError(502, f"Too many redirects (> {MAX_REDIRECTS})")
+
+
 def _http_get(url, headers=None, timeout=15, binary=False, max_bytes=MAX_DOWNLOAD_BYTES, public_only=False):
-    """GET with a byte cap. `public_only=True` applies the SSRF guard to the URL and every redirect
-    (use it for URLs that come from third-party metadata, e.g. PDF/full-text links)."""
+    """GET with a byte cap, retries (429/5xx/network errors, honouring Retry-After) and per-host rate limits.
+
+    `public_only=True` applies the SSRF guard to the URL and every redirect (use it for URLs that come from
+    third-party metadata, e.g. PDF/full-text links). Errors raise `noul.errors.HTTPError` with `.code`."""
     hdrs = {"User-Agent": _user_agent(), "Accept": "*/*"}
     if headers:
         hdrs.update(headers)
-    if public_only:
-        _validate_public_url(url)
-        opener = _PUBLIC_OPENER.open
-    else:
-        opener = urllib.request.urlopen
-    req = urllib.request.Request(url, headers=hdrs)
-    with opener(req, timeout=timeout) as resp:
-        length = resp.headers.get("Content-Length")
-        if length and length.isdigit() and int(length) > max_bytes:
-            raise _errors.HTTPError(413, f"Response too large ({length} bytes > {max_bytes})")
-        buf = bytearray()
-        while True:
-            chunk = resp.read(65536)
-            if not chunk:
-                break
-            buf.extend(chunk)
-            if len(buf) > max_bytes:
-                raise _errors.HTTPError(413, f"Response exceeded {max_bytes} bytes")
-        data = bytes(buf)
-        return data if binary else data.decode("utf-8", errors="replace")
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            status, reason, retry_after, data = _fetch_once(url, hdrs, timeout, max_bytes, public_only)
+        except httpx.TransportError as exc:
+            if attempt == MAX_ATTEMPTS:
+                code = 504 if isinstance(exc, httpx.TimeoutException) else 502
+                raise _errors.HTTPError(code, f"Network error ({type(exc).__name__}) for {_where(url)}") from exc
+            wait = _backoff(attempt)
+            _log.logger.debug(
+                "http retry %s error=%s attempt=%d wait=%.2f", _where(url), type(exc).__name__, attempt, wait
+            )
+            _sleep(wait)
+            continue
+        if data is not None:
+            return data if binary else data.decode("utf-8", errors="replace")
+        if status in RETRY_STATUSES and attempt < MAX_ATTEMPTS:
+            wait = retry_after if retry_after is not None else _backoff(attempt)
+            _log.logger.debug("http retry %s status=%d attempt=%d wait=%.2f", _where(url), status, attempt, wait)
+            _sleep(wait)
+            continue
+        raise _errors.HTTPError(status, f"HTTP Error {status}: {reason}")
+    raise AssertionError("unreachable")
 
 
 def _http_json(url, headers=None, timeout=15):

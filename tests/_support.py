@@ -21,7 +21,12 @@ def isolate_environment():
     base = Path(temp.name)
     for folder in ("home", "cache", "workspace"):
         (base / folder).mkdir()
-    env = {k: v for k, v in os.environ.items() if not k.startswith("NOUL_") and k not in ("DB_PATH", "UNPAYWALL_EMAIL")}
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if not k.startswith("NOUL_")
+        and k not in ("DB_PATH", "UNPAYWALL_EMAIL", "OPENALEX_API_KEY", "S2_API_KEY", "NCBI_API_KEY")
+    }
     env.update(
         {
             "HOME": str(base / "home"),
@@ -36,6 +41,12 @@ def isolate_environment():
     patcher = mock.patch.dict(os.environ, env, clear=True)
     patcher.start()
     unittest.addModuleCleanup(patcher.stop)
+    # Real network through httpx is never allowed in tests (MockTransport-based tests are unaffected).
+    import httpx
+
+    blocker = mock.patch.object(httpx.HTTPTransport, "handle_request", side_effect=no_network)
+    blocker.start()
+    unittest.addModuleCleanup(blocker.stop)
     return env
 
 
@@ -252,3 +263,20 @@ CORE_HOMES = {
 def core_target(name):
     """`mock.patch` target for a former `noul_core` symbol, e.g. `core_target("_http_json")`."""
     return f"{CORE_HOMES[name]}.{name}"
+
+
+def public_url_or_raise(url):
+    """Offline stand-in for `_validate_public_url`: literal private/metadata IPs are blocked, names pass."""
+    import ipaddress
+    import urllib.parse
+
+    from noul.errors import HTTPError
+
+    host = urllib.parse.urlparse(url).hostname or ""
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return url
+    if not ip.is_global:
+        raise HTTPError(400, f"Blocked non-public address {ip} for host {host}")
+    return url
