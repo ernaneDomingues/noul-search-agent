@@ -1,0 +1,12 @@
+{
+  "evidence_design": {
+    "n": 96,
+    "accuracy": 0.8542,
+    "macro_f1": 0.8591
+  },
+  "domain": {
+    "n": 100,
+    "accuracy": 0.62,
+    "macro_f1": 0.6222
+  }
+}
