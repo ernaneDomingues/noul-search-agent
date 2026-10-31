@@ -2,6 +2,7 @@
 Supports OpenAlex, PubMed, Semantic Scholar, Crossref, arXiv, EuropePMC and Unpaywall
 across all scientific disciplines (Medicine, CS/AI, Economics, Psychology, Engineering, Natural & Social Sciences).
 Zero external dependencies (stdlib only; optional `pypdf` for PDF text extraction)."""
+
 import concurrent.futures
 import csv
 import hashlib
@@ -188,8 +189,10 @@ def cache_get(key, max_age=86400 * 14):
 def cache_set(key, val):
     try:
         with _conn() as c:
-            c.execute("INSERT OR REPLACE INTO kv (k, v, ts) VALUES (?, ?, ?)",
-                      (key, json.dumps(val, ensure_ascii=False), int(time.time())))
+            c.execute(
+                "INSERT OR REPLACE INTO kv (k, v, ts) VALUES (?, ?, ?)",
+                (key, json.dumps(val, ensure_ascii=False), int(time.time())),
+            )
     except Exception:
         pass
 
@@ -219,8 +222,13 @@ def _ip_is_public(ip):
     if ip.version == 6 and ip.ipv4_mapped:
         ip = ip.ipv4_mapped
     return not (
-        ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast
-        or ip.is_reserved or ip.is_unspecified or not ip.is_global
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+        or not ip.is_global
     )
 
 
@@ -236,10 +244,11 @@ def _validate_public_url(url):
         addrs = [ipaddress.ip_address(host)]
     except ValueError:
         try:
-            infos = socket.getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80),
-                                       proto=socket.IPPROTO_TCP)
+            infos = socket.getaddrinfo(
+                host, parsed.port or (443 if parsed.scheme == "https" else 80), proto=socket.IPPROTO_TCP
+            )
         except socket.gaierror as e:
-            raise HTTPError(400, f"Cannot resolve host {host}: {e}")
+            raise HTTPError(400, f"Cannot resolve host {host}: {e}") from e
         addrs = [ipaddress.ip_address(info[4][0].split("%", 1)[0]) for info in infos]
     if not addrs:
         raise HTTPError(400, f"Cannot resolve host {host}")
@@ -323,7 +332,7 @@ def _paper_id(doi=None, openalex_id=None, pmid=None, s2_id=None, arxiv_id=None, 
     return f"id:{h}"
 
 
-_PROVIDERS = {}
+_PROVIDERS: dict = {}
 
 
 def _provider(name):
@@ -451,22 +460,47 @@ def _norm_venue(venue):
 
 # Full normalized venue names, compared by equality (never by substring: "science" must not
 # match "Journal of Food Science", nor "cell" match "Stem Cells International").
-EXACT_ELITE_VENUES = frozenset(_norm_venue(v) for v in (
-    "Nature", "Science", "Cell", "The Lancet", "Lancet",
-    "New England Journal of Medicine", "The New England Journal of Medicine", "NEJM",
-    "JAMA", "Journal of the American Medical Association", "BMJ", "British Medical Journal",
-    "Annals of Internal Medicine", "Cochrane Database of Systematic Reviews", "Circulation",
-    "European Heart Journal", "PNAS", "Proceedings of the National Academy of Sciences",
-    "Proceedings of the National Academy of Sciences of the United States of America",
-    "NeurIPS", "Neural Information Processing Systems", "Advances in Neural Information Processing Systems",
-    "ICML", "International Conference on Machine Learning",
-    "ICLR", "International Conference on Learning Representations",
-    "ACL", "Annual Meeting of the Association for Computational Linguistics",
-    "CVPR", "Computer Vision and Pattern Recognition",
-    "IEEE/CVF Conference on Computer Vision and Pattern Recognition",
-    "ACM Computing Surveys", "American Economic Review", "Quarterly Journal of Economics",
-    "Econometrica", "Journal of Finance",
-))
+EXACT_ELITE_VENUES = frozenset(
+    _norm_venue(v)
+    for v in (
+        "Nature",
+        "Science",
+        "Cell",
+        "The Lancet",
+        "Lancet",
+        "New England Journal of Medicine",
+        "The New England Journal of Medicine",
+        "NEJM",
+        "JAMA",
+        "Journal of the American Medical Association",
+        "BMJ",
+        "British Medical Journal",
+        "Annals of Internal Medicine",
+        "Cochrane Database of Systematic Reviews",
+        "Circulation",
+        "European Heart Journal",
+        "PNAS",
+        "Proceedings of the National Academy of Sciences",
+        "Proceedings of the National Academy of Sciences of the United States of America",
+        "NeurIPS",
+        "Neural Information Processing Systems",
+        "Advances in Neural Information Processing Systems",
+        "ICML",
+        "International Conference on Machine Learning",
+        "ICLR",
+        "International Conference on Learning Representations",
+        "ACL",
+        "Annual Meeting of the Association for Computational Linguistics",
+        "CVPR",
+        "Computer Vision and Pattern Recognition",
+        "IEEE/CVF Conference on Computer Vision and Pattern Recognition",
+        "ACM Computing Surveys",
+        "American Economic Review",
+        "Quarterly Journal of Economics",
+        "Econometrica",
+        "Journal of Finance",
+    )
+)
 
 
 def _estimate_impact(citations=0, year=None, venue=""):
@@ -532,31 +566,38 @@ def _parse_openalex_work(w):
     topic = w.get("primary_topic") or {}
     fields = _unique([(topic.get(k) or {}).get("display_name") for k in ("field", "domain")])
     if not fields:
-        fields = _unique([cn.get("display_name") for cn in (w.get("concepts") or [])
-                          if cn.get("level") == 0 and float(cn.get("score") or 0) >= 0.3])
+        fields = _unique(
+            [
+                cn.get("display_name")
+                for cn in (w.get("concepts") or [])
+                if cn.get("level") == 0 and float(cn.get("score") or 0) >= 0.3
+            ]
+        )
     primary_category = (topic.get("subfield") or {}).get("display_name") or (fields[0] if fields else None)
-    return _annotate_paper({
-        "id": pid,
-        "title": title,
-        "authors": authors,
-        "year": year,
-        "journal": journal,
-        "doi": doi,
-        "pmid": pmid,
-        "openalex_id": oa_id,
-        "citations": citations,
-        "abstract": abstract,
-        "evidence": ev,
-        "impact": impact,
-        "tier": tier,
-        "open_access": is_oa,
-        "pdf_url": pdf_url,
-        "referenced_works": [x.rstrip("/").split("/")[-1] for x in (w.get("referenced_works") or [])[:40]],
-        "related_works": [x.rstrip("/").split("/")[-1] for x in (w.get("related_works") or [])[:40]],
-        "primary_category": primary_category,
-        "fields_of_study": fields,
-        "sources": ["openalex"],
-    })
+    return _annotate_paper(
+        {
+            "id": pid,
+            "title": title,
+            "authors": authors,
+            "year": year,
+            "journal": journal,
+            "doi": doi,
+            "pmid": pmid,
+            "openalex_id": oa_id,
+            "citations": citations,
+            "abstract": abstract,
+            "evidence": ev,
+            "impact": impact,
+            "tier": tier,
+            "open_access": is_oa,
+            "pdf_url": pdf_url,
+            "referenced_works": [x.rstrip("/").split("/")[-1] for x in (w.get("referenced_works") or [])[:40]],
+            "related_works": [x.rstrip("/").split("/")[-1] for x in (w.get("related_works") or [])[:40]],
+            "primary_category": primary_category,
+            "fields_of_study": fields,
+            "sources": ["openalex"],
+        }
+    )
 
 
 def _search_openalex(query, limit=25, year_min=None, open_access=False):
@@ -578,8 +619,10 @@ def _search_openalex(query, limit=25, year_min=None, open_access=False):
     return out
 
 
-S2_PAPER_FIELDS = ("paperId,externalIds,title,abstract,year,venue,authors,citationCount,isOpenAccess,openAccessPdf,"
-                   "publicationTypes,fieldsOfStudy,s2FieldsOfStudy")
+S2_PAPER_FIELDS = (
+    "paperId,externalIds,title,abstract,year,venue,authors,citationCount,isOpenAccess,openAccessPdf,"
+    "publicationTypes,fieldsOfStudy,s2FieldsOfStudy"
+)
 
 
 def _search_s2(query, limit=20, year_min=None, open_access=False):
@@ -621,29 +664,33 @@ def _parse_s2_paper(item):
     ev = classify_evidence(title, abstract, item.get("publicationTypes") or [])
     impact, tier = _estimate_impact(citations, year, journal)
     pid = _paper_id(doi=doi, pmid=pmid, s2_id=s2_id, arxiv_id=arxiv_id, title=title)
-    fields = _unique(list(item.get("fieldsOfStudy") or [])
-                     + [f.get("category") for f in (item.get("s2FieldsOfStudy") or []) if isinstance(f, dict)])
-    return _annotate_paper({
-        "id": pid,
-        "title": title,
-        "authors": authors,
-        "year": year,
-        "journal": journal,
-        "doi": doi,
-        "pmid": pmid,
-        "arxiv_id": arxiv_id,
-        "s2_id": s2_id,
-        "citations": citations,
-        "abstract": abstract,
-        "evidence": ev,
-        "impact": impact,
-        "tier": tier,
-        "open_access": is_oa,
-        "pdf_url": oa_pdf,
-        "primary_category": fields[0] if fields else None,
-        "fields_of_study": fields,
-        "sources": ["s2"],
-    })
+    fields = _unique(
+        list(item.get("fieldsOfStudy") or [])
+        + [f.get("category") for f in (item.get("s2FieldsOfStudy") or []) if isinstance(f, dict)]
+    )
+    return _annotate_paper(
+        {
+            "id": pid,
+            "title": title,
+            "authors": authors,
+            "year": year,
+            "journal": journal,
+            "doi": doi,
+            "pmid": pmid,
+            "arxiv_id": arxiv_id,
+            "s2_id": s2_id,
+            "citations": citations,
+            "abstract": abstract,
+            "evidence": ev,
+            "impact": impact,
+            "tier": tier,
+            "open_access": is_oa,
+            "pdf_url": oa_pdf,
+            "primary_category": fields[0] if fields else None,
+            "fields_of_study": fields,
+            "sources": ["s2"],
+        }
+    )
 
 
 def _eutils_params(params):
@@ -677,7 +724,11 @@ def _parse_pubmed_xml(xml_txt):
     root = ET.fromstring(xml_txt)
     for art in root.findall(".//PubmedArticle"):
         pmid = art.findtext(".//MedlineCitation/PMID")
-        title = _clean_text("".join(art.find(".//ArticleTitle").itertext())) if art.find(".//ArticleTitle") is not None else ""
+        title = (
+            _clean_text("".join(art.find(".//ArticleTitle").itertext()))
+            if art.find(".//ArticleTitle") is not None
+            else ""
+        )
         if not title:
             continue
         abs_parts = []
@@ -716,25 +767,29 @@ def _parse_pubmed_xml(xml_txt):
         impact, tier = _estimate_impact(0, year, journal)
         pdf_url = _europepmc_pdf_url(pmc_id) if pmc_id else None
         pid = _paper_id(doi=doi, pmid=pmid, title=title)
-        out.append(_annotate_paper({
-            "id": pid,
-            "title": title,
-            "authors": authors,
-            "year": year,
-            "journal": journal,
-            "doi": doi,
-            "pmid": pmid,
-            "pmc_id": pmc_id,
-            "citations": 0,
-            "abstract": abstract,
-            "evidence": ev,
-            "impact": impact,
-            "tier": tier,
-            "open_access": bool(pmc_id),
-            "pdf_url": pdf_url,
-            "mesh_terms": mesh_terms,
-            "sources": ["pubmed"],
-        }))
+        out.append(
+            _annotate_paper(
+                {
+                    "id": pid,
+                    "title": title,
+                    "authors": authors,
+                    "year": year,
+                    "journal": journal,
+                    "doi": doi,
+                    "pmid": pmid,
+                    "pmc_id": pmc_id,
+                    "citations": 0,
+                    "abstract": abstract,
+                    "evidence": ev,
+                    "impact": impact,
+                    "tier": tier,
+                    "open_access": bool(pmc_id),
+                    "pdf_url": pdf_url,
+                    "mesh_terms": mesh_terms,
+                    "sources": ["pubmed"],
+                }
+            )
+        )
     return out
 
 
@@ -776,24 +831,28 @@ def _search_crossref(query, limit=15, year_min=None):
         impact, tier = _estimate_impact(citations, yr, journal)
         pid = _paper_id(doi=doi, title=title)
         subjects = _unique(it.get("subject") or [])
-        out.append(_annotate_paper({
-            "id": pid,
-            "title": title,
-            "authors": authors,
-            "year": yr,
-            "journal": journal,
-            "doi": doi,
-            "citations": citations,
-            "abstract": abstract,
-            "evidence": ev,
-            "impact": impact,
-            "tier": tier,
-            "open_access": bool(pdf_url),
-            "pdf_url": pdf_url,
-            "primary_category": subjects[0] if subjects else None,
-            "fields_of_study": subjects,
-            "sources": ["crossref"],
-        }))
+        out.append(
+            _annotate_paper(
+                {
+                    "id": pid,
+                    "title": title,
+                    "authors": authors,
+                    "year": yr,
+                    "journal": journal,
+                    "doi": doi,
+                    "citations": citations,
+                    "abstract": abstract,
+                    "evidence": ev,
+                    "impact": impact,
+                    "tier": tier,
+                    "open_access": bool(pdf_url),
+                    "pdf_url": pdf_url,
+                    "primary_category": subjects[0] if subjects else None,
+                    "fields_of_study": subjects,
+                    "sources": ["crossref"],
+                }
+            )
+        )
     return out
 
 
@@ -834,25 +893,29 @@ def _search_arxiv(query, limit=15, year_min=None):
         ev = classify_evidence(title, abstract, ["preprint"])
         impact, tier = _estimate_impact(0, year, "arXiv")
         pid = _paper_id(doi=doi, arxiv_id=arxiv_id, title=title)
-        out.append(_annotate_paper({
-            "id": pid,
-            "title": title,
-            "authors": authors,
-            "year": year,
-            "journal": "arXiv",
-            "doi": doi,
-            "arxiv_id": arxiv_id,
-            "citations": 0,
-            "abstract": abstract,
-            "evidence": ev,
-            "impact": impact,
-            "tier": tier,
-            "open_access": True,
-            "pdf_url": pdf_url,
-            "primary_category": primary_category or (categories[0] if categories else None),
-            "categories": categories,
-            "sources": ["arxiv"],
-        }))
+        out.append(
+            _annotate_paper(
+                {
+                    "id": pid,
+                    "title": title,
+                    "authors": authors,
+                    "year": year,
+                    "journal": "arXiv",
+                    "doi": doi,
+                    "arxiv_id": arxiv_id,
+                    "citations": 0,
+                    "abstract": abstract,
+                    "evidence": ev,
+                    "impact": impact,
+                    "tier": tier,
+                    "open_access": True,
+                    "pdf_url": pdf_url,
+                    "primary_category": primary_category or (categories[0] if categories else None),
+                    "categories": categories,
+                    "sources": ["arxiv"],
+                }
+            )
+        )
     return out
 
 
@@ -889,9 +952,8 @@ def _parse_europepmc_result(it):
     citations = int(it.get("citedByCount") or 0)
     is_oa = str(it.get("isOpenAccess") or "").upper() == "Y"
     pdf_url = None
-    for ft in ((it.get("fullTextUrlList") or {}).get("fullTextUrl") or []):
-        if (ft.get("documentStyle") == "pdf" and ft.get("availabilityCode") in ("OA", "F")
-                and ft.get("url")):
+    for ft in (it.get("fullTextUrlList") or {}).get("fullTextUrl") or []:
+        if ft.get("documentStyle") == "pdf" and ft.get("availabilityCode") in ("OA", "F") and ft.get("url"):
             pdf_url = ft["url"]
             break
     if not pdf_url and pmc_id and is_oa:
@@ -902,27 +964,34 @@ def _parse_europepmc_result(it):
     ev = classify_evidence(title, abstract, pub_types)
     impact, tier = _estimate_impact(citations, year, journal)
     pid = _paper_id(doi=doi, pmid=pmid, title=title)
-    mesh_terms = _unique([m.get("descriptorName") for m in
-                          ((it.get("meshHeadingList") or {}).get("meshHeading") or []) if isinstance(m, dict)])[:15]
-    return _annotate_paper({
-        "id": pid,
-        "title": title,
-        "authors": authors,
-        "year": year,
-        "journal": journal,
-        "doi": doi,
-        "pmid": pmid,
-        "pmc_id": pmc_id,
-        "citations": citations,
-        "abstract": abstract,
-        "evidence": ev,
-        "impact": impact,
-        "tier": tier,
-        "open_access": bool(is_oa or pdf_url),
-        "pdf_url": pdf_url,
-        "mesh_terms": mesh_terms,
-        "sources": ["europepmc"],
-    })
+    mesh_terms = _unique(
+        [
+            m.get("descriptorName")
+            for m in ((it.get("meshHeadingList") or {}).get("meshHeading") or [])
+            if isinstance(m, dict)
+        ]
+    )[:15]
+    return _annotate_paper(
+        {
+            "id": pid,
+            "title": title,
+            "authors": authors,
+            "year": year,
+            "journal": journal,
+            "doi": doi,
+            "pmid": pmid,
+            "pmc_id": pmc_id,
+            "citations": citations,
+            "abstract": abstract,
+            "evidence": ev,
+            "impact": impact,
+            "tier": tier,
+            "open_access": bool(is_oa or pdf_url),
+            "pdf_url": pdf_url,
+            "mesh_terms": mesh_terms,
+            "sources": ["europepmc"],
+        }
+    )
 
 
 def _search_europepmc(query, limit=20, year_min=None, open_access=False):
@@ -962,8 +1031,18 @@ def _merge_papers(lists):
                 cur["citations"] = int(p["citations"])
                 cur["impact"], cur["tier"] = _estimate_impact(cur["citations"], cur.get("year"), cur.get("journal"))
             # Keep identifiers and open access URLs
-            for field in ("doi", "pmid", "pmc_id", "openalex_id", "s2_id", "arxiv_id", "pdf_url", "journal", "year",
-                          "primary_category"):
+            for field in (
+                "doi",
+                "pmid",
+                "pmc_id",
+                "openalex_id",
+                "s2_id",
+                "arxiv_id",
+                "pdf_url",
+                "journal",
+                "year",
+                "primary_category",
+            ):
                 if not cur.get(field) and p.get(field):
                     cur[field] = p[field]
             for field in ("categories", "fields_of_study", "mesh_terms"):
@@ -995,9 +1074,10 @@ def search(query, mode="quick", _unused=None, filters=None, lang="en", sources=N
     year_min = filters.get("year_min")
     open_access = bool(filters.get("open_access"))
 
-    cache_key = "search:" + hashlib.sha1(
-        json.dumps({"q": query, "f": filters, "s": chosen}, sort_keys=True).encode("utf-8")
-    ).hexdigest()
+    cache_key = (
+        "search:"
+        + hashlib.sha1(json.dumps({"q": query, "f": filters, "s": chosen}, sort_keys=True).encode("utf-8")).hexdigest()
+    )
     cached = cache_get(cache_key, max_age=3600 * 12)
     if cached:
         for p in cached.get("papers") or []:
@@ -1122,7 +1202,9 @@ def resolve_paper(identifier):
             cache_set("paper:" + ident, fetched)
         return fetched
 
-    raise HTTPError(404, f"Paper '{ident}' not found in cache or public APIs; run search_papers or pass a valid DOI/ID.")
+    raise HTTPError(
+        404, f"Paper '{ident}' not found in cache or public APIs; run search_papers or pass a valid DOI/ID."
+    )
 
 
 def resolve_pdf_url(paper):
@@ -1152,7 +1234,9 @@ def resolve_pdf_url(paper):
         email = _email()
         if email:
             try:
-                uw_url = f"https://api.unpaywall.org/v2/{urllib.parse.quote(doi, safe='')}?email={urllib.parse.quote(email)}"
+                uw_url = (
+                    f"https://api.unpaywall.org/v2/{urllib.parse.quote(doi, safe='')}?email={urllib.parse.quote(email)}"
+                )
                 uw = _http_json(uw_url, timeout=10)
                 best = uw.get("best_oa_location") or {}
                 pdf = best.get("url_for_pdf") or best.get("url")
@@ -1181,6 +1265,7 @@ def resolve_pdf_url(paper):
 def _extract_pdf_text(pdf_bytes):
     try:
         import pypdf
+
         reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
         pages = []
         for page in reader.pages[:35]:
@@ -1192,9 +1277,7 @@ def _extract_pdf_text(pdf_bytes):
         return ""
 
 
-_HTML_BOILERPLATE_RE = re.compile(
-    r"<(script|style|nav|header|footer|noscript)\b[^>]*>.*?</\1\s*>", re.I | re.S
-)
+_HTML_BOILERPLATE_RE = re.compile(r"<(script|style|nav|header|footer|noscript)\b[^>]*>.*?</\1\s*>", re.I | re.S)
 
 
 def _html_to_text(raw_html):
@@ -1243,7 +1326,13 @@ def fulltext(id):
             cleaned = _clean_text(xml_txt)
             if len(cleaned) > 500:
                 cache_set("ft:" + pid, {"text": cleaned[:120000], "url": xml_url, "source": "europepmc_xml"})
-                return {"id": pid, "title": p.get("title"), "available": True, "source": "europepmc_xml", "url": xml_url}
+                return {
+                    "id": pid,
+                    "title": p.get("title"),
+                    "available": True,
+                    "source": "europepmc_xml",
+                    "url": xml_url,
+                }
         except Exception:
             pass
 
@@ -1528,17 +1617,19 @@ def export(papers, format="bibtex"):
         writer = csv.writer(buf)
         writer.writerow(["id", "title", "authors", "year", "journal", "doi", "citations", "evidence", "open_access"])
         for p in papers:
-            writer.writerow([
-                p.get("id") or "",
-                p.get("title") or "",
-                "; ".join(p.get("authors") or []),
-                p.get("year") or "",
-                p.get("journal") or "",
-                p.get("doi") or "",
-                p.get("citations") or 0,
-                p.get("evidence") or "",
-                bool(p.get("open_access")),
-            ])
+            writer.writerow(
+                [
+                    p.get("id") or "",
+                    p.get("title") or "",
+                    "; ".join(p.get("authors") or []),
+                    p.get("year") or "",
+                    p.get("journal") or "",
+                    p.get("doi") or "",
+                    p.get("citations") or 0,
+                    p.get("evidence") or "",
+                    bool(p.get("open_access")),
+                ]
+            )
         return buf.getvalue(), "text/csv"
 
     raise HTTPError(400, f"Unsupported export format: {format}")

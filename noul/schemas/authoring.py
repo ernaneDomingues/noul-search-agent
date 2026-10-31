@@ -1,15 +1,15 @@
 """Schemas for Phase 6 (#22-#27): Academic Authoring, BibTeX Sanitizer, Rebuttal & Submission Gatekeeper."""
-from typing import List, Optional
-from noul.schemas._compat import _Model, _field
+
+from noul.schemas._compat import _field, _Model
 
 
 class CitationRecommendationItem(_Model):
     claim_sentence: str
     marker_or_trigger: str = ""
     search_query: str = ""
-    recommended_papers: List[dict] = _field(default_factory=list)
-    justifications: List[str] = _field(default_factory=list)
-    citation_keys: List[str] = _field(default_factory=list)
+    recommended_papers: list[dict] = _field(default_factory=list)
+    justifications: list[str] = _field(default_factory=list)
+    citation_keys: list[str] = _field(default_factory=list)
     inline_replacement: str = ""
 
 
@@ -17,25 +17,25 @@ class CitationInfillerReport(_Model):
     input_format: str = "markdown"  # plain | markdown | latex
     annotated_text: str = ""
     claims_detected: int = 0
-    recommendations: List[CitationRecommendationItem] = _field(default_factory=list)
+    recommendations: list[CitationRecommendationItem] = _field(default_factory=list)
     bibtex_block: str = ""
-    warnings: List[str] = _field(default_factory=list)
+    warnings: list[str] = _field(default_factory=list)
 
 
 class BlueprintSection(_Model):
     section_title: str
     imrad_role: str  # abstract | introduction | related_work | methodology | experiments | discussion | conclusion | venue_mandatory
-    paragraph_prompts: List[str] = _field(default_factory=list)
-    recommended_elements: List[str] = _field(default_factory=list)
+    paragraph_prompts: list[str] = _field(default_factory=list)
+    recommended_elements: list[str] = _field(default_factory=list)
 
 
 class ManuscriptBlueprint(_Model):
     topic: str
     venue: str = "general"
     hypothesis: str = ""
-    key_findings: List[str] = _field(default_factory=list)
+    key_findings: list[str] = _field(default_factory=list)
     output_format: str = "markdown"  # markdown | latex
-    sections: List[BlueprintSection] = _field(default_factory=list)
+    sections: list[BlueprintSection] = _field(default_factory=list)
     rendered_template: str = ""
 
 
@@ -51,18 +51,18 @@ class DraftAuditReport(_Model):
     source_label: str = "inline_draft"
     venue: str = "general"
     output_format: str = "markdown"
-    weak_or_unsubstantiated_claims: List[DraftAuditFinding] = _field(default_factory=list)
-    notation_or_terminology_inconsistencies: List[DraftAuditFinding] = _field(default_factory=list)
-    reproducibility_omissions: List[DraftAuditFinding] = _field(default_factory=list)
-    pre_submission_checklist: List[str] = _field(default_factory=list)
+    weak_or_unsubstantiated_claims: list[DraftAuditFinding] = _field(default_factory=list)
+    notation_or_terminology_inconsistencies: list[DraftAuditFinding] = _field(default_factory=list)
+    reproducibility_omissions: list[DraftAuditFinding] = _field(default_factory=list)
+    pre_submission_checklist: list[str] = _field(default_factory=list)
     rendered_report: str = ""
 
 
 class RelatedWorkThemeCluster(_Model):
     theme_name: str
     approach_family: str
-    paper_ids: List[str] = _field(default_factory=list)
-    citation_keys: List[str] = _field(default_factory=list)
+    paper_ids: list[str] = _field(default_factory=list)
+    citation_keys: list[str] = _field(default_factory=list)
     comparative_narrative: str = ""
 
 
@@ -70,7 +70,7 @@ class RelatedWorkSynthesis(_Model):
     proposal_summary: str
     citation_style: str = "latex"  # latex | numeric
     output_format: str = "markdown"  # markdown | latex
-    thematic_clusters: List[RelatedWorkThemeCluster] = _field(default_factory=list)
+    thematic_clusters: list[RelatedWorkThemeCluster] = _field(default_factory=list)
     positioning_paragraph: str = ""
     rendered_related_work: str = ""
     bibtex_block: str = ""
@@ -83,8 +83,8 @@ class BibtexEntryUpdate(_Model):
     action: str  # kept | upgraded_preprint | deduplicated | doi_completed | latex_sanitized
     old_venue_or_type: str = ""
     new_venue_or_type: str = ""
-    doi: Optional[str] = None
-    notes: List[str] = _field(default_factory=list)
+    doi: str | None = None
+    notes: list[str] = _field(default_factory=list)
 
 
 class BibtexSanitizeReport(_Model):
@@ -94,9 +94,9 @@ class BibtexSanitizeReport(_Model):
     preprints_upgraded: int = 0
     dois_completed: int = 0
     latex_escapes_fixed: int = 0
-    updates: List[BibtexEntryUpdate] = _field(default_factory=list)
+    updates: list[BibtexEntryUpdate] = _field(default_factory=list)
     sanitized_bibtex: str = ""
-    warnings: List[str] = _field(default_factory=list)
+    warnings: list[str] = _field(default_factory=list)
 
 
 class RebuttalPoint(_Model):
@@ -111,10 +111,10 @@ class RebuttalPoint(_Model):
 
 
 class RebuttalReport(_Model):
-    reviewers_detected: List[str] = _field(default_factory=list)
+    reviewers_detected: list[str] = _field(default_factory=list)
     total_points: int = 0
     new_experiments_required: int = 0
-    points: List[RebuttalPoint] = _field(default_factory=list)
+    points: list[RebuttalPoint] = _field(default_factory=list)
     markdown_rebuttal: str = ""
     latex_rebuttal: str = ""
 
@@ -133,9 +133,9 @@ class SubmissionGatekeeperReport(_Model):
     venue: str
     readiness_score: int = _field(default=100, ge=0, le=100)  # 0 to 100
     desk_reject_risk: str  # low | medium | critical
-    anonymity_violations: List[GatekeeperCheckItem] = _field(default_factory=list)
-    venue_checklist: List[GatekeeperCheckItem] = _field(default_factory=list)
-    overclaiming_flags: List[GatekeeperCheckItem] = _field(default_factory=list)
-    mandatory_sections: List[GatekeeperCheckItem] = _field(default_factory=list)
-    mandatory_corrective_actions: List[str] = _field(default_factory=list)
+    anonymity_violations: list[GatekeeperCheckItem] = _field(default_factory=list)
+    venue_checklist: list[GatekeeperCheckItem] = _field(default_factory=list)
+    overclaiming_flags: list[GatekeeperCheckItem] = _field(default_factory=list)
+    mandatory_sections: list[GatekeeperCheckItem] = _field(default_factory=list)
+    mandatory_corrective_actions: list[str] = _field(default_factory=list)
     summary_markdown: str = ""

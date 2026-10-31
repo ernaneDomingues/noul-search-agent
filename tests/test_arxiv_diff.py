@@ -1,5 +1,6 @@
 """Fase 4 / Etapa 3 (#15): diff_arxiv_versions — arXiv version comparison, metric deltas, claim attenuations,
 new baselines/datasets, authorship changes and the `noul diff` CLI."""
+
 import contextlib
 import io
 import json
@@ -130,37 +131,49 @@ class ArxivDiffTests(unittest.TestCase):
         self.assertIn("### Text Diff Highlights", md)
 
     def test_diff_with_cached_fulltext_tables_and_cli(self):
-        c.cache_set("paper:arxiv:2402.54321v1", {
-            "id": "arxiv:2402.54321v1",
-            "title": "FastNet v1",
-            "abstract": "Our method proves superior to all baselines.",
-            "authors": ["Dan Brown"],
-        })
-        c.cache_set("ft:arxiv:2402.54321v1", {
-            "text": (
-                "Table 1: Benchmark results\n"
-                "| Model | MMLU | GSM8K |\n"
-                "| --- | --- | --- |\n"
-                "| Llama-2 | 65.0 | 55.0 |\n"
-                "| Ours | 75.0 | 68.0 |\n"
-            ),
-        })
-        c.cache_set("paper:arxiv:2402.54321v2", {
-            "id": "arxiv:2402.54321v2",
-            "title": "FastNet v2",
-            "abstract": "Our method suggests promising empirical results.",
-            "authors": ["Dan Brown", "Eva Green"],
-        })
-        c.cache_set("ft:arxiv:2402.54321v2", {
-            "text": (
-                "Table 1: Benchmark results\n"
-                "| Model | MMLU | GSM8K |\n"
-                "| --- | --- | --- |\n"
-                "| Llama-2 | 65.0 | 55.0 |\n"
-                "| Llama-3 | 74.0 | 72.0 |\n"
-                "| Ours | 77.5 | 70.0 |\n"
-            ),
-        })
+        c.cache_set(
+            "paper:arxiv:2402.54321v1",
+            {
+                "id": "arxiv:2402.54321v1",
+                "title": "FastNet v1",
+                "abstract": "Our method proves superior to all baselines.",
+                "authors": ["Dan Brown"],
+            },
+        )
+        c.cache_set(
+            "ft:arxiv:2402.54321v1",
+            {
+                "text": (
+                    "Table 1: Benchmark results\n"
+                    "| Model | MMLU | GSM8K |\n"
+                    "| --- | --- | --- |\n"
+                    "| Llama-2 | 65.0 | 55.0 |\n"
+                    "| Ours | 75.0 | 68.0 |\n"
+                ),
+            },
+        )
+        c.cache_set(
+            "paper:arxiv:2402.54321v2",
+            {
+                "id": "arxiv:2402.54321v2",
+                "title": "FastNet v2",
+                "abstract": "Our method suggests promising empirical results.",
+                "authors": ["Dan Brown", "Eva Green"],
+            },
+        )
+        c.cache_set(
+            "ft:arxiv:2402.54321v2",
+            {
+                "text": (
+                    "Table 1: Benchmark results\n"
+                    "| Model | MMLU | GSM8K |\n"
+                    "| --- | --- | --- |\n"
+                    "| Llama-2 | 65.0 | 55.0 |\n"
+                    "| Llama-3 | 74.0 | 72.0 |\n"
+                    "| Ours | 77.5 | 70.0 |\n"
+                ),
+            },
+        )
 
         with mock.patch.object(c, "_http_get", side_effect=_support.no_network):
             buf = io.StringIO()

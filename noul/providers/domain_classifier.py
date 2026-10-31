@@ -1,53 +1,174 @@
 """Scientific-domain detection (#19): arXiv taxonomy > fields of study / topics > PubMed signals > text.
 
 Pure stdlib and side-effect free, so it is safe to run on every parsed search result."""
+
 import re
 
 from noul.schemas.domain import ScientificDomain
 
-CS, BIO, ECON, STEM = (ScientificDomain.COMPUTER_SCIENCE, ScientificDomain.BIOMEDICAL,
-                       ScientificDomain.ECONOMICS, ScientificDomain.GENERAL_STEM)
+CS, BIO, ECON, STEM = (
+    ScientificDomain.COMPUTER_SCIENCE,
+    ScientificDomain.BIOMEDICAL,
+    ScientificDomain.ECONOMICS,
+    ScientificDomain.GENERAL_STEM,
+)
 
 # Exact arXiv categories checked before prefixes (math.OC is CS although math.* is general STEM).
 _ARXIV_EXACT = {"stat.ml": CS, "math.oc": CS, "eess.as": CS, "eess.iv": CS, "eess.sp": CS}
 _ARXIV_PREFIXES = (
     ("cs.", CS),
-    ("q-bio.", BIO), ("med.", BIO), ("bio.", BIO),
-    ("econ.", ECON), ("q-fin.", ECON),
-    ("physics.", STEM), ("math.", STEM), ("cond-mat.", STEM), ("astro-ph.", STEM), ("quant-ph", STEM),
-    ("hep-", STEM), ("nucl-", STEM), ("nlin.", STEM), ("gr-qc", STEM), ("math-ph", STEM),
+    ("q-bio.", BIO),
+    ("med.", BIO),
+    ("bio.", BIO),
+    ("econ.", ECON),
+    ("q-fin.", ECON),
+    ("physics.", STEM),
+    ("math.", STEM),
+    ("cond-mat.", STEM),
+    ("astro-ph.", STEM),
+    ("quant-ph", STEM),
+    ("hep-", STEM),
+    ("nucl-", STEM),
+    ("nlin.", STEM),
+    ("gr-qc", STEM),
+    ("math-ph", STEM),
 )
 
 # Substrings of Semantic Scholar fieldsOfStudy, OpenAlex fields/domains/concepts, Crossref subjects.
 _FIELD_HINTS = (
-    (CS, ("computer science", "artificial intelligence", "machine learning", "computer vision",
-          "information systems", "software", "computational linguistics")),
+    (
+        CS,
+        (
+            "computer science",
+            "artificial intelligence",
+            "machine learning",
+            "computer vision",
+            "information systems",
+            "software",
+            "computational linguistics",
+        ),
+    ),
     (ECON, ("economics", "econometric", "finance", "financial", "business", "accounting")),
-    (BIO, ("medicine", "medical", "biology", "biochemistry", "genetics", "pharmacology", "pharmac", "psychology",
-           "psychiatry", "neuroscience", "health", "nursing", "dentistry", "immunology", "microbiology",
-           "oncology", "cardiology", "epidemiology", "veterinary", "physiology", "toxicology")),
+    (
+        BIO,
+        (
+            "medicine",
+            "medical",
+            "biology",
+            "biochemistry",
+            "genetics",
+            "pharmacology",
+            "pharmac",
+            "psychology",
+            "psychiatry",
+            "neuroscience",
+            "health",
+            "nursing",
+            "dentistry",
+            "immunology",
+            "microbiology",
+            "oncology",
+            "cardiology",
+            "epidemiology",
+            "veterinary",
+            "physiology",
+            "toxicology",
+        ),
+    ),
 )
 
 KEYWORDS = {
     CS: (
-        "transformer", "llm", "large language model", "neural network", "deep learning", "reinforcement learning",
-        "attention mechanism", "pytorch", "benchmark", "token", "gpu", "vram", "quantization", "fine-tuning", "rag",
-        "diffusion model", "convolutional", "algorithm", "compiler", "distributed systems",
+        "transformer",
+        "llm",
+        "large language model",
+        "neural network",
+        "deep learning",
+        "reinforcement learning",
+        "attention mechanism",
+        "pytorch",
+        "benchmark",
+        "token",
+        "gpu",
+        "vram",
+        "quantization",
+        "fine-tuning",
+        "rag",
+        "diffusion model",
+        "convolutional",
+        "algorithm",
+        "compiler",
+        "distributed systems",
         # Portuguese equivalents so clarification works on PT queries.
-        "quantização", "rede neural", "redes neurais", "aprendizado profundo", "modelo de linguagem",
+        "quantização",
+        "rede neural",
+        "redes neurais",
+        "aprendizado profundo",
+        "modelo de linguagem",
     ),
     BIO: (
-        "clinical trial", "randomized", "placebo", "patient", "patients", "cohort", "mortality", "therapy",
-        "treatment", "disease", "diagnosis", "syndrome", "dosage", "mg/day", "in vivo", "in vitro", "biomarker",
-        "meta-analysis", "pathogenesis", "efficacy", "adverse events", "medical", "rct", "supplementation",
-        "healthy adults", "creatine", "vaccine", "cancer", "clinical",
-        "ensaio clínico", "pacientes", "tratamento", "doença", "suplementação", "creatina", "terapia",
+        "clinical trial",
+        "randomized",
+        "placebo",
+        "patient",
+        "patients",
+        "cohort",
+        "mortality",
+        "therapy",
+        "treatment",
+        "disease",
+        "diagnosis",
+        "syndrome",
+        "dosage",
+        "mg/day",
+        "in vivo",
+        "in vitro",
+        "biomarker",
+        "meta-analysis",
+        "pathogenesis",
+        "efficacy",
+        "adverse events",
+        "medical",
+        "rct",
+        "supplementation",
+        "healthy adults",
+        "creatine",
+        "vaccine",
+        "cancer",
+        "clinical",
+        "ensaio clínico",
+        "pacientes",
+        "tratamento",
+        "doença",
+        "suplementação",
+        "creatina",
+        "terapia",
     ),
     ECON: (
-        "econometric", "difference-in-differences", "instrumental variable", "regression discontinuity",
-        "panel data", "gdp", "inflation", "monetary policy", "fiscal", "market equilibrium", "macroeconomic",
-        "microeconomic", "wage", "elasticity", "central bank", "portfolio", "asset pricing", "endogeneity",
-        "inflação", "política monetária", "juros", "pib", "econometria", "salário mínimo",
+        "econometric",
+        "difference-in-differences",
+        "instrumental variable",
+        "regression discontinuity",
+        "panel data",
+        "gdp",
+        "inflation",
+        "monetary policy",
+        "fiscal",
+        "market equilibrium",
+        "macroeconomic",
+        "microeconomic",
+        "wage",
+        "elasticity",
+        "central bank",
+        "portfolio",
+        "asset pricing",
+        "endogeneity",
+        "inflação",
+        "política monetária",
+        "juros",
+        "pib",
+        "econometria",
+        "salário mínimo",
     ),
 }
 DOMAIN_ORDER = (CS, BIO, ECON)
@@ -87,8 +208,9 @@ def normalize_domain(value):
         return None
     dom = _ALIAS_TO_DOMAIN.get(key) or _ALIAS_TO_DOMAIN.get(key.replace("-", "_"))
     if dom is None:
-        raise ValueError(f"Invalid domain '{value}'. Use one of: {', '.join(VALID_DOMAIN_NAMES)} "
-                         "(aliases: cs, bio, med, econ, stem)")
+        raise ValueError(
+            f"Invalid domain '{value}'. Use one of: {', '.join(VALID_DOMAIN_NAMES)} (aliases: cs, bio, med, econ, stem)"
+        )
     return dom
 
 
@@ -134,8 +256,10 @@ def _best_text_domain(scores):
     qualified = [d for d in DOMAIN_ORDER if _qualifies(scores[d])]
     if not qualified:
         return None
-    return max(qualified, key=lambda d: (scores[d]["score"] + scores[d]["title_hits"], scores[d]["title_hits"],
-                                         -DOMAIN_ORDER.index(d)))
+    return max(
+        qualified,
+        key=lambda d: (scores[d]["score"] + scores[d]["title_hits"], scores[d]["title_hits"], -DOMAIN_ORDER.index(d)),
+    )
 
 
 def _as_dict(paper):
@@ -180,7 +304,9 @@ def explain_domain(paper=None, categories=None, title="", abstract="", journal="
         best = max(votes, key=lambda d: (votes[d], d != STEM))
         return {"domain": best, "method": "categories", "signals": cats, "text_scores": {}}
 
-    fields = _as_list(p.get("fields_of_study")) + ([str(primary)] if primary and str(primary).lower() != "general" else [])
+    fields = _as_list(p.get("fields_of_study")) + (
+        [str(primary)] if primary and str(primary).lower() != "general" else []
+    )
     field_votes = {}
     for name in fields:
         dom = map_field_of_study(name)
@@ -195,18 +321,31 @@ def explain_domain(paper=None, categories=None, title="", abstract="", journal="
     text_best = _best_text_domain(scores)
 
     sources = set(_as_list(p.get("sources")))
-    pubmed_signal = bool(p.get("pmid") or p.get("pmc_id") or p.get("mesh_terms")
-                         or (sources and sources <= {"pubmed", "europepmc"}))
+    pubmed_signal = bool(
+        p.get("pmid") or p.get("pmc_id") or p.get("mesh_terms") or (sources and sources <= {"pubmed", "europepmc"})
+    )
     if pubmed_signal:
         if text_best in (CS, ECON) and scores[text_best]["score"] > scores[BIO]["score"]:
-            return {"domain": text_best, "method": "text", "signals": scores[text_best]["matches"],
-                    "text_scores": text_scores}
-        return {"domain": BIO, "method": "pubmed", "signals": ["pmid" if p.get("pmid") else "pubmed-index"],
-                "text_scores": text_scores}
+            return {
+                "domain": text_best,
+                "method": "text",
+                "signals": scores[text_best]["matches"],
+                "text_scores": text_scores,
+            }
+        return {
+            "domain": BIO,
+            "method": "pubmed",
+            "signals": ["pmid" if p.get("pmid") else "pubmed-index"],
+            "text_scores": text_scores,
+        }
 
     if text_best is not None:
-        return {"domain": text_best, "method": "text", "signals": scores[text_best]["matches"],
-                "text_scores": text_scores}
+        return {
+            "domain": text_best,
+            "method": "text",
+            "signals": scores[text_best]["matches"],
+            "text_scores": text_scores,
+        }
     return {"domain": STEM, "method": "default", "signals": [], "text_scores": text_scores}
 
 

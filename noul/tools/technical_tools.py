@@ -3,6 +3,7 @@
 
 Deterministic, stdlib-only extraction over the best available paper text (cached open-access full text, else
 title + abstract). The host agent's LLM interprets the results; these tools only structure literal evidence."""
+
 import re
 
 from noul.providers import pdf_parser
@@ -24,11 +25,13 @@ def _paper_id(paper_id):
 # --------------------------------------------------------------------------- cell / number normalization
 
 _LATEX_WRAPPERS = re.compile(
-    r"\\(?:textbf|underline|textit|emph|mathbf|mathrm|textsc|textrm|text|bm|boldsymbol|uline)\s*\{([^{}]*)\}")
+    r"\\(?:textbf|underline|textit|emph|mathbf|mathrm|textsc|textrm|text|bm|boldsymbol|uline)\s*\{([^{}]*)\}"
+)
 _LATEX_MULTI = re.compile(r"\\multi(?:column|row)\s*\{[^{}]*\}\s*\{[^{}]*\}\s*\{([^{}]*)\}")
 _LATEX_RULES = re.compile(
     r"\\(?:hline|toprule|midrule|bottomrule|addlinespace|cline\s*\{[^{}]*\}|"
-    r"cmidrule(?:\s*\([^)]*\))?\s*\{[^{}]*\})")
+    r"cmidrule(?:\s*\([^)]*\))?\s*\{[^{}]*\})"
+)
 
 
 def clean_cell(value):
@@ -41,8 +44,14 @@ def clean_cell(value):
         if new == s:
             break
         s = new
-    s = (s.replace("\\pm", "±").replace("\\%", "%").replace("\\&", "&").replace("\\times", "×")
-         .replace("$", "").replace("~", " "))
+    s = (
+        s.replace("\\pm", "±")
+        .replace("\\%", "%")
+        .replace("\\&", "&")
+        .replace("\\times", "×")
+        .replace("$", "")
+        .replace("~", " ")
+    )
     s = re.sub(r"\\cite[pt]?\*?\{[^{}]*\}", "", s)
     s = re.sub(r"(\*\*|__|`)", "", s)
     s = re.sub(r"(?<!\w)[*_](?=\S)|(?<=\S)[*_](?!\w)", "", s)
@@ -51,7 +60,9 @@ def clean_cell(value):
 
 _NUM_CELL = re.compile(
     r"^[~≈<>]?\s*(?P<num>[-+−–]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|[-+−–]?\.\d+)\s*"
-    r"(?P<unit>%|ms|s|x|×|pp|pts?)?\s*(?:(?:±|\+/-|\+-)\s*\d+(?:\.\d+)?\s*%?)?\s*(?:\([^)]*\))?\s*[*†‡]*$", re.I)
+    r"(?P<unit>%|ms|s|x|×|pp|pts?)?\s*(?:(?:±|\+/-|\+-)\s*\d+(?:\.\d+)?\s*%?)?\s*(?:\([^)]*\))?\s*[*†‡]*$",
+    re.I,
+)
 _EMPTY_CELLS = {"", "-", "–", "—", "n/a", "na", "n.a.", "--", "×"}
 
 
@@ -74,11 +85,27 @@ def _is_number(v):
 
 
 METRIC_SYNONYMS = {
-    "mmlu": "MMLU", "gsm8k": "GSM8K", "humaneval": "HumanEval", "mbpp": "MBPP", "math": "MATH",
-    "hellaswag": "HellaSwag", "arcc": "ARC-Challenge", "arcchallenge": "ARC-Challenge", "truthfulqa": "TruthfulQA",
-    "bleu": "BLEU", "rougel": "ROUGE-L", "f1": "F1", "f1score": "F1", "auc": "AUC", "auroc": "AUC",
-    "accuracy": "Accuracy", "acc": "Accuracy", "perplexity": "Perplexity", "ppl": "Perplexity",
-    "latency": "Latency_ms", "throughput": "Throughput",
+    "mmlu": "MMLU",
+    "gsm8k": "GSM8K",
+    "humaneval": "HumanEval",
+    "mbpp": "MBPP",
+    "math": "MATH",
+    "hellaswag": "HellaSwag",
+    "arcc": "ARC-Challenge",
+    "arcchallenge": "ARC-Challenge",
+    "truthfulqa": "TruthfulQA",
+    "bleu": "BLEU",
+    "rougel": "ROUGE-L",
+    "f1": "F1",
+    "f1score": "F1",
+    "auc": "AUC",
+    "auroc": "AUC",
+    "accuracy": "Accuracy",
+    "acc": "Accuracy",
+    "perplexity": "Perplexity",
+    "ppl": "Perplexity",
+    "latency": "Latency_ms",
+    "throughput": "Throughput",
 }
 LOWER_IS_BETTER = {"Perplexity", "Latency_ms"}
 
@@ -101,6 +128,7 @@ def _dedupe(names):
 
 
 # --------------------------------------------------------------------------- table detection
+
 
 def _split_md_row(line):
     cells = re.split(r"(?<!\\)\|", line.strip())
@@ -155,7 +183,7 @@ def _latex_tables(text):
             grp = pdf_parser.balanced(text, i)
             if grp:
                 i = grp[1]
-        body = _LATEX_RULES.sub(" ", text[i:end_m.start()])
+        body = _LATEX_RULES.sub(" ", text[i : end_m.start()])
         rows = []
         for raw in re.split(r"\\\\(?:\s*\[[^\]]*\])?", body):
             if not raw.strip():
@@ -164,8 +192,9 @@ def _latex_tables(text):
             if any(cells):
                 rows.append(cells)
         if len(rows) >= 2:
-            tables.append({"start": m.start(), "end": end_m.end(), "headers": rows[0], "rows": rows[1:],
-                           "format": "latex"})
+            tables.append(
+                {"start": m.start(), "end": end_m.end(), "headers": rows[0], "rows": rows[1:], "format": "latex"}
+            )
     return tables
 
 
@@ -178,7 +207,7 @@ def _trailing_numbers(line):
     n = 0
     while n < len(tokens) and _is_number(parse_number(tokens[-1 - n])):
         n += 1
-    return " ".join(tokens[:len(tokens) - n]), tokens[len(tokens) - n:]
+    return " ".join(tokens[: len(tokens) - n]), tokens[len(tokens) - n :]
 
 
 def _plain_tables(text, captions, taken):
@@ -187,7 +216,7 @@ def _plain_tables(text, captions, taken):
         if cap["kind"] != "text" or any(s <= cap["offset"] < e for s, e in taken):
             continue
         lines, pos = [], cap["end"] + 1
-        for line in text[pos:pos + 4000].split("\n"):
+        for line in text[pos : pos + 4000].split("\n"):
             lines.append((pos, line))
             pos += len(line) + 1
         header, rows, start, end, blanks = None, [], None, None, 0
@@ -226,22 +255,29 @@ def _plain_tables(text, captions, taken):
             else:
                 words = header.split()
                 if len(words) >= width:
-                    headers = [" ".join(words[:len(words) - width]) or "Model"] + words[len(words) - width:]
+                    headers = [" ".join(words[: len(words) - width]) or "Model"] + words[len(words) - width :]
         headers = headers or ["Model"] + [f"col_{i}" for i in range(1, width + 1)]
         raw_rows = [[label] + nums for label, nums in rows]
-        tables.append({"start": start, "end": end, "headers": headers, "rows": raw_rows, "format": "text",
-                       "caption_ref": cap})
+        tables.append(
+            {"start": start, "end": end, "headers": headers, "rows": raw_rows, "format": "text", "caption_ref": cap}
+        )
     return tables
 
 
-_INLINE_NAME = (r"MMLU|GSM-?8K|Human-?Eval|MBPP|MATH|HellaSwag|ARC[-_ ]?(?:Challenge|c)\b|TruthfulQA|BLEU|"
-                r"ROUGE-?L|F1(?:-score)?|AUROC|AUC|accuracy|perplexity|PPL|latency|throughput")
+_INLINE_NAME = (
+    r"MMLU|GSM-?8K|Human-?Eval|MBPP|MATH|HellaSwag|ARC[-_ ]?(?:Challenge|c)\b|TruthfulQA|BLEU|"
+    r"ROUGE-?L|F1(?:-score)?|AUROC|AUC|accuracy|perplexity|PPL|latency|throughput"
+)
 _NUMV = r"\d+(?:\.\d+)?\s*(?:%|ms|x|×)?"
 _INLINE_PAIRS = (
-    re.compile(rf"(?<![A-Za-z])(?P<name>{_INLINE_NAME})(?![A-Za-z])\s*(?:[:=]|score of|of|at)\s*(?P<val>{_NUMV})",
-               re.I),
-    re.compile(rf"(?P<val>{_NUMV})\s*(?:(?:accuracy|score|points|pass@1)\s+)?on\s+(?:the\s+)?"
-               rf"(?P<name>{_INLINE_NAME})(?![A-Za-z])", re.I),
+    re.compile(
+        rf"(?<![A-Za-z])(?P<name>{_INLINE_NAME})(?![A-Za-z])\s*(?:[:=]|score of|of|at)\s*(?P<val>{_NUMV})", re.I
+    ),
+    re.compile(
+        rf"(?P<val>{_NUMV})\s*(?:(?:accuracy|score|points|pass@1)\s+)?on\s+(?:the\s+)?"
+        rf"(?P<name>{_INLINE_NAME})(?![A-Za-z])",
+        re.I,
+    ),
 )
 
 
@@ -283,19 +319,21 @@ def _build_table(table_id, caption, headers, raw_rows):
     norm_headers = _dedupe([first or "Model"] + [normalize_metric_name(h) for h in headers[1:]])
     label_key = norm_headers[0]
     labels = [clean_cell(r[0]) if r else "" for r in raw_rows]
-    transposed = (first.lower() in ("benchmark", "benchmarks", "dataset", "task", "metric", "metrics") or
-                  (labels and sum(normalize_metric_name(x) in METRIC_SYNONYMS.values() for x in labels) * 2 > len(labels)
-                   and not any(h in METRIC_SYNONYMS.values() for h in norm_headers[1:])))
+    transposed = first.lower() in ("benchmark", "benchmarks", "dataset", "task", "metric", "metrics") or (
+        labels
+        and sum(normalize_metric_name(x) in METRIC_SYNONYMS.values() for x in labels) * 2 > len(labels)
+        and not any(h in METRIC_SYNONYMS.values() for h in norm_headers[1:])
+    )
     rows, metrics, seen = [], {}, {}
-    for cells, label in zip(raw_rows, labels):
-        cells = list(cells[:len(norm_headers)]) + [None] * (len(norm_headers) - len(cells))
+    for cells, label in zip(raw_rows, labels, strict=False):
+        cells = list(cells[: len(norm_headers)]) + [None] * (len(norm_headers) - len(cells))
         if transposed:
             label = normalize_metric_name(label)
         seen[label] = seen.get(label, 0) + 1
         if seen[label] > 1:
             label = f"{label} ({seen[label]})"
         row = {label_key: label}
-        for h, cell in zip(norm_headers[1:], cells[1:]):
+        for h, cell in zip(norm_headers[1:], cells[1:], strict=False):
             row[h] = parse_number(cell) if cell is not None else None
         rows.append(row)
         for h in norm_headers[1:]:
@@ -304,8 +342,9 @@ def _build_table(table_id, caption, headers, raw_rows):
                     metrics.setdefault(h, {})[label] = row[h]
                 else:
                     metrics.setdefault(label, {})[h] = row[h]
-    return BenchmarkTable(table_id=table_id, caption=caption, headers=norm_headers, rows=rows,
-                          normalized_metrics=metrics).model_dump()
+    return BenchmarkTable(
+        table_id=table_id, caption=caption, headers=norm_headers, rows=rows, normalized_metrics=metrics
+    ).model_dump()
 
 
 def parse_benchmark_tables(text, pages=None, captions=None):
@@ -340,11 +379,21 @@ def parse_benchmark_tables(text, pages=None, captions=None):
     pairs = _inline_pairs("".join(masked))
     if pairs:
         rows = [{"Benchmark": name, "Value": val} for name, (_, val) in pairs]
-        inline = BenchmarkTable(table_id="inline_metrics", caption="Benchmark: value pairs reported in the text",
-                                headers=["Benchmark", "Value"], rows=rows,
-                                normalized_metrics={"reported": {name: val for name, (_, val) in pairs}}).model_dump()
-        inline.update({"label": "Inline metrics", "format": "inline",
-                       "page": pdf_parser.page_at(pages, pairs[0][1][0]), "_span": (pairs[0][1][0], pairs[0][1][0])})
+        inline = BenchmarkTable(
+            table_id="inline_metrics",
+            caption="Benchmark: value pairs reported in the text",
+            headers=["Benchmark", "Value"],
+            rows=rows,
+            normalized_metrics={"reported": {name: val for name, (_, val) in pairs}},
+        ).model_dump()
+        inline.update(
+            {
+                "label": "Inline metrics",
+                "format": "inline",
+                "page": pdf_parser.page_at(pages, pairs[0][1][0]),
+                "_span": (pairs[0][1][0], pairs[0][1][0]),
+            }
+        )
         out.append(inline)
     return out
 
@@ -360,13 +409,16 @@ def _summary(tables):
     for metric, values in by_metric.items():
         if metric in canonical and values:
             pick = (min if metric in LOWER_IS_BETTER else max)(values.items(), key=lambda kv: kv[1])
-            best[metric] = {"model": pick[0], "value": pick[1],
-                            "direction": "lower_is_better" if metric in LOWER_IS_BETTER else "higher_is_better"}
-    return {"table_count": len(tables), "metrics": sorted(by_metric), "by_metric": by_metric,
-            "best_by_metric": best}
+            best[metric] = {
+                "model": pick[0],
+                "value": pick[1],
+                "direction": "lower_is_better" if metric in LOWER_IS_BETTER else "higher_is_better",
+            }
+    return {"table_count": len(tables), "metrics": sorted(by_metric), "by_metric": by_metric, "best_by_metric": best}
 
 
 # --------------------------------------------------------------------------- #08 benchmark tables
+
 
 def extract_benchmark_tables(paper_id):
     """Extract and normalize benchmark tables (Markdown, LaTeX, plain text) of a paper."""
@@ -377,8 +429,14 @@ def extract_benchmark_tables(paper_id):
     warnings = list(corpus["warnings"])
     if not tables:
         warnings.append("No benchmark tables or Benchmark: value pairs detected.")
-    return {"paper_id": corpus["paper_id"], "title": corpus["title"], "source": corpus["source"],
-            "tables": tables, "normalized_summary": _summary(tables), "warnings": warnings}
+    return {
+        "paper_id": corpus["paper_id"],
+        "title": corpus["title"],
+        "source": corpus["source"],
+        "tables": tables,
+        "normalized_summary": _summary(tables),
+        "warnings": warnings,
+    }
 
 
 # --------------------------------------------------------------------------- #10 claim grounding
@@ -386,17 +444,21 @@ def extract_benchmark_tables(paper_id):
 MAX_CLAIMS = 30
 AUTO_CLAIMS = 10
 _CLAIM_NUM = re.compile(
-    r"(?<![A-Za-z][-_])(?<![\w.])[-+−]?\d+(?:,\d{3})*(?:\.\d+)?(?:\s?%|\s?(?:x|×|pp|ms|GB|B|M|K)\b)?")
+    r"(?<![A-Za-z][-_])(?<![\w.])[-+−]?\d+(?:,\d{3})*(?:\.\d+)?(?:\s?%|\s?(?:x|×|pp|ms|GB|B|M|K)\b)?"
+)
 _WORD = re.compile(r"[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9\-]{2,}")
 _STOP = frozenset(
     "the and for with that this our from are was were has have had than into its their these those which while "
     "using used use based also both can more most such between over under per all any each not but when where "
     "model models method approach paper work results result show shows showed achieve achieves achieved "
     "que com para uma umas uns dos das nos nas pelo pela como mais por modelo modelos resultado resultados "
-    "artigo trabalho sobre entre ser são foi tem".split())
+    "artigo trabalho sobre entre ser são foi tem".split()
+)
 _EXTRAPOLATION_CUES = re.compile(
     r"\b(?:will|always|never|guarantees?|proves?|any|every|all\s+(?:tasks|domains|hardware|settings)|"
-    r"universally|therefore|thus|implies|sempre|nunca|garante|prova|qualquer|todos?\s+os)\b", re.I)
+    r"universally|therefore|thus|implies|sempre|nunca|garante|prova|qualquer|todos?\s+os)\b",
+    re.I,
+)
 _SENTENCE = re.compile(r"(?:[^.!?\n]|[.!?](?=[\w%)\]]))+[.!?]?")
 
 
@@ -436,8 +498,14 @@ def _passages(corpus):
         for line in text[s:e].split("\n"):
             quote = re.sub(r"\s+", " ", line).strip()
             if quote and not _MD_SEP.match(quote) and _LATEX_RULES.sub("", quote).strip():
-                out.append({"page": pdf_parser.page_at(pages, pos), "label": f"Tabela {number}", "quote": quote,
-                            "scoring": f"{context} {clean_cell(quote)}"})
+                out.append(
+                    {
+                        "page": pdf_parser.page_at(pages, pos),
+                        "label": f"Tabela {number}",
+                        "quote": quote,
+                        "scoring": f"{context} {clean_cell(quote)}",
+                    }
+                )
             pos += len(line) + 1
     for m in _SENTENCE.finditer(text):
         if any(s <= m.start() < e for s, e in spans):
@@ -467,21 +535,28 @@ def _clip_quote(quote, numbers, limit=220):
             anchor = i
             break
     start = max(0, min(anchor - limit // 3, len(quote) - limit))
-    clip = quote[start:start + limit].strip()
+    clip = quote[start : start + limit].strip()
     return ("..." if start > 0 else "") + clip + ("..." if start + limit < len(quote) else "")
 
 
 def _auto_claims(corpus, passages):
     """Numeric / comparative sentences: from the abstract first, then from the non-table body text."""
-    comparative = re.compile(r"\b(?:outperform\w*|improv\w*|better than|surpass\w*|reduc\w*|faster|"
-                             r"state[-\s]of[-\s]the[-\s]art)\b", re.I)
+    comparative = re.compile(
+        r"\b(?:outperform\w*|improv\w*|better than|surpass\w*|reduc\w*|faster|"
+        r"state[-\s]of[-\s]the[-\s]art)\b",
+        re.I,
+    )
     abstract = [re.sub(r"\s+", " ", m.group(0)).strip() for m in _SENTENCE.finditer(corpus["abstract"] or "")]
     body = [p["quote"] for p in passages if not p["label"].startswith("Tabela")]
     claims = []
     for group in (abstract, body):
         for s in group:
-            if (len(s.split()) >= 5 and not re.match(r"(?:Table|Tabela|Fig(?:ure|\.)|Figura)\s*\d", s, re.I)
-                    and (_claim_numbers(s) or comparative.search(s)) and s not in claims):
+            if (
+                len(s.split()) >= 5
+                and not re.match(r"(?:Table|Tabela|Fig(?:ure|\.)|Figura)\s*\d", s, re.I)
+                and (_claim_numbers(s) or comparative.search(s))
+                and s not in claims
+            ):
                 claims.append(s)
                 if len(claims) >= AUTO_CLAIMS:
                     return claims
@@ -517,9 +592,13 @@ def ground_claim(claim, passages):
         if best_key is None or key > best_key:
             best, best_key = p, key
     if best is None:
-        return GroundedClaim(claim=claim, status="extrapolated", numbers_checked=numbers,
-                             citation_tag="[EXTRAPOLAÇÃO NÃO LITERAL — sem correspondência exata no texto; "
-                                          "documento sem texto analisável]").model_dump()
+        return GroundedClaim(
+            claim=claim,
+            status="extrapolated",
+            numbers_checked=numbers,
+            citation_tag="[EXTRAPOLAÇÃO NÃO LITERAL — sem correspondência exata no texto; "
+            "documento sem texto analisável]",
+        ).model_dump()
     matched = sum(1 for v in values if v in best["values"])
     shared = kws & best["keywords"]
     lex = len(shared) / len(kws) if kws else 1.0
@@ -530,18 +609,28 @@ def ground_claim(claim, passages):
             status = "partially_supported" if matched else "extrapolated"
     else:
         status = "verified" if lex >= 0.75 else "partially_supported" if lex >= 0.4 else "extrapolated"
-    cues = {c.lower() for c in _EXTRAPOLATION_CUES.findall(claim)} - {c.lower() for c in
-                                                                     _EXTRAPOLATION_CUES.findall(best["quote"])}
+    cues = {c.lower() for c in _EXTRAPOLATION_CUES.findall(claim)} - {
+        c.lower() for c in _EXTRAPOLATION_CUES.findall(best["quote"])
+    }
     if cues and status == "verified":
         status = "partially_supported"
     quote = _clip_quote(best["quote"], numbers)
     if status == "extrapolated":
-        tag = (f"[EXTRAPOLAÇÃO NÃO LITERAL — sem correspondência exata no texto; trecho mais próximo na "
-               f"pág. {best['page']}: \"{quote}\"]")
+        tag = (
+            f"[EXTRAPOLAÇÃO NÃO LITERAL — sem correspondência exata no texto; trecho mais próximo na "
+            f'pág. {best["page"]}: "{quote}"]'
+        )
     else:
-        tag = f"[pág. {best['page']}, {best['label']}: \"{quote}\"]"
-    return GroundedClaim(claim=claim, status=status, citation_tag=tag, page=best["page"],
-                         table_or_section=best["label"], verbatim_quote=quote, numbers_checked=numbers).model_dump()
+        tag = f'[pág. {best["page"]}, {best["label"]}: "{quote}"]'
+    return GroundedClaim(
+        claim=claim,
+        status=status,
+        citation_tag=tag,
+        page=best["page"],
+        table_or_section=best["label"],
+        verbatim_quote=quote,
+        numbers_checked=numbers,
+    ).model_dump()
 
 
 def verify_paper_claims(paper_id, claims=None):
@@ -559,23 +648,68 @@ def verify_paper_claims(paper_id, claims=None):
         warnings.append("No numeric or comparative claims found to audit.")
     if summary["extrapolated"]:
         warnings.append(f"{summary['extrapolated']} claim(s) are NOT literally supported by the paper text.")
-    return {"paper_id": corpus["paper_id"], "title": corpus["title"], "source": corpus["source"],
-            "auto_extracted_claims": auto, "claims": results, "summary": summary, "warnings": warnings}
+    return {
+        "paper_id": corpus["paper_id"],
+        "title": corpus["title"],
+        "source": corpus["source"],
+        "auto_extracted_claims": auto,
+        "claims": results,
+        "summary": summary,
+        "warnings": warnings,
+    }
 
 
 # --------------------------------------------------------------------------- #11 math & pseudocode
 
 MATH_MODES = ("latex", "python", "both")
 MAX_MATH_ITEMS = 40
-_GREEK = ("alpha beta gamma delta epsilon varepsilon zeta eta theta vartheta iota kappa lambda mu nu xi pi rho "
-          "sigma tau upsilon phi varphi chi psi omega Gamma Delta Theta Lambda Xi Pi Sigma Phi Psi Omega").split()
-_UNICODE = {"α": "\\alpha ", "β": "\\beta ", "γ": "\\gamma ", "δ": "\\delta ", "ε": "\\epsilon ", "η": "\\eta ",
-            "θ": "\\theta ", "λ": "\\lambda ", "μ": "\\mu ", "π": "\\pi ", "ρ": "\\rho ", "σ": "\\sigma ",
-            "τ": "\\tau ", "φ": "\\phi ", "ω": "\\omega ", "Σ": "\\Sigma ", "Δ": "\\Delta ", "·": "*", "×": "*",
-            "−": "-", "√": "\\sqrt ", "ᵀ": "^T", "²": "^2", "³": "^3", "⊤": "\\top", "←": "="}
-_MATH_FUNCS = {"exp": "math.exp", "log": "math.log", "ln": "math.log", "sin": "math.sin", "cos": "math.cos",
-               "tan": "math.tan", "tanh": "math.tanh", "sqrt": "math.sqrt", "max": "max", "min": "min",
-               "abs": "abs", "sigmoid": None, "softmax": None}
+_GREEK = (
+    "alpha beta gamma delta epsilon varepsilon zeta eta theta vartheta iota kappa lambda mu nu xi pi rho "
+    "sigma tau upsilon phi varphi chi psi omega Gamma Delta Theta Lambda Xi Pi Sigma Phi Psi Omega"
+).split()
+_UNICODE = {
+    "α": "\\alpha ",
+    "β": "\\beta ",
+    "γ": "\\gamma ",
+    "δ": "\\delta ",
+    "ε": "\\epsilon ",
+    "η": "\\eta ",
+    "θ": "\\theta ",
+    "λ": "\\lambda ",
+    "μ": "\\mu ",
+    "π": "\\pi ",
+    "ρ": "\\rho ",
+    "σ": "\\sigma ",
+    "τ": "\\tau ",
+    "φ": "\\phi ",
+    "ω": "\\omega ",
+    "Σ": "\\Sigma ",
+    "Δ": "\\Delta ",
+    "·": "*",
+    "×": "*",
+    "−": "-",
+    "√": "\\sqrt ",
+    "ᵀ": "^T",
+    "²": "^2",
+    "³": "^3",
+    "⊤": "\\top",
+    "←": "=",
+}
+_MATH_FUNCS = {
+    "exp": "math.exp",
+    "log": "math.log",
+    "ln": "math.log",
+    "sin": "math.sin",
+    "cos": "math.cos",
+    "tan": "math.tan",
+    "tanh": "math.tanh",
+    "sqrt": "math.sqrt",
+    "max": "max",
+    "min": "min",
+    "abs": "abs",
+    "sigmoid": None,
+    "softmax": None,
+}
 _CALLABLE_LETTERS = set("fghFGH")
 
 
@@ -606,8 +740,9 @@ def _prep_latex(expr):
     s = re.sub(r"\\div\b", "/", s)
     s = re.sub(r"\^\s*\{?\s*(?:\\top|T|\\intercal)\s*\}?", "^⊺", s)
     s = re.sub(r"\\(?:mathcal|mathbf|boldsymbol|bm|mathbb|mathit|mathsf)\s*\{([^{}]*)\}", r"\1", s)
-    s = re.sub(r"\\(?:mathrm|text|textrm|operatorname|textit)\s*\{([^{}]*)\}",
-               lambda m: "⟨" + m.group(1).strip() + "⟩", s)
+    s = re.sub(
+        r"\\(?:mathrm|text|textrm|operatorname|textit)\s*\{([^{}]*)\}", lambda m: "⟨" + m.group(1).strip() + "⟩", s
+    )
     s = re.sub(r"\\(hat|bar|tilde|dot|vec)\s*\{([^{}]*)\}", lambda m: f"⟨{m.group(2)}_{m.group(1)}⟩", s)
     s = re.sub(r"\\(hat|bar|tilde|dot|vec)\s+([A-Za-z])", lambda m: f"⟨{m.group(2)}_{m.group(1)}⟩", s)
     return s.strip().rstrip(".,;")
@@ -684,8 +819,11 @@ class _MathParser:
 
     def _starts_factor(self):
         kind, val = self.peek()
-        return kind in ("num", "id") or (kind == "cmd" and val not in ("le", "leq", "ge", "geq", "to")) or \
-            (kind == "op" and val in "({[")
+        return (
+            kind in ("num", "id")
+            or (kind == "cmd" and val not in ("le", "leq", "ge", "geq", "to"))
+            or (kind == "op" and val in "({[")
+        )
 
     def term(self):
         out = self.unary()
@@ -878,9 +1016,9 @@ def _split_equation(expr):
             depth += 1
         elif ch in "})]":
             depth -= 1
-        elif ch == "=" and depth == 0 and expr[i - 1:i] not in ("<", ">", "!", ":") and expr[i + 1:i + 2] != "=":
+        elif ch == "=" and depth == 0 and expr[i - 1 : i] not in ("<", ">", "!", ":") and expr[i + 1 : i + 2] != "=":
             lhs = expr[:i].rstrip(":").strip()
-            rhs = expr[i + 1:].strip()
+            rhs = expr[i + 1 :].strip()
             if "=" in rhs:  # chained (align) equations: keep the first right-hand side
                 rhs = _split_equation(rhs)[0] or rhs
             return lhs, rhs
@@ -912,17 +1050,24 @@ def latex_to_python(expr, func_name, label="", word_mode=False):
         lhs_name = re.sub(r"\s+", " ", lhs.replace("⟨", "").replace("⟩", "")).strip() if lhs else None
         variables = [v for v in parser.vars if v not in parser.calls]
         if parser.transpose:  # matrix expression: operands multiplied with a transposed matrix are matrices too
-            parser.matrices |= {v for v in parser.vars if re.search(rf"\b{re.escape(v)}\b\s*\*|\*\s*\b{re.escape(v)}\b", body)}
+            parser.matrices |= {
+                v for v in parser.vars if re.search(rf"\b{re.escape(v)}\b\s*\*|\*\s*\b{re.escape(v)}\b", body)
+            }
         ret = "Any" if parser.transpose else "float"
-        code = (f"{header}def {func_name}({_signature(variables, parser.seqs, parser.calls, parser.matrices)}) -> {ret}:\n{doc}"
-                + (f"    # {lhs_name} = ...\n" if lhs_name else "") + f"    return {body}\n")
+        code = (
+            f"{header}def {func_name}({_signature(variables, parser.seqs, parser.calls, parser.matrices)}) -> {ret}:\n{doc}"
+            + (f"    # {lhs_name} = ...\n" if lhs_name else "")
+            + f"    return {body}\n"
+        )
         import ast
 
         ast.parse(code)
         return code, variables + [s for s in parser.seqs if s not in variables] + parser.calls, True
     except (_MathError, SyntaxError, IndexError, ValueError):
-        code = (f"{header}def {func_name}(*args: Any, **kwargs: Any) -> float:\n{doc}"
-                f"    raise NotImplementedError(\"Automatic translation unsupported; see the LaTeX in the docstring.\")\n")
+        code = (
+            f"{header}def {func_name}(*args: Any, **kwargs: Any) -> float:\n{doc}"
+            f'    raise NotImplementedError("Automatic translation unsupported; see the LaTeX in the docstring.")\n'
+        )
         return code, [], False
 
 
@@ -936,28 +1081,37 @@ def algorithm_to_python(body, func_name, label):
     inputs = []
     for m in _ALGO_INPUT.finditer(body):
         for part in re.split(r",|;|\band\b", m.group(1)):
-            words = re.findall(r"\\?[A-Za-z][A-Za-z0-9_]*|[α-ωΑ-Ω]", _prep_latex(part).replace("⟨", "").replace("⟩", ""))
+            words = re.findall(
+                r"\\?[A-Za-z][A-Za-z0-9_]*|[α-ωΑ-Ω]", _prep_latex(part).replace("⟨", "").replace("⟩", "")
+            )
             if words:
                 name = _py_name(words[-1].lstrip("\\"))
                 if name not in inputs:
                     inputs.append(name)
     steps = [re.sub(r"\s+", " ", ln).strip() for ln in body.splitlines()]
     steps = [s for s in steps if s and not re.match(r"\\(?:begin|end)\{", s)]
-    code = ("import math\nfrom typing import Any, Callable, Sequence\n\n\n"
-            f"def {func_name}({', '.join(f'{x}: Any' for x in inputs)}) -> Any:\n"
-            + _docstring(label, body))
+    code = (
+        "import math\nfrom typing import Any, Callable, Sequence\n\n\n"
+        f"def {func_name}({', '.join(f'{x}: Any' for x in inputs)}) -> Any:\n" + _docstring(label, body)
+    )
     code += "".join(f"    # {s}\n" for s in steps)
-    code += "    raise NotImplementedError(\"Pseudocode transcribed step by step above; implement each step.\")\n"
+    code += '    raise NotImplementedError("Pseudocode transcribed step by step above; implement each step.")\n'
     ast.parse(code)
     return code, inputs
 
 
-_ENV = re.compile(r"\\begin\{(equation|align|gather|multline|eqnarray|algorithm|algorithmic)(\*?)\}(.*?)"
-                  r"\\end\{\1\2\}", re.S)
+_ENV = re.compile(
+    r"\\begin\{(equation|align|gather|multline|eqnarray|algorithm|algorithmic)(\*?)\}(.*?)"
+    r"\\end\{\1\2\}",
+    re.S,
+)
 _DISPLAY = re.compile(r"\$\$(.+?)\$\$|\\\[(.+?)\\\]", re.S)
 _INLINE = re.compile(r"(?<![\\$])\$([^$\n]{3,200})\$(?!\$)")
-_PLAIN_EQ = re.compile(r"^[ \t]*(?:\(\d+\)[ \t]*)?(?P<eq>(?P<lhs>[A-Za-zα-ωΑ-Ω][\w]*(?:\([^()\n=]{0,60}\))?)[ \t]*=[ \t]*"
-                       r"(?P<rhs>[^=\n]{3,240}?))[ \t]*(?:\(\d+\))?[ \t]*$", re.M)
+_PLAIN_EQ = re.compile(
+    r"^[ \t]*(?:\(\d+\)[ \t]*)?(?P<eq>(?P<lhs>[A-Za-zα-ωΑ-Ω][\w]*(?:\([^()\n=]{0,60}\))?)[ \t]*=[ \t]*"
+    r"(?P<rhs>[^=\n]{3,240}?))[ \t]*(?:\(\d+\))?[ \t]*$",
+    re.M,
+)
 _PLAIN_ALGO = re.compile(r"^[ \t]*(Algorithm[ \t]+\d+)[ \t]*[:.]?[ \t]*([^\n]*)\n((?:[ \t]*\S[^\n]*\n?){1,40})", re.M)
 
 
@@ -994,8 +1148,9 @@ def parse_math(text):
     for m in _PLAIN_ALGO.finditer(text):
         if free(m.start(), m.end()):
             spans.append((m.start(), m.end()))
-            found.append((m.start(), "algorithm", f"{m.group(1)}: {m.group(2).strip()}".strip(": "),
-                          m.group(3).rstrip(), True))
+            found.append(
+                (m.start(), "algorithm", f"{m.group(1)}: {m.group(2).strip()}".strip(": "), m.group(3).rstrip(), True)
+            )
     for m in _PLAIN_EQ.finditer(text):
         if not free(m.start(), m.end()) or "|" in m.group(0) or "$" in m.group(0) or "\\" in m.group(0):
             continue
@@ -1048,20 +1203,36 @@ def extract_paper_math(paper_id, mode="latex"):
             code, variables = algorithm_to_python(body, name, label)
             latex = body.strip() if not plain else "\\begin{algorithmic}\n" + body.strip() + "\n\\end{algorithmic}"
         ast.parse(code)
-        items.append(MathItem(index=len(items) + 1, kind=kind, label=label,
-                              latex=latex if mode in ("latex", "both") else "",
-                              python_code=code if mode in ("python", "both") else "",
-                              variables=variables).model_dump())
+        items.append(
+            MathItem(
+                index=len(items) + 1,
+                kind=kind,
+                label=label,
+                latex=latex if mode in ("latex", "both") else "",
+                python_code=code if mode in ("python", "both") else "",
+                variables=variables,
+            ).model_dump()
+        )
         if len(items) >= MAX_MATH_ITEMS:
             break
     warnings = list(corpus["warnings"])
     if not items:
         warnings.append("No equations or algorithms detected.")
     if untranslated and mode != "latex":
-        warnings.append(f"{untranslated} equation(s) could not be translated automatically; their functions raise "
-                        "NotImplementedError and keep the LaTeX in the docstring.")
-    return {"paper_id": corpus["paper_id"], "title": corpus["title"], "source": corpus["source"], "mode": mode,
-            "equation_count": eq_n, "algorithm_count": algo_n, "items": items, "warnings": warnings}
+        warnings.append(
+            f"{untranslated} equation(s) could not be translated automatically; their functions raise "
+            "NotImplementedError and keep the LaTeX in the docstring."
+        )
+    return {
+        "paper_id": corpus["paper_id"],
+        "title": corpus["title"],
+        "source": corpus["source"],
+        "mode": mode,
+        "equation_count": eq_n,
+        "algorithm_count": algo_n,
+        "items": items,
+        "warnings": warnings,
+    }
 
 
 # --------------------------------------------------------------------------- #12 ablation tables
@@ -1069,12 +1240,15 @@ def extract_paper_math(paper_id, mode="latex"):
 MARGINAL_PCT = 1.0
 DOMINANT_SHARE = 0.6
 _ABL_VARIANT = re.compile(
-    r"^\s*(?:w/o|w/|without|no|minus|remove[sd]?|removing|drop(?:ped)?|replace[sd]?|only|with)\b|^\s*[-+−–]\s*\S", re.I)
+    r"^\s*(?:w/o|w/|without|no|minus|remove[sd]?|removing|drop(?:ped)?|replace[sd]?|only|with)\b|^\s*[-+−–]\s*\S", re.I
+)
 _ABL_FULL = re.compile(r"\b(?:full(?:\s+model)?|ours|complete|proposed|final|all\s+components)\b", re.I)
 _ABL_BASE = re.compile(r"^\s*(?:baseline|base(?:\s+model)?|vanilla|backbone)\b", re.I)
 _ABL_LINE = re.compile(
     r"^[ \t]*(?:[*•][ \t]+)?(?P<label>[^:=\n]{2,80}?)[ \t]*[:=][ \t]*(?P<num>[-+−]?\d+(?:\.\d+)?)[ \t]*%?"
-    r"[ \t]*(?:\((?P<metric>[^()\n]{1,40})\))?[ \t]*[.;,]?[ \t]*$", re.M)
+    r"[ \t]*(?:\((?P<metric>[^()\n]{1,40})\))?[ \t]*[.;,]?[ \t]*$",
+    re.M,
+)
 
 
 def _abl_role(label):
@@ -1094,11 +1268,17 @@ def _list_ablations(text):
         label = m.group("label").strip()
         if label.startswith("- ") and _abl_role(label[2:]):
             label = label[2:].strip()
-        if cur and text[last_end:m.start()].strip():
+        if cur and text[last_end : m.start()].strip():
             blocks.append(cur)
             cur = []
-        cur.append((m.start(), label, parse_number(m.group("num").replace("−", "-")),
-                    normalize_metric_name(m.group("metric")) if m.group("metric") else "score"))
+        cur.append(
+            (
+                m.start(),
+                label,
+                parse_number(m.group("num").replace("−", "-")),
+                normalize_metric_name(m.group("metric")) if m.group("metric") else "score",
+            )
+        )
         last_end = m.end()
     if cur:
         blocks.append(cur)
@@ -1110,8 +1290,16 @@ def _list_ablations(text):
         metrics = {}
         for _, lbl, val, metric in block:
             metrics.setdefault(lbl, {})[metric] = val
-        out.append({"table_id": f"list_{len(out) + 1}", "label": "Ablation list", "caption": "", "format": "list",
-                    "start": block[0][0], "normalized_metrics": metrics})
+        out.append(
+            {
+                "table_id": f"list_{len(out) + 1}",
+                "label": "Ablation list",
+                "caption": "",
+                "format": "list",
+                "start": block[0][0],
+                "normalized_metrics": metrics,
+            }
+        )
     return out
 
 
@@ -1145,13 +1333,24 @@ def _ablation_entries(table):
                 continue
             delta = round(v - b, 4)
             pct = round(delta / abs(b) * 100.0, 2) if b else 0.0
-            entries.append(AblationEntry(component=lbl, metric=metric, baseline_value=float(b), variant_value=float(v),
-                                         delta=delta, delta_percent=pct,
-                                         is_marginal=abs(pct) < MARGINAL_PCT).model_dump())
+            entries.append(
+                AblationEntry(
+                    component=lbl,
+                    metric=metric,
+                    baseline_value=float(b),
+                    variant_value=float(v),
+                    delta=delta,
+                    delta_percent=pct,
+                    is_marginal=abs(pct) < MARGINAL_PCT,
+                ).model_dump()
+            )
     entries.sort(key=lambda e: -abs(e["delta_percent"]))
-    reference = {"component": ref, "role": "full_model" if ref == full else "baseline" if ref == base else "first_row",
-                 "values": dict(metrics[ref]),
-                 "baseline": {"component": gain_ref, "values": dict(metrics[gain_ref])} if gain_ref else None}
+    reference = {
+        "component": ref,
+        "role": "full_model" if ref == full else "baseline" if ref == base else "first_row",
+        "values": dict(metrics[ref]),
+        "baseline": {"component": gain_ref, "values": dict(metrics[gain_ref])} if gain_ref else None,
+    }
     return entries, reference
 
 
@@ -1162,8 +1361,10 @@ def _ablation_alerts(entries, reference, table_label):
         if e["is_marginal"]:
             marginal.setdefault(e["component"], []).append(f"{e['metric']} Δ% = {e['delta_percent']:+.2f}%")
     for comp, info in marginal.items():
-        alerts.append(f"[{table_label}] Componente marginal: '{comp}' altera o resultado em menos de 1% "
-                      f"({'; '.join(info)}) — contribuição possivelmente dentro do ruído experimental.")
+        alerts.append(
+            f"[{table_label}] Componente marginal: '{comp}' altera o resultado em menos de 1% "
+            f"({'; '.join(info)}) — contribuição possivelmente dentro do ruído experimental."
+        )
     by_metric = {}
     for e in entries:
         by_metric.setdefault(e["metric"], []).append(e)
@@ -1182,8 +1383,10 @@ def _ablation_alerts(entries, reference, table_label):
         top = max(group, key=lambda e: abs(e["delta"]))
         share = abs(top["delta"]) / total
         if share >= DOMINANT_SHARE:
-            alerts.append(f"[{table_label}] Componente dominante: '{top['component']}' responde por {share:.0%} "
-                          f"do ganho em {metric} ({basis} = {total:.4g}); os demais componentes têm papel secundário.")
+            alerts.append(
+                f"[{table_label}] Componente dominante: '{top['component']}' responde por {share:.0%} "
+                f"do ganho em {metric} ({basis} = {total:.4g}); os demais componentes têm papel secundário."
+            )
     return alerts
 
 
@@ -1191,8 +1394,11 @@ def analyze_ablation_tables(paper_id):
     """Rank ablated components by impact (Δ / Δ%) and flag marginal or dominant contributions."""
     corpus = pdf_parser.get_paper_corpus(_paper_id(paper_id))
     text = corpus["text"]
-    tables = [t for t in parse_benchmark_tables(text, corpus["pages"], corpus["captions"])
-              if t["table_id"] != "inline_metrics"]
+    tables = [
+        t
+        for t in parse_benchmark_tables(text, corpus["pages"], corpus["captions"])
+        if t["table_id"] != "inline_metrics"
+    ]
     masked = list(text)
     for tb in tables:
         s, e = tb.pop("_span")
@@ -1213,16 +1419,31 @@ def analyze_ablation_tables(paper_id):
             e["table_id"] = tb["table_id"]
         ablations.extend(entries)
         alerts.extend(_ablation_alerts(entries, reference, label))
-        analyzed.append({"table_id": tb["table_id"], "label": label, "caption": tb.get("caption") or "",
-                         "format": tb.get("format"), "page": tb.get("page"), "reference": reference,
-                         "variant_count": len({e["component"] for e in entries})})
+        analyzed.append(
+            {
+                "table_id": tb["table_id"],
+                "label": label,
+                "caption": tb.get("caption") or "",
+                "format": tb.get("format"),
+                "page": tb.get("page"),
+                "reference": reference,
+                "variant_count": len({e["component"] for e in entries}),
+            }
+        )
     ablations.sort(key=lambda e: -abs(e["delta_percent"]))
     warnings = list(corpus["warnings"])
     if not ablations:
         warnings.append("No ablation tables or 'Full model / w/o ...' result lists detected.")
-    return {"paper_id": corpus["paper_id"], "title": corpus["title"], "source": corpus["source"],
-            "ablations": ablations, "reference": primary, "tables_analyzed": analyzed,
-            "warnings_and_alerts": alerts, "warnings": warnings}
+    return {
+        "paper_id": corpus["paper_id"],
+        "title": corpus["title"],
+        "source": corpus["source"],
+        "ablations": ablations,
+        "reference": primary,
+        "tables_analyzed": analyzed,
+        "warnings_and_alerts": alerts,
+        "warnings": warnings,
+    }
 
 
 # --------------------------------------------------------------------------- #13 prompts & decoding
@@ -1231,7 +1452,9 @@ MAX_PROMPTS = 30
 MAX_PROMPT_CHARS = 4000
 _PROMPT_LABEL = re.compile(
     r"^[ \t>*_#]*(?P<label>(?:system|user|assistant)\s+(?:prompt|message)|prompt\s+template|(?:few-shot\s+|cot\s+)?"
-    r"prompt(?:\s+\d+)?|instructions?|system|user)[ \t*_]*:[ \t]*(?P<rest>[^\n]*)$", re.I | re.M)
+    r"prompt(?:\s+\d+)?|instructions?|system|user)[ \t*_]*:[ \t]*(?P<rest>[^\n]*)$",
+    re.I | re.M,
+)
 _FENCE = re.compile(r"^[ \t]*```[ \t]*(?P<lang>[\w+-]*)[ \t]*\n(?P<body>.*?)^[ \t]*```[ \t]*$", re.S | re.M)
 _QUOTED = re.compile(r"[\"“]([^\"“”]{20,1500})[\"”]")
 _VAR_DOUBLE = re.compile(r"\{\{\s*([A-Za-z_][\w.-]*)\s*\}\}")
@@ -1241,43 +1464,74 @@ _HTML_TAGS = frozenset("a b i u p br hr em li ol ul div span table tr td th sup 
 _PROMPT_CUES = re.compile(
     r"let'?s think step by step|you are an? (?:expert|helpful|assistant|\w+ (?:assistant|expert))|"
     r"answer the (?:following )?question|respond (?:only )?(?:in|with) json|^\s*(?:question|answer|context)\s*:",
-    re.I | re.M)
+    re.I | re.M,
+)
 _PROMPT_HINT = re.compile(r"\bprompts?\b|\binstructions?\b|\btemplate\b", re.I)
 
-_HP_SEP = r"(?:\s*(?:=|:|≈|\bof\b|\bis\b|\bwas\b|\bset\s+to\b|\bequal\s+to\b|\bto\b|\bat\b|\bfixed\s+at\b|\(\s*)\s*)*\s*"
+_HP_SEP = (
+    r"(?:\s*(?:=|:|≈|\bof\b|\bis\b|\bwas\b|\bset\s+to\b|\bequal\s+to\b|\bto\b|\bat\b|\bfixed\s+at\b|\(\s*)\s*)*\s*"
+)
 _HP_NUM = r"(?P<v>\d+(?:\.\d+)?|\.\d+)"
 _HYPERPARAMS = (
     ("temperature", r"\b(?:sampling\s+)?(?:temperature|temp)\b(?:\s*\(\s*T\s*\))?"),
     ("temperature", r"(?<![\w.])T(?=\s*=)"),
     ("top_p", r"\btop[-_ ]?p\b|\bnucleus\s+sampling(?:\s+with)?(?:\s+(?:p|threshold|probability))?|\bnucleus\s+p\b"),
     ("top_k", r"\btop[-_ ]?k(?:\s+sampling)?\b"),
-    ("max_tokens", r"\bmax(?:imum)?[-_ ]?(?:number\s+of\s+)?(?:new[-_ ]|generated[-_ ]|generation[-_ ]|output[-_ ])?"
-                   r"(?:tokens|length|gen(?:eration)?[-_ ]len(?:gth)?)\b"),
+    (
+        "max_tokens",
+        r"\bmax(?:imum)?[-_ ]?(?:number\s+of\s+)?(?:new[-_ ]|generated[-_ ]|generation[-_ ]|output[-_ ])?"
+        r"(?:tokens|length|gen(?:eration)?[-_ ]len(?:gth)?)\b",
+    ),
     ("repetition_penalty", r"\brepetition[-_ ]penalty\b"),
     ("beam_size", r"\b(?:beam[-_ ](?:size|width)|num[-_]beams|number\s+of\s+beams)\b"),
     ("seed", r"\b(?:random\s+)?seed\b"),
 )
-_HP_PATTERNS = [(key, re.compile(rf"(?:{name}){_HP_SEP}{_HP_NUM}(?![\w.]*\d)", 0 if name.startswith("(?<!") else re.I))
-                for key, name in _HYPERPARAMS]  # the bare `T = 0.2` form stays case-sensitive
-_HP_REVERSED = (("beam_size", re.compile(r"\b(?P<v>\d+)\s+beams\b|\bbeam\s+search\s+with\s+(?:a\s+)?(?:beam\s+)?"
-                                         r"(?:size|width)?\s*(?:of\s+)?(?P<v2>\d+)\b", re.I)),
-                ("max_tokens", re.compile(r"\bup\s+to\s+(?P<v>\d+)\s+(?:new\s+)?tokens\b", re.I)))
-_HP_RANGES = {"temperature": (0, 5), "top_p": (0, 1), "top_k": (1, 100000), "max_tokens": (1, 10 ** 7),
-              "repetition_penalty": (0.5, 5), "beam_size": (1, 1000), "seed": (0, 2 ** 63)}
+_HP_PATTERNS = [
+    (key, re.compile(rf"(?:{name}){_HP_SEP}{_HP_NUM}(?![\w.]*\d)", 0 if name.startswith("(?<!") else re.I))
+    for key, name in _HYPERPARAMS
+]  # the bare `T = 0.2` form stays case-sensitive
+_HP_REVERSED = (
+    (
+        "beam_size",
+        re.compile(
+            r"\b(?P<v>\d+)\s+beams\b|\bbeam\s+search\s+with\s+(?:a\s+)?(?:beam\s+)?"
+            r"(?:size|width)?\s*(?:of\s+)?(?P<v2>\d+)\b",
+            re.I,
+        ),
+    ),
+    ("max_tokens", re.compile(r"\bup\s+to\s+(?P<v>\d+)\s+(?:new\s+)?tokens\b", re.I)),
+)
+_HP_RANGES = {
+    "temperature": (0, 5),
+    "top_p": (0, 1),
+    "top_k": (1, 100000),
+    "max_tokens": (1, 10**7),
+    "repetition_penalty": (0.5, 5),
+    "beam_size": (1, 1000),
+    "seed": (0, 2**63),
+}
 _HP_INT = {"top_k", "max_tokens", "beam_size", "seed"}
-_DECODING = (("greedy", r"\bgreedy(?:\s+decoding)?\b"), ("beam_search", r"\bbeam\s+search\b"),
-             ("nucleus_sampling", r"\bnucleus\s+sampling\b|\btop[-_ ]?p\s+sampling\b"),
-             ("top_k_sampling", r"\btop[-_ ]?k\s+sampling\b"), ("self_consistency", r"\bself[-_ ]consistency\b"))
+_DECODING = (
+    ("greedy", r"\bgreedy(?:\s+decoding)?\b"),
+    ("beam_search", r"\bbeam\s+search\b"),
+    ("nucleus_sampling", r"\bnucleus\s+sampling\b|\btop[-_ ]?p\s+sampling\b"),
+    ("top_k_sampling", r"\btop[-_ ]?k\s+sampling\b"),
+    ("self_consistency", r"\bself[-_ ]consistency\b"),
+)
 
 
 def prompt_variables(text):
     """`{var}`, `{{var}}` and `<var>` placeholders, in order of appearance (verbatim names)."""
     found = []
-    for m in sorted([*_VAR_DOUBLE.finditer(text), *_VAR_SINGLE.finditer(text), *_VAR_TAG.finditer(text)],
-                    key=lambda m: m.start()):
+    for m in sorted(
+        [*_VAR_DOUBLE.finditer(text), *_VAR_SINGLE.finditer(text), *_VAR_TAG.finditer(text)], key=lambda m: m.start()
+    ):
         name = m.group(1)
-        if m.re is _VAR_TAG and (name.lower() in _HTML_TAGS or f"</{name}>" not in text and
-                                 name.lower() not in ("context", "question", "input", "answer", "document", "query")):
+        if m.re is _VAR_TAG and (
+            name.lower() in _HTML_TAGS
+            or f"</{name}>" not in text
+            and name.lower() not in ("context", "question", "input", "answer", "document", "query")
+        ):
             continue
         if name not in found:
             found.append(name)
@@ -1285,8 +1539,12 @@ def prompt_variables(text):
 
 
 def _is_prompt_like(text):
-    return bool(_VAR_DOUBLE.search(text) or _VAR_SINGLE.search(text) or _PROMPT_CUES.search(text) or
-                any(m.group(1).lower() not in _HTML_TAGS for m in _VAR_TAG.finditer(text)))
+    return bool(
+        _VAR_DOUBLE.search(text)
+        or _VAR_SINGLE.search(text)
+        or _PROMPT_CUES.search(text)
+        or any(m.group(1).lower() not in _HTML_TAGS for m in _VAR_TAG.finditer(text))
+    )
 
 
 def _labeled_block(text, m):
@@ -1327,9 +1585,19 @@ def _find_prompts(text):
         label = re.sub(r"\s+", " ", m.group("label")).strip()
         body, end = _labeled_block(text, m)
         low = label.lower()
-        kind = ("system" if low.startswith("system") else "user" if low.startswith("user") else
-                "assistant" if low.startswith("assistant") else "template" if "template" in low else
-                "instruction" if low.startswith("instruction") else "prompt")
+        kind = (
+            "system"
+            if low.startswith("system")
+            else "user"
+            if low.startswith("user")
+            else "assistant"
+            if low.startswith("assistant")
+            else "template"
+            if "template" in low
+            else "instruction"
+            if low.startswith("instruction")
+            else "prompt"
+        )
         # a lone `Instruction:`/`User:` line in prose must still look like a prompt
         if kind in ("instruction", "user", "prompt") and not _is_prompt_like(body) and len(body) < 40:
             continue
@@ -1338,7 +1606,7 @@ def _find_prompts(text):
         body, lang = m.group("body"), m.group("lang").lower()
         if lang == "json" or (body.lstrip().startswith(("{", "[")) and not _VAR_SINGLE.search(body)):
             continue
-        context = text[max(0, m.start() - 300):m.start()]
+        context = text[max(0, m.start() - 300) : m.start()]
         if lang in ("python", "py", "bash", "sh") and not _is_prompt_like(body):
             continue
         if _is_prompt_like(body) or _PROMPT_HINT.search(context):
@@ -1348,8 +1616,9 @@ def _find_prompts(text):
             add(m.start(), m.end(), "quoted", "Quoted prompt", m.group(1))
     for m in re.finditer(r"(?:^|\n\s*\n)(?P<para>(?:[^\n]+\n?)+)", text):
         para = m.group("para")
-        if _is_prompt_like(para) and (_VAR_DOUBLE.search(para) or _VAR_SINGLE.search(para) or
-                                      _PROMPT_CUES.search(para)):
+        if _is_prompt_like(para) and (
+            _VAR_DOUBLE.search(para) or _VAR_SINGLE.search(para) or _PROMPT_CUES.search(para)
+        ):
             s = m.start("para")
             add(s, s + len(para), "inline", "Prompt text", para.rstrip())
     found.sort(key=lambda p: p["start"])
@@ -1393,8 +1662,14 @@ def extract_hyperparameters(text, pages=None):
                 current.append(value)
         elif current != value:
             params[key] = [current, value]
-        evidence.append({"parameter": key, "value": value, "quote": re.sub(r"\s+", " ", quote).strip(),
-                         "page": pdf_parser.page_at(pages, start) if pages else None})
+        evidence.append(
+            {
+                "parameter": key,
+                "value": value,
+                "quote": re.sub(r"\s+", " ", quote).strip(),
+                "page": pdf_parser.page_at(pages, start) if pages else None,
+            }
+        )
     strategies = [name for name, rx in _DECODING if re.search(rx, text, re.I)]
     if strategies:
         params["decoding_strategy"] = strategies[0] if len(strategies) == 1 else strategies
@@ -1447,82 +1722,134 @@ def extract_prompts_and_decoding(paper_id):
     for i, p in enumerate(_find_prompts(text), 1):
         names = prompt_variables(p["text"])
         variables += [n for n in names if n not in variables]
-        prompts.append({"index": i, "type": p["type"], "label": p["label"], "text": p["text"], "variables": names,
-                        "page": pdf_parser.page_at(pages, p["start"]),
-                        "section": pdf_parser.section_at(corpus["sections"], p["start"])})
+        prompts.append(
+            {
+                "index": i,
+                "type": p["type"],
+                "label": p["label"],
+                "text": p["text"],
+                "variables": names,
+                "page": pdf_parser.page_at(pages, p["start"]),
+                "section": pdf_parser.section_at(corpus["sections"], p["start"]),
+            }
+        )
     params, evidence = extract_hyperparameters(text, pages)
     schemas = extract_json_schemas(text)
-    result = PromptExtractionResult(paper_id=corpus["paper_id"], prompts=prompts, hyperparameters=params,
-                                    json_schemas=schemas).model_dump()
+    result = PromptExtractionResult(
+        paper_id=corpus["paper_id"], prompts=prompts, hyperparameters=params, json_schemas=schemas
+    ).model_dump()
     warnings = list(corpus["warnings"])
     if not prompts:
         warnings.append("No prompt templates detected.")
     if not params:
         warnings.append("No decoding hyperparameters (temperature, top_p, top_k, max_tokens, ...) reported.")
-    result.update({"title": corpus["title"], "source": corpus["source"], "variables": variables,
-                   "hyperparameter_evidence": evidence, "warnings": warnings})
+    result.update(
+        {
+            "title": corpus["title"],
+            "source": corpus["source"],
+            "variables": variables,
+            "hyperparameter_evidence": evidence,
+            "warnings": warnings,
+        }
+    )
     return result
 
 
 # --------------------------------------------------------------------------- #14 failure modes & critical assumptions
 
 _PRIORITY_SECTIONS = re.compile(
-    r"limitation|error\s+analysis|failure|discussion|threat|validity|broader\s+impact|appendix|weakness|caveat", re.I)
+    r"limitation|error\s+analysis|failure|discussion|threat|validity|broader\s+impact|appendix|weakness|caveat", re.I
+)
 
 _ABBR_DOT = re.compile(r"\b(?:i\.i\.d|e\.g|i\.e|et\s+al|vs|cf|fig|tab|eq|sec|dr|mr|prof|no|vol|pp|approx)\.", re.I)
 
 _FAILURE_CATEGORIES = (
-    ("long_context", re.compile(
-        r"\b(?:long[-\s]context|sequence\s+length|context\s+window|context\s+length|lost\s+in\s+the\s+middle|"
-        r"quadratic\s+complexity|memory\s+overflow|out[-\s]of[-\s]memory|\bOOM\b|long\s+sequences|long\s+inputs)\b|"
-        r"\bO\(\s*[nNlL]\s*(?:\^\s*2|²)\s*\)|>\s*(?:8|16|32|64|128)\s*k\b", re.I)),
-    ("noise_sensitivity", re.compile(
-        r"\b(?:noisy|noise|perturbations?|adversarial|corrupted|missing\s+data|prompt\s+sensitivity|"
-        r"sensitive\s+to\s+prompts?|brittle|outliers?|malformed\s+prompts?|typos?)\b", re.I)),
-    ("out_of_distribution", re.compile(
-        r"\b(?:out[-\s]of[-\s]distribution|\bOOD\b|domain\s+shift|distribution\s+shift|covariate\s+shift|"
-        r"generaliz(?:e|es|ing|ation)\s+to|unseen\s+domains?|cross[-\s]lingual|external\s+validity|"
-        r"non[-\s]english|low[-\s]resource\s+languages?)\b", re.I)),
-    ("latency_or_compute", re.compile(
-        r"\b(?:latency|slow(?:er)?|computational\s+cost|compute\s+cost|overhead|inference\s+time|"
-        r"inference\s+cost|memory\s+footprint|bottleneck|multi[-\s]step|multiple\s+inference\s+calls|"
-        r"low\s+throughput|high\s+vram|energy\s+consumption)\b", re.I)),
-    ("sample_or_population_bias", re.compile(
-        r"\b(?:small\s+sample|single[-\s]center|retrospective|selection\s+bias|attrition|"
-        r"short\s+follow[-\s]up|in\s+vitro|animal\s+models?|mice|murine|pre[-\s]?clinical|"
-        r"convenience\s+sample|small\s+cohort)\b", re.I)),
+    (
+        "long_context",
+        re.compile(
+            r"\b(?:long[-\s]context|sequence\s+length|context\s+window|context\s+length|lost\s+in\s+the\s+middle|"
+            r"quadratic\s+complexity|memory\s+overflow|out[-\s]of[-\s]memory|\bOOM\b|long\s+sequences|long\s+inputs)\b|"
+            r"\bO\(\s*[nNlL]\s*(?:\^\s*2|²)\s*\)|>\s*(?:8|16|32|64|128)\s*k\b",
+            re.I,
+        ),
+    ),
+    (
+        "noise_sensitivity",
+        re.compile(
+            r"\b(?:noisy|noise|perturbations?|adversarial|corrupted|missing\s+data|prompt\s+sensitivity|"
+            r"sensitive\s+to\s+prompts?|brittle|outliers?|malformed\s+prompts?|typos?)\b",
+            re.I,
+        ),
+    ),
+    (
+        "out_of_distribution",
+        re.compile(
+            r"\b(?:out[-\s]of[-\s]distribution|\bOOD\b|domain\s+shift|distribution\s+shift|covariate\s+shift|"
+            r"generaliz(?:e|es|ing|ation)\s+to|unseen\s+domains?|cross[-\s]lingual|external\s+validity|"
+            r"non[-\s]english|low[-\s]resource\s+languages?)\b",
+            re.I,
+        ),
+    ),
+    (
+        "latency_or_compute",
+        re.compile(
+            r"\b(?:latency|slow(?:er)?|computational\s+cost|compute\s+cost|overhead|inference\s+time|"
+            r"inference\s+cost|memory\s+footprint|bottleneck|multi[-\s]step|multiple\s+inference\s+calls|"
+            r"low\s+throughput|high\s+vram|energy\s+consumption)\b",
+            re.I,
+        ),
+    ),
+    (
+        "sample_or_population_bias",
+        re.compile(
+            r"\b(?:small\s+sample|single[-\s]center|retrospective|selection\s+bias|attrition|"
+            r"short\s+follow[-\s]up|in\s+vitro|animal\s+models?|mice|murine|pre[-\s]?clinical|"
+            r"convenience\s+sample|small\s+cohort)\b",
+            re.I,
+        ),
+    ),
 )
 
 _GENERAL_LIMITATION = re.compile(
     r"\b(?:limitations?|drawbacks?|weakness(?:es)?|fails?\s+(?:when|to|on|under|if)|"
     r"struggles?\s+(?:with|to|on|when)|does\s+not\s+support|cannot\s+handle|unable\s+to|"
-    r"degrades?\s+(?:when|on|under|rapidly|significantly)|shortcomings?|caveats?)\b", re.I)
+    r"degrades?\s+(?:when|on|under|rapidly|significantly)|shortcomings?|caveats?)\b",
+    re.I,
+)
 
 _SEVERITY_HIGH = re.compile(
     r"\b(?:fails?|collapses?|severe(?:ly)?|prohibitive(?:ly)?|critical(?:ly)?|cannot|can't|"
-    r"only\s+in\s+vitro|catastrophic(?:ally)?|drastic(?:ally)?|unusable)\b", re.I)
-_SEVERITY_LOW = re.compile(
-    r"\b(?:minor|slight(?:ly)?|marginal(?:ly)?|negligible|modest(?:ly)?)\b", re.I)
+    r"only\s+in\s+vitro|catastrophic(?:ally)?|drastic(?:ally)?|unusable)\b",
+    re.I,
+)
+_SEVERITY_LOW = re.compile(r"\b(?:minor|slight(?:ly)?|marginal(?:ly)?|negligible|modest(?:ly)?)\b", re.I)
 
 _TRIGGER_CLAUSE = re.compile(
     r"(?:\b(?:when|if|under|beyond|above|over|for\s+inputs?|for\s+sequences?|in\s+the\s+presence\s+of|"
     r"on\s+unseen|with\s+noisy|at\s+sequence\s+lengths?)\s+[^.;,\n]{3,90}|"
-    r">\s*\d+\s*[kKmM]?(?:\s*tokens?)?|\bO\(\s*[nNlL]\s*(?:\^\s*2|²)\s*\))", re.I)
+    r">\s*\d+\s*[kKmM]?(?:\s*tokens?)?|\bO\(\s*[nNlL]\s*(?:\^\s*2|²)\s*\))",
+    re.I,
+)
 
 _ASSUMPTION_RE = re.compile(
     r"\b(?:assum(?:e|es|ed|ing|ption|ptions)|requires?\s+that|under\s+the\s+(?:condition|assumption)|"
     r"provided\s+that|i\.?i\.?d\.?|independent\s+and\s+identically\s+distributed|stationar(?:y|ity)|"
     r"parallel\s+trends?|exogen(?:eity|ous)|no\s+unmeasured\s+confound(?:ing|ers?)|"
-    r"oracle(?:\s+[a-z]+)?|clean\s+labels?)\b", re.I)
+    r"oracle(?:\s+[a-z]+)?|clean\s+labels?)\b",
+    re.I,
+)
 
 _BASELINE_SUPERIORITY_RE = re.compile(
     r"\b(?:outperformed\s+by|baseline\s+outperforms?|outperforms?\s+(?:our|the\s+proposed)|"
     r"underperforms?|worse\s+than|classical\s+(?:methods?|models?|baselines?)|simple\s+baselines?|"
     r"linear\s+models?|BM25|logistic\s+regression|in\s+low[-\s]data|on\s+small\s+datasets?|"
-    r"when\s+N\s+is\s+small)\b", re.I)
+    r"when\s+N\s+is\s+small)\b",
+    re.I,
+)
 
 _OURS_ROW_RE = re.compile(
-    r"\b(?:ours|our\s+(?:model|method|approach|system|framework)|proposed(?:\s+method|\s+model)?|full\s+model)\b", re.I)
+    r"\b(?:ours|our\s+(?:model|method|approach|system|framework)|proposed(?:\s+method|\s+model)?|full\s+model)\b", re.I
+)
 
 
 def _prose_sentences(text, sections, table_spans=()):
@@ -1563,9 +1890,12 @@ def _trigger_for(sentence, match_text):
 def _extract_operational_limits(text):
     limits = {}
     ctx_patterns = (
-        re.compile(r"(?:context\s+(?:window|length)|sequence\s+length|max(?:imum)?\s+(?:context|sequence|input)"
-                   r"(?:\s+(?:length|window|tokens?))?|beyond|exceeds?|>|>=)\s*(?:of\s*|[:=]\s*)?"
-                   r"(?P<num>\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(?P<unit>[kKmM])?\s*(?:tokens?\b|context\b)?", re.I),
+        re.compile(
+            r"(?:context\s+(?:window|length)|sequence\s+length|max(?:imum)?\s+(?:context|sequence|input)"
+            r"(?:\s+(?:length|window|tokens?))?|beyond|exceeds?|>|>=)\s*(?:of\s*|[:=]\s*)?"
+            r"(?P<num>\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(?P<unit>[kKmM])?\s*(?:tokens?\b|context\b)?",
+            re.I,
+        ),
         re.compile(r"\b(?P<num>\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(?P<unit>[kK])\s*tokens?\b", re.I),
         re.compile(r">\s*(?P<num>\d+(?:\.\d+)?)\s*(?P<unit>[kK])\b", re.I),
     )
@@ -1583,7 +1913,9 @@ def _extract_operational_limits(text):
     m_samp = re.search(
         r"\b(?:min(?:imum)?\s+sample(?:\s+size)?(?:\s+of)?|sample\s+size(?:\s+of)?|\b[nN]\s*=\s*|cohort\s+of\s+)"
         r"(\d{1,3}(?:,\d{3})+|\d+)\s*(?:patients?|participants?|subjects?|samples?|examples?|instances?|individuals?)?\b",
-        text or "", re.I)
+        text or "",
+        re.I,
+    )
     if m_samp:
         n_val = int(m_samp.group(1).replace(",", ""))
         if 1 <= n_val <= 10_000_000:
@@ -1592,7 +1924,9 @@ def _extract_operational_limits(text):
     m_lat = re.search(
         r"(?:latency(?:\s+of|\s*[:=])?\s*(?P<v1>\d+(?:\.\d+)?)\s*(?P<u1>ms|milliseconds?|s|seconds?)\b|"
         r"\b(?P<v2>\d+(?:\.\d+)?)\s*(?P<u2>ms|milliseconds?)\s+(?:latency|per\s+(?:token|query|step|request)))",
-        text or "", re.I)
+        text or "",
+        re.I,
+    )
     if m_lat:
         v = float(m_lat.group("v1") or m_lat.group("v2"))
         u = (m_lat.group("u1") or m_lat.group("u2") or "ms").lower()
@@ -1620,8 +1954,9 @@ def _table_baseline_superiority(paper_id, corpus, inspect_fulltext=True):
                 tables = ext["tables"]
         except Exception:
             pass
-    title_words = {w.lower() for w in re.findall(r"[A-Za-z][A-Za-z0-9\-]{2,}", corpus.get("title") or "")
-                   if w.lower() not in _STOP}
+    title_words = {
+        w.lower() for w in re.findall(r"[A-Za-z][A-Za-z0-9\-]{2,}", corpus.get("title") or "") if w.lower() not in _STOP
+    }
     for tb in tables:
         if tb.get("table_id") == "inline_metrics" or tb.get("format") == "inline":
             continue
@@ -1632,9 +1967,13 @@ def _table_baseline_superiority(paper_id, corpus, inspect_fulltext=True):
         ours_label = next((lbl for lbl in labels if _OURS_ROW_RE.search(lbl) and not _ABL_VARIANT.search(lbl)), None)
         if ours_label is None and title_words:
             ours_label = next(
-                (lbl for lbl in labels
-                 if any(w in lbl.lower() for w in title_words) and not _ABL_VARIANT.search(lbl)
-                 and not _ABL_BASE.search(lbl)),
+                (
+                    lbl
+                    for lbl in labels
+                    if any(w in lbl.lower() for w in title_words)
+                    and not _ABL_VARIANT.search(lbl)
+                    and not _ABL_BASE.search(lbl)
+                ),
                 None,
             )
         if not ours_label:
@@ -1650,8 +1989,10 @@ def _table_baseline_superiority(paper_id, corpus, inspect_fulltext=True):
                     continue
                 lower_better = metric in LOWER_IS_BETTER
                 if (not lower_better and other_v > ours_v) or (lower_better and other_v < ours_v):
-                    msg = (f"{tb_label} ({metric}): baseline '{other_label}' ({other_v}) outperforms "
-                           f"'{ours_label}' ({ours_v}).")
+                    msg = (
+                        f"{tb_label} ({metric}): baseline '{other_label}' ({other_v}) outperforms "
+                        f"'{ours_label}' ({ours_v})."
+                    )
                     if msg not in scenarios:
                         scenarios.append(msg)
     return scenarios
@@ -1695,7 +2036,7 @@ def detect_failure_modes(paper_id: str, inspect_fulltext: bool = True) -> dict:
     assumptions = []
     baseline_scenarios = []
 
-    for _, _, sec, sent in sentences:
+    for _, _, _sec, sent in sentences:
         matched_specific = False
         for category, rx in _FAILURE_CATEGORIES:
             m = rx.search(sent)
@@ -1704,26 +2045,30 @@ def detect_failure_modes(paper_id: str, inspect_fulltext: bool = True) -> dict:
                 key = (category, sent)
                 if key not in seen_cat_quote:
                     seen_cat_quote.add(key)
-                    failure_modes.append(FailureModeEntry(
-                        category=category,
-                        severity=_severity_for(sent),
-                        description=sent,
-                        trigger_condition=_trigger_for(sent, m.group(0)),
-                        evidence_quote=sent,
-                    ))
+                    failure_modes.append(
+                        FailureModeEntry(
+                            category=category,
+                            severity=_severity_for(sent),
+                            description=sent,
+                            trigger_condition=_trigger_for(sent, m.group(0)),
+                            evidence_quote=sent,
+                        )
+                    )
         if not matched_specific:
             m_gen = _GENERAL_LIMITATION.search(sent)
             if m_gen:
                 key = ("general_limitation", sent)
                 if key not in seen_cat_quote:
                     seen_cat_quote.add(key)
-                    failure_modes.append(FailureModeEntry(
-                        category="general_limitation",
-                        severity=_severity_for(sent),
-                        description=sent,
-                        trigger_condition=_trigger_for(sent, m_gen.group(0)),
-                        evidence_quote=sent,
-                    ))
+                    failure_modes.append(
+                        FailureModeEntry(
+                            category="general_limitation",
+                            severity=_severity_for(sent),
+                            description=sent,
+                            trigger_condition=_trigger_for(sent, m_gen.group(0)),
+                            evidence_quote=sent,
+                        )
+                    )
 
         if _ASSUMPTION_RE.search(sent) and sent not in assumptions:
             assumptions.append(sent)
@@ -1750,6 +2095,7 @@ def detect_failure_modes(paper_id: str, inspect_fulltext: bool = True) -> dict:
 
 
 # --------------------------------------------------------------------------- #15 arXiv version diff
+
 
 def diff_arxiv_versions(arxiv_id: str, from_version: str = "v1", to_version: str = "v2") -> dict:
     """Compare two versions of an arXiv paper (metadata, metrics, claim attenuations, new baselines/datasets)."""

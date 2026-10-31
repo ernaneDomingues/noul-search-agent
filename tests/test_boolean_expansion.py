@@ -1,4 +1,5 @@
 """Etapa 5 (#07): suggest_boolean_queries — acronyms/emerging terms, AND/OR/NOT strategies, CLI `expand --run`."""
+
 import contextlib
 import io
 import json
@@ -43,8 +44,11 @@ class BooleanExpansionTests(unittest.TestCase):
         self.assertEqual([s["index"] for s in sug], [1, 2, 3])
         self.assertEqual([s["strategy"] for s in sug], STRATEGIES)
         for s in sug:
-            self.assertTrue(s["boolean_query"].startswith("(llm AND quantization)")
-                            or s["boolean_query"].startswith("((llm AND quantization)"), s)
+            self.assertTrue(
+                s["boolean_query"].startswith("(llm AND quantization)")
+                or s["boolean_query"].startswith("((llm AND quantization)"),
+                s,
+            )
             self.assertTrue(s["rationale"] and s["target_terms"])
         q1, q2, q3 = (s["boolean_query"] for s in sug)
         self.assertEqual(q1, '(llm AND quantization) AND ("MMLU" OR "language models" OR "large language")')
@@ -88,8 +92,9 @@ class BooleanExpansionTests(unittest.TestCase):
         fake = {"papers": [], "sources": {}, "warnings": []}
         buf = io.StringIO()
         with mock.patch.object(c, "search", return_value=fake) as search, contextlib.redirect_stdout(buf):
-            code = cli.main(["expand", "llm quantization", "--ids", ",".join(self.llm_ids), "--run", "1",
-                             "--limit", "5"])
+            code = cli.main(
+                ["expand", "llm quantization", "--ids", ",".join(self.llm_ids), "--run", "1", "--limit", "5"]
+            )
         data = json.loads(buf.getvalue())
         self.assertEqual(code, 0)
         self.assertEqual(search.call_args.args[0], expected)

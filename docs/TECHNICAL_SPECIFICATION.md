@@ -105,11 +105,13 @@ ernanedomingues-noul-search-agent/
 ```python
 from enum import Enum
 
+
 class ScientificDomain(str, Enum):
     COMPUTER_SCIENCE = "computer_science"
     BIOMEDICAL = "biomedical"
     ECONOMICS = "economics"
     GENERAL_STEM = "general_stem"
+
 
 class ReviewVerdict(str, Enum):
     ACCEPT = "accept"
@@ -125,6 +127,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field, HttpUrl
 from noul.schemas.domain import ScientificDomain
 
+
 class PaperReference(BaseModel):
     paper_id: str
     title: str
@@ -136,6 +139,7 @@ class PaperReference(BaseModel):
     doi: Optional[str] = None
     url: Optional[str] = None
 
+
 class ArtifactStatus(BaseModel):
     has_code: bool = False
     code_url: Optional[HttpUrl] = None
@@ -145,6 +149,7 @@ class ArtifactStatus(BaseModel):
     has_dataset: bool = False
     dataset_url: Optional[HttpUrl] = None
     evasive_availability_statement: bool = False
+
 
 class UnifiedPaper(BaseModel):
     id: str
@@ -174,10 +179,12 @@ class UnifiedPaper(BaseModel):
 from typing import Literal, Optional
 from pydantic import BaseModel
 
+
 class PrecisionMemory(BaseModel):
     weights_gb: float
     kv_cache_8k_context_gb: float
     recommended_min_vram_gb: float
+
 
 class HardwareFeasibility(BaseModel):
     paper_id: str
@@ -196,6 +203,7 @@ class HardwareFeasibility(BaseModel):
 from typing import Any, Dict, List
 from pydantic import BaseModel, Field
 
+
 class ComparisonDimension(BaseModel):
     paper_id: str
     paper_title: str
@@ -205,11 +213,13 @@ class ComparisonDimension(BaseModel):
     primary_metrics: Dict[str, Any] = Field(default_factory=dict)
     reported_limitations: List[str] = Field(default_factory=list)
 
+
 class ComparativeMatrixResult(BaseModel):
     papers: List[ComparisonDimension]
     divergence_summary: str
     convergence_summary: str
     markdown_table: str
+
 
 class ThematicInsightsResult(BaseModel):
     topic: str
@@ -217,6 +227,7 @@ class ThematicInsightsResult(BaseModel):
     methodological_tensions: List[str]
     emerging_future_work: List[str]
     citations_map: Dict[str, List[str]] = Field(default_factory=dict)
+
 
 class ResearchHypothesis(BaseModel):
     title: str
@@ -226,6 +237,7 @@ class ResearchHypothesis(BaseModel):
     required_baselines: List[str]
     target_datasets_or_population: List[str]
     evaluation_metrics: List[str]
+
 
 class ResearchGapReport(BaseModel):
     contradictions_found: List[str]
@@ -239,12 +251,14 @@ from typing import List
 from pydantic import BaseModel, Field
 from noul.schemas.domain import ReviewVerdict
 
+
 class PersonaEvaluation(BaseModel):
     persona_role: str
     strengths: List[str]
     critical_flaws: List[str]
     unverified_claims: List[str]
     confidence_score: float = Field(ge=1.0, le=5.0)
+
 
 class PeerReviewReport(BaseModel):
     paper_id: str
@@ -255,6 +269,7 @@ class PeerReviewReport(BaseModel):
     evaluations: List[PersonaEvaluation]
     meta_reviewer_notes: str
     missing_experiments_or_controls: List[str]
+
 
 class CodeScaffold(BaseModel):
     paper_id: str

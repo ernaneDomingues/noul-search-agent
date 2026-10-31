@@ -3,6 +3,7 @@
 Deterministic, stdlib-only: model size / architecture are mined from the paper text (or given explicitly) and
 memory is computed per precision as `weights = params * bytes` plus a KV cache of
 `2 * layers * kv_heads * head_dim * seq_len * bytes` (Llama-style dimensions unless the paper states them)."""
+
 import re
 
 from noul.providers import pdf_parser
@@ -48,7 +49,9 @@ _NOT_PARAMS = r"(?!\s*(?:tokens?|words?|images?|examples?|samples?|steps?|FLOPs?
 _MOE = re.compile(r"(?<![\w.])(\d{1,3})\s*[x×]\s*(\d+(?:\.\d+)?)\s*B\b", re.I)
 _TOTAL_ACTIVE = re.compile(
     r"(?<![\w.])(\d+(?:\.\d+)?)\s*B\b\s*(?:total\s+)?(?:parameters|params)?(?:\s+in total|\s+total)?"
-    r"[^.;\n]{0,40}?(?<![\w.])(\d+(?:\.\d+)?)\s*B\b\s*(?:are\s+)?(?:activ(?:e|ated)|active parameters)", re.I)
+    r"[^.;\n]{0,40}?(?<![\w.])(\d+(?:\.\d+)?)\s*B\b\s*(?:are\s+)?(?:activ(?:e|ated)|active parameters)",
+    re.I,
+)
 _SIZE = re.compile(rf"(?<![\w.$])(\d+(?:\.\d+)?)\s?([BM])\b{_NOT_PARAMS}")
 _SIZE_WORDS = re.compile(r"(?<![\w.])(\d+(?:\.\d+)?)\s*(billion|million)\s+(?:parameters|params)", re.I)
 _TOP_K = re.compile(r"\btop[-\s]?(\d)\b(?:\s+(?:expert|routing|gating))", re.I)
@@ -96,12 +99,21 @@ def _architecture(text, moe_found):
 
 
 _DIMS = {
-    "layers": re.compile(r"(?<![\w.])(\d{1,3})\s+(?:transformer\s+)?(?:layers|blocks)\b|"
-                         r"\b(?:num_layers|n_layers|num_hidden_layers)\s*[=:]\s*(\d{1,3})", re.I),
-    "kv_heads": re.compile(r"(?<![\w.])(\d{1,3})\s+(?:KV|key[-\s]value)\s+heads\b|"
-                           r"\b(?:num_key_value_heads|n_kv_heads)\s*[=:]\s*(\d{1,3})", re.I),
-    "heads": re.compile(r"(?<![\w.])(\d{1,3})\s+(?:attention\s+)?heads\b|"
-                        r"\b(?:num_attention_heads|n_heads)\s*[=:]\s*(\d{1,3})", re.I),
+    "layers": re.compile(
+        r"(?<![\w.])(\d{1,3})\s+(?:transformer\s+)?(?:layers|blocks)\b|"
+        r"\b(?:num_layers|n_layers|num_hidden_layers)\s*[=:]\s*(\d{1,3})",
+        re.I,
+    ),
+    "kv_heads": re.compile(
+        r"(?<![\w.])(\d{1,3})\s+(?:KV|key[-\s]value)\s+heads\b|"
+        r"\b(?:num_key_value_heads|n_kv_heads)\s*[=:]\s*(\d{1,3})",
+        re.I,
+    ),
+    "heads": re.compile(
+        r"(?<![\w.])(\d{1,3})\s+(?:attention\s+)?heads\b|"
+        r"\b(?:num_attention_heads|n_heads)\s*[=:]\s*(\d{1,3})",
+        re.I,
+    ),
     "hidden": re.compile(r"\b(?:hidden (?:size|dimension)|d_model|model dimension)\s*(?:of|=|:)?\s*(\d{3,5})", re.I),
     "head_dim": re.compile(r"\bhead[_\s]dim(?:ension)?\s*(?:of|=|:)?\s*(\d{2,3})", re.I),
 }
@@ -109,7 +121,7 @@ _DIMS = {
 
 def _kv_config(text, size_b):
     """(layers, kv_heads, head_dim, source) — explicit values from the text override the size-based table."""
-    layers, kv_heads, head_dim = next((l, h, d) for cap, l, h, d in KV_CONFIGS if size_b <= cap)
+    layers, kv_heads, head_dim = next((n_layers, h, d) for cap, n_layers, h, d in KV_CONFIGS if size_b <= cap)
     found = {}
     for key, rx in _DIMS.items():
         m = rx.search(text)
@@ -130,15 +142,22 @@ _HW_COUNT = r"(?:(?P<count>\d[\d,]*|single|one|two|four|eight|sixteen)\s*(?:[x×
 _HARDWARE = re.compile(
     _HW_COUNT + r"(?P<hw>(?:NVIDIA\s+|Nvidia\s+)?(?:Tesla\s+)?(?:A100|H100|H200|H800|A800|V100|A6000|A40|L40S?|T4|P100|"
     r"GH200|B200|RTX\s*\d{4}(?:\s*Ti)?|GTX\s*\d{3,4}|(?:AMD\s+)?MI\d{3}X?)(?:[\s-]*\d+\s*GB)?(?:\s+GPUs?)?|"
-    r"(?:Google\s+)?TPU\s*v\d[a-z]?(?:-\d+)?(?:\s+(?:pods?|chips?|cores?))?)", re.I)
+    r"(?:Google\s+)?TPU\s*v\d[a-z]?(?:-\d+)?(?:\s+(?:pods?|chips?|cores?))?)",
+    re.I,
+)
 
 
 def _reported_hardware(text):
     hits = []
     for m in _HARDWARE.finditer(text):
-        window = text[max(0, m.start() - 200):m.end() + 200]
-        hits.append((0 if re.search(r"\btrain(?:ed|ing)?\b|pre-?train", window, re.I) else 1, m.start(),
-                     re.sub(r"\s+", " ", m.group(0)).strip()))
+        window = text[max(0, m.start() - 200) : m.end() + 200]
+        hits.append(
+            (
+                0 if re.search(r"\btrain(?:ed|ing)?\b|pre-?train", window, re.I) else 1,
+                m.start(),
+                re.sub(r"\s+", " ", m.group(0)).strip(),
+            )
+        )
     return min(hits)[2] if hits else None
 
 
@@ -156,7 +175,7 @@ def _positive(name, value):
     try:
         v = float(value)
     except (TypeError, ValueError):
-        raise _core().HTTPError(400, f"{name} must be a positive number")
+        raise _core().HTTPError(400, f"{name} must be a positive number") from None
     if not 0 < v <= 100000 or isinstance(value, bool):
         raise _core().HTTPError(400, f"{name} must be a positive number")
     return v
@@ -172,7 +191,7 @@ def estimate_hardware_specs(paper_id, total_params_b=None, active_params_b=None,
     try:
         seq_len = int(context_length if context_length is not None else 8192)
     except (TypeError, ValueError):
-        raise core.HTTPError(400, "context_length must be a positive integer")
+        raise core.HTTPError(400, "context_length must be a positive integer") from None
     if isinstance(context_length, bool) or not 0 < seq_len <= MAX_CONTEXT:
         raise core.HTTPError(400, f"context_length must be between 1 and {MAX_CONTEXT}")
 
@@ -198,8 +217,10 @@ def estimate_hardware_specs(paper_id, total_params_b=None, active_params_b=None,
             shared = base * (1 - MOE_EXPERT_FRACTION)
             moe_total = round(shared + experts * base * MOE_EXPERT_FRACTION, 1)
             moe_active = round(shared + k * base * MOE_EXPERT_FRACTION, 1)
-            notes.append(f"MoE '{m.group(0)}' interpreted as {experts} experts of {base}B with top-{k} routing "
-                         f"(~{moe_total}B total, ~{moe_active}B active; attention/embeddings shared).")
+            notes.append(
+                f"MoE '{m.group(0)}' interpreted as {experts} experts of {base}B with top-{k} routing "
+                f"(~{moe_total}B total, ~{moe_active}B active; attention/embeddings shared)."
+            )
     sizes = _sizes(text, spans)
     detected = sorted({v for v, _ in sizes} | ({moe_total} if moe_total else set()))
 
@@ -219,8 +240,10 @@ def estimate_hardware_specs(paper_id, total_params_b=None, active_params_b=None,
                     break
             else:
                 total = DEFAULT_PARAMS_B
-                notes.append(f"No explicit model size or known family found; assumed the documented default "
-                             f"of {DEFAULT_PARAMS_B}B parameters.")
+                notes.append(
+                    f"No explicit model size or known family found; assumed the documented default "
+                    f"of {DEFAULT_PARAMS_B}B parameters."
+                )
     if active is None and moe_active is not None and total_params_b is None:
         active = moe_active
 
@@ -238,28 +261,45 @@ def estimate_hardware_specs(paper_id, total_params_b=None, active_params_b=None,
         if arch in ("encoder_only", "rnn_ssm"):
             kv = round(weights * 0.05, 2)
         else:
-            kv = round(2 * layers * kv_heads * head_dim * seq_len * bpe / 1024 ** 3, 2)
-        memory[prec] = PrecisionMemory(weights_gb=weights, kv_cache_8k_context_gb=kv,
-                                       recommended_min_vram_gb=round((weights + kv) * OVERHEAD, 2))
+            kv = round(2 * layers * kv_heads * head_dim * seq_len * bpe / 1024**3, 2)
+        memory[prec] = PrecisionMemory(
+            weights_gb=weights, kv_cache_8k_context_gb=kv, recommended_min_vram_gb=round((weights + kv) * OVERHEAD, 2)
+        )
     if arch in ("encoder_only", "rnn_ssm"):
         notes.append(f"{arch}: no growing per-token KV cache; state/activation memory approximated as 5% of weights.")
     else:
-        notes.append(f"KV cache for {seq_len} tokens with {layers} layers x {kv_heads} KV heads x {head_dim} head dim "
-                     f"({kv_source}).")
+        notes.append(
+            f"KV cache for {seq_len} tokens with {layers} layers x {kv_heads} KV heads x {head_dim} head dim "
+            f"({kv_source})."
+        )
     if seq_len != 8192:
         notes.append(f"`kv_cache_8k_context_gb` is computed for the requested context_length={seq_len}.")
     notes.append(f"recommended_min_vram_gb = (weights + KV cache) x {OVERHEAD} runtime overhead.")
 
     result = HardwareFeasibility(
-        paper_id=corpus["paper_id"], total_parameters_billion=_num(total),
+        paper_id=corpus["paper_id"],
+        total_parameters_billion=_num(total),
         active_parameters_billion=_num(active) if active is not None else None,
-        detected_model_sizes_b=[_num(x) for x in detected], architecture_type=arch,
-        fp16=memory["fp16"], int8=memory["int8"], int4=memory["int4"],
+        detected_model_sizes_b=[_num(x) for x in detected],
+        architecture_type=arch,
+        fp16=memory["fp16"],
+        int8=memory["int8"],
+        int4=memory["int4"],
         reported_training_hardware=_reported_hardware(text),
-        operational_tier=_tier(memory["int4"].recommended_min_vram_gb), notes=notes,
+        operational_tier=_tier(memory["int4"].recommended_min_vram_gb),
+        notes=notes,
     ).model_dump()
-    result.update({"title": corpus["title"], "context_length": seq_len, "source": corpus["source"],
-                   "kv_cache_assumptions": {"layers": layers, "kv_heads": kv_heads, "head_dim": head_dim,
-                                            "source": kv_source if arch not in ("encoder_only", "rnn_ssm")
-                                            else "5% of weights"}})
+    result.update(
+        {
+            "title": corpus["title"],
+            "context_length": seq_len,
+            "source": corpus["source"],
+            "kv_cache_assumptions": {
+                "layers": layers,
+                "kv_heads": kv_heads,
+                "head_dim": head_dim,
+                "source": kv_source if arch not in ("encoder_only", "rnn_ssm") else "5% of weights",
+            },
+        }
+    )
     return result

@@ -1,4 +1,5 @@
 """Research tools built on the legacy core (registered in `noul_tools.TOOLS`)."""
+
 import json
 import re
 from collections import Counter
@@ -60,9 +61,15 @@ def _url(p):
 
 def _to_reference(p, influential):
     data = PaperReference(
-        paper_id=p["id"], title=p.get("title") or "", authors=list(p.get("authors") or []),
-        year=p.get("year"), venue=p.get("journal") or None, citation_count=max(0, int(p.get("citations") or 0)),
-        is_influential=bool(influential), doi=p.get("doi"), url=_url(p),
+        paper_id=p["id"],
+        title=p.get("title") or "",
+        authors=list(p.get("authors") or []),
+        year=p.get("year"),
+        venue=p.get("journal") or None,
+        citation_count=max(0, int(p.get("citations") or 0)),
+        is_influential=bool(influential),
+        doi=p.get("doi"),
+        url=_url(p),
     ).model_dump(mode="json")
     if p.get("domain"):
         data["domain"] = p["domain"]
@@ -82,7 +89,7 @@ def get_paper_references(paper_id, limit=10, direction="both", sort_by="influent
     try:
         limit = int(limit if limit is not None else 10)
     except (TypeError, ValueError):
-        raise core.HTTPError(400, "limit must be an integer between 1 and 50")
+        raise core.HTTPError(400, "limit must be an integer between 1 and 50") from None
     if not 1 <= limit <= MAX_LIMIT:
         raise core.HTTPError(400, "limit must be an integer between 1 and 50")
 
@@ -99,8 +106,10 @@ def get_paper_references(paper_id, limit=10, direction="both", sort_by="influent
                 e.close()
             code = getattr(e, "code", None)
             reason = f"HTTP {code}" if code else type(e).__name__
-            warnings.append(f"Semantic Scholar unavailable ({reason}); fell back to OpenAlex "
-                            f"(is_influential = citations >= {openalex_client.INFLUENTIAL_CITATIONS}).")
+            warnings.append(
+                f"Semantic Scholar unavailable ({reason}); fell back to OpenAlex "
+                f"(is_influential = citations >= {openalex_client.INFLUENTIAL_CITATIONS})."
+            )
             edges = {}
     else:
         warnings.append("Paper has no Semantic Scholar identifier; used OpenAlex.")
@@ -114,7 +123,12 @@ def get_paper_references(paper_id, limit=10, direction="both", sort_by="influent
             edges = {d: [] for d in wanted}
 
     out = {
-        "paper": {"id": anchor["id"], "title": anchor.get("title"), "year": anchor.get("year"), "doi": anchor.get("doi")},
+        "paper": {
+            "id": anchor["id"],
+            "title": anchor.get("title"),
+            "year": anchor.get("year"),
+            "doi": anchor.get("doi"),
+        },
         "direction": direction,
         "sort_by": sort_by,
         "source": source,
@@ -143,7 +157,7 @@ def clarify_search_scope(query, answers=None, domain=None):
     if not str(query or "").strip():
         raise core.HTTPError(400, "query must be a non-empty string")
     if answers is not None and not isinstance(answers, dict):
-        raise core.HTTPError(400, "answers must be an object such as {\"q1\": \"...\", \"q2\": 2}")
+        raise core.HTTPError(400, 'answers must be an object such as {"q1": "...", "q2": 2}')
     try:
         check = clarification.needs_clarification(query)
         qs = clarification.generate_clarification_questions(query, domain=domain)
@@ -160,10 +174,12 @@ def clarify_search_scope(query, answers=None, domain=None):
             out.update({k: v for k, v in refined.items() if k != "original_query"})
             out["next_step"] = "Call search_papers with `refined_query` and the non-null `recommended_filters`."
         else:
-            out["next_step"] = ("Ask the user these questions (or skip if the query is already specific), then call "
-                                "clarify_search_scope again with `answers`.")
+            out["next_step"] = (
+                "Ask the user these questions (or skip if the query is already specific), then call "
+                "clarify_search_scope again with `answers`."
+            )
     except ValueError as e:
-        raise core.HTTPError(400, str(e))
+        raise core.HTTPError(400, str(e)) from e
     return out
 
 
@@ -172,34 +188,167 @@ def clarify_search_scope(query, answers=None, domain=None):
 MAX_EXPAND_PAPERS = 30
 _ACRONYM = re.compile(r"\b[A-Z][A-Z0-9-]{1,9}\b")
 _MIXED_ACRONYM = re.compile(r"\b[A-Za-z][A-Za-z0-9-]{1,9}\b")
-_NOT_ACRONYMS = frozenset({
-    "AND", "OR", "NOT", "THE", "FOR", "WITH", "IN", "OF", "TO", "ON", "AT", "BY", "AN", "AS", "IS", "WE", "II",
-    "III", "VS", "ET", "AL", "CI", "NA", "USA", "UK", "US", "EU", "OUR", "THIS", "ALL", "NEW", "NO", "YES",
-    "GB", "MB", "KB", "TB", "HR", "RR", "SD", "SE", "IQR", "AUC", "MS", "KG", "MG", "ML", "DOI", "URL", "PDF",
-})
-_GENERIC_WORDS = frozenset({
-    "increased", "increase", "increases", "decreased", "decrease", "reduced", "reduces", "improved", "improves",
-    "achieves", "achieved", "including", "include", "includes", "limitation", "limitations", "result", "results",
-    "show", "shows", "showed", "induces", "induced", "suggest", "suggests", "found", "observed", "significant",
-    "significantly", "effect", "effects", "study", "studies", "paper", "propose", "proposed", "present", "using",
-    "used", "based", "available", "data", "code", "method", "methods", "approach", "work", "future", "ci", "hr",
-})
+_NOT_ACRONYMS = frozenset(
+    {
+        "AND",
+        "OR",
+        "NOT",
+        "THE",
+        "FOR",
+        "WITH",
+        "IN",
+        "OF",
+        "TO",
+        "ON",
+        "AT",
+        "BY",
+        "AN",
+        "AS",
+        "IS",
+        "WE",
+        "II",
+        "III",
+        "VS",
+        "ET",
+        "AL",
+        "CI",
+        "NA",
+        "USA",
+        "UK",
+        "US",
+        "EU",
+        "OUR",
+        "THIS",
+        "ALL",
+        "NEW",
+        "NO",
+        "YES",
+        "GB",
+        "MB",
+        "KB",
+        "TB",
+        "HR",
+        "RR",
+        "SD",
+        "SE",
+        "IQR",
+        "AUC",
+        "MS",
+        "KG",
+        "MG",
+        "ML",
+        "DOI",
+        "URL",
+        "PDF",
+    }
+)
+_GENERIC_WORDS = frozenset(
+    {
+        "increased",
+        "increase",
+        "increases",
+        "decreased",
+        "decrease",
+        "reduced",
+        "reduces",
+        "improved",
+        "improves",
+        "achieves",
+        "achieved",
+        "including",
+        "include",
+        "includes",
+        "limitation",
+        "limitations",
+        "result",
+        "results",
+        "show",
+        "shows",
+        "showed",
+        "induces",
+        "induced",
+        "suggest",
+        "suggests",
+        "found",
+        "observed",
+        "significant",
+        "significantly",
+        "effect",
+        "effects",
+        "study",
+        "studies",
+        "paper",
+        "propose",
+        "proposed",
+        "present",
+        "using",
+        "used",
+        "based",
+        "available",
+        "data",
+        "code",
+        "method",
+        "methods",
+        "approach",
+        "work",
+        "future",
+        "ci",
+        "hr",
+    }
+)
 _BOOLEAN = re.compile(r"\b(?:AND|OR|NOT)\b|\"")
 _METHOD_TERMS = (
-    "fine-tuning", "quantization", "post-training quantization", "quantization-aware training", "distillation",
-    "knowledge distillation", "pruning", "low-rank adaptation", "retrieval-augmented generation", "transformer",
-    "reinforcement learning", "contrastive learning", "graph neural network", "state space model",
-    "mixture of experts", "instruction tuning", "randomized controlled trial", "double-blind", "cohort",
-    "case-control", "meta-analysis", "systematic review", "cross-sectional", "mendelian randomization", "in vivo",
-    "longitudinal", "difference-in-differences", "instrumental variable", "regression discontinuity", "panel data",
-    "synthetic control", "structural model", "event study", "natural experiment",
+    "fine-tuning",
+    "quantization",
+    "post-training quantization",
+    "quantization-aware training",
+    "distillation",
+    "knowledge distillation",
+    "pruning",
+    "low-rank adaptation",
+    "retrieval-augmented generation",
+    "transformer",
+    "reinforcement learning",
+    "contrastive learning",
+    "graph neural network",
+    "state space model",
+    "mixture of experts",
+    "instruction tuning",
+    "randomized controlled trial",
+    "double-blind",
+    "cohort",
+    "case-control",
+    "meta-analysis",
+    "systematic review",
+    "cross-sectional",
+    "mendelian randomization",
+    "in vivo",
+    "longitudinal",
+    "difference-in-differences",
+    "instrumental variable",
+    "regression discontinuity",
+    "panel data",
+    "synthetic control",
+    "structural model",
+    "event study",
+    "natural experiment",
 )
 _DOMAIN_DEFAULTS = {  # (precision terms, adjacent methods, noise to exclude)
-    "computer_science": (["benchmark", "ablation"], ["fine-tuning", "evaluation"], ["survey", "review", "position paper"]),
-    "biomedical": (["randomized controlled trial", "meta-analysis"], ["cohort", "case-control"],
-                   ["review", "editorial", "case report"]),
-    "economics": (["causal effect", "quasi-experimental"], ["difference-in-differences", "instrumental variable"],
-                  ["survey", "review", "comment"]),
+    "computer_science": (
+        ["benchmark", "ablation"],
+        ["fine-tuning", "evaluation"],
+        ["survey", "review", "position paper"],
+    ),
+    "biomedical": (
+        ["randomized controlled trial", "meta-analysis"],
+        ["cohort", "case-control"],
+        ["review", "editorial", "case report"],
+    ),
+    "economics": (
+        ["causal effect", "quasi-experimental"],
+        ["difference-in-differences", "instrumental variable"],
+        ["survey", "review", "comment"],
+    ),
     "general_stem": (["experimental", "empirical"], ["measurement", "simulation"], ["review", "editorial"]),
 }
 _HUMAN_CLINICAL = re.compile(r"\b(?:patients?|clinical|humans?|adults|participants|trial)\b", re.I)
@@ -211,8 +360,11 @@ def _norm_word(w):
 
 
 def _query_words(query):
-    return {_norm_word(w) for w in re.findall(r"[A-Za-z0-9][A-Za-z0-9-]*", query or "")
-            if w.upper() not in ("AND", "OR", "NOT")}
+    return {
+        _norm_word(w)
+        for w in re.findall(r"[A-Za-z0-9][A-Za-z0-9-]*", query or "")
+        if w.upper() not in ("AND", "OR", "NOT")
+    }
 
 
 def _quote(term):
@@ -254,8 +406,10 @@ def _cached_corpus(core, query, limit=MAX_EXPAND_PAPERS):
             p = json.loads(raw)
         except (TypeError, ValueError):
             continue
-        text = {_norm_word(w) for w in re.findall(r"[A-Za-z0-9][A-Za-z0-9-]*",
-                                                  f"{p.get('title') or ''} {p.get('abstract') or ''}")}
+        text = {
+            _norm_word(w)
+            for w in re.findall(r"[A-Za-z0-9][A-Za-z0-9-]*", f"{p.get('title') or ''} {p.get('abstract') or ''}")
+        }
         hits = sum(w in text for w in words)
         if hits >= need:
             scored.append((hits, p))
@@ -285,8 +439,9 @@ def suggest_boolean_queries(query="", paper_ids=None):
 
     core = _core()
     query = str(query or "").strip()
-    if paper_ids is not None and (not isinstance(paper_ids, (list, tuple))
-                                  or any(not isinstance(x, str) for x in paper_ids)):
+    if paper_ids is not None and (
+        not isinstance(paper_ids, (list, tuple)) or any(not isinstance(x, str) for x in paper_ids)
+    ):
         raise core.HTTPError(400, "paper_ids must be a list of paper IDs/DOIs")
     ids = list(dict.fromkeys(x.strip() for x in paper_ids or [] if x.strip()))[:MAX_EXPAND_PAPERS]
     if not query and not ids:
@@ -301,19 +456,24 @@ def suggest_boolean_queries(query="", paper_ids=None):
     if not ids:
         papers = _cached_corpus(core, query)
         if not papers:
-            warnings.append("No cached papers match the query; terms come from the query and domain defaults. "
-                            "Run search_papers first for corpus-driven suggestions.")
+            warnings.append(
+                "No cached papers match the query; terms come from the query and domain defaults. "
+                "Run search_papers first for corpus-driven suggestions."
+            )
 
     qwords = _query_words(query)
-    texts = [re.sub(r"(?:https?://|www\.)\S+|\S+@\S+", " ", f"{p.get('title') or ''}. {p.get('abstract') or ''}")
-             for p in papers]
+    texts = [
+        re.sub(r"(?:https?://|www\.)\S+|\S+@\S+", " ", f"{p.get('title') or ''}. {p.get('abstract') or ''}")
+        for p in papers
+    ]
     acr_df, acr_n = Counter(), Counter()
     for text in texts + ([query] if not papers else []):
         found = _acronyms(text)
         acr_n.update(found)
         acr_df.update(set(found))
-    acronyms = [a for a, _ in sorted(acr_n.items(), key=lambda x: (-acr_df[x[0]], -x[1], x[0]))
-                if _norm_word(a) not in qwords]
+    acronyms = [
+        a for a, _ in sorted(acr_n.items(), key=lambda x: (-acr_df[x[0]], -x[1], x[0])) if _norm_word(a) not in qwords
+    ]
     acr_lower = {a.lower() for a in acronyms}
 
     term_df, term_n = Counter(), Counter()
@@ -322,9 +482,12 @@ def suggest_boolean_queries(query="", paper_ids=None):
         term_n.update(terms)
         term_df.update(set(terms))
     candidates = [
-        t for t in term_n
-        if not any(_norm_word(w) in qwords for w in t.split()) and t not in acr_lower
-        and not re.search(r"(?:^|[\s-])\d+(?:[.,]\d+)?(?:[\s-]|$)", t) and not re.fullmatch(r"[\d.%x-]+", t)
+        t
+        for t in term_n
+        if not any(_norm_word(w) in qwords for w in t.split())
+        and t not in acr_lower
+        and not re.search(r"(?:^|[\s-])\d+(?:[.,]\d+)?(?:[\s-]|$)", t)
+        and not re.fullmatch(r"[\d.%x-]+", t)
         and all(w not in STOPWORDS and w not in _GENERIC_WORDS for w in t.split())
     ]
     candidates.sort(key=lambda t: (-term_df[t], -(" " in t), -term_n[t], t))
@@ -359,8 +522,12 @@ def suggest_boolean_queries(query="", paper_ids=None):
     precision = list(dict.fromkeys(acronyms[:1] + emerging[:2]))[:3]
     if len(precision) < 2:
         precision = list(dict.fromkeys(precision + precision_defaults))[:3]
-    lexicon = [m for m in _METHOD_TERMS if re.search(r"\b" + re.escape(m) + r"\b", corpus_text)
-               and not any(_norm_word(w) in qwords for w in re.split(r"[\s-]+", m))]
+    lexicon = [
+        m
+        for m in _METHOD_TERMS
+        if re.search(r"\b" + re.escape(m) + r"\b", corpus_text)
+        and not any(_norm_word(w) in qwords for w in re.split(r"[\s-]+", m))
+    ]
     synonym = next((a for a in acronyms if a not in precision), None) or (acronyms[0] if acronyms else None)
     methods = []
     for m in dict.fromkeys(lexicon + [e for e in emerging if e not in precision] + method_defaults):
@@ -372,23 +539,31 @@ def suggest_boolean_queries(query="", paper_ids=None):
     expanded = f"({core_expr} OR {_quote(synonym)})" if synonym else core_expr
     suggestions = [
         BooleanQuerySuggestion(
-            index=1, strategy="precision_deepening",
+            index=1,
+            strategy="precision_deepening",
             boolean_query=f"{core_expr} AND ({' OR '.join(_quote(t) for t in precision)})",
             rationale="Narrows the original query with the most frequent technical acronyms/terms of the corpus "
-                      "that are not yet in the query.",
+            "that are not yet in the query.",
             target_terms=precision,
         ),
         BooleanQuerySuggestion(
-            index=2, strategy="synonym_and_method_expansion",
+            index=2,
+            strategy="synonym_and_method_expansion",
             boolean_query=f"{expanded} AND ({' OR '.join(_quote(t) for t in methods)})",
-            rationale=("Broadens the core " + (f"with the synonym/acronym {_quote(synonym)} and " if synonym else "")
-                       + "anchors it on adjacent methods, metrics or populations found in the corpus."),
+            rationale=(
+                "Broadens the core "
+                + (f"with the synonym/acronym {_quote(synonym)} and " if synonym else "")
+                + "anchors it on adjacent methods, metrics or populations found in the corpus."
+            ),
             target_terms=([synonym] if synonym else []) + methods,
         ),
         BooleanQuerySuggestion(
-            index=3, strategy="noise_exclusion",
+            index=3,
+            strategy="noise_exclusion",
             boolean_query=f"{core_expr} NOT ({' OR '.join(_quote(t) for t in noise)})",
-            rationale=f"Excludes common noise for {domain} searches (" + ", ".join(noise) + ") to keep primary studies.",
+            rationale=f"Excludes common noise for {domain} searches ("
+            + ", ".join(noise)
+            + ") to keep primary studies.",
             target_terms=noise,
         ),
     ]

@@ -1,4 +1,5 @@
 """Semantic Scholar Graph API: backward references and forward citations with the `isInfluential` flag (#03)."""
+
 import urllib.parse
 
 GRAPH = "https://api.semanticscholar.org/graph/v1/paper"
@@ -30,8 +31,9 @@ def fetch_edges(identifier, kind, limit=FETCH_LIMIT, timeout=15):
     """kind: "references" (backward) or "citations" (forward) -> [(parsed_paper, is_influential)].
     Network/HTTP errors (e.g. 429) propagate so the caller can fall back to OpenAlex."""
     core = _core()
-    url = (f"{GRAPH}/{urllib.parse.quote(identifier, safe=':/')}/{kind}?"
-           + urllib.parse.urlencode({"fields": REF_FIELDS, "limit": int(limit)}))
+    url = f"{GRAPH}/{urllib.parse.quote(identifier, safe=':/')}/{kind}?" + urllib.parse.urlencode(
+        {"fields": REF_FIELDS, "limit": int(limit)}
+    )
     data = core._http_json(url, timeout=timeout)
     out = []
     for edge in data.get("data") or []:

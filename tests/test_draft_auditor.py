@@ -1,4 +1,5 @@
 """Unit tests for Phase 6 Issue #23 (generate_manuscript_blueprint & audit_manuscript_draft)."""
+
 import io
 import os
 import tempfile
@@ -32,7 +33,16 @@ class DraftAuditorTests(unittest.TestCase):
         )
         self.assertEqual(bp_md["venue"], "neurips")
         roles = [s["imrad_role"] for s in bp_md["sections"]]
-        for expected_role in ("abstract", "introduction", "related_work", "methodology", "experiments", "discussion", "conclusion", "venue_mandatory"):
+        for expected_role in (
+            "abstract",
+            "introduction",
+            "related_work",
+            "methodology",
+            "experiments",
+            "discussion",
+            "conclusion",
+            "venue_mandatory",
+        ):
             self.assertIn(expected_role, roles)
         self.assertIn("NeurIPS Paper Checklist", bp_md["rendered_template"])
         self.assertIn("+6.2% on GSM8K", bp_md["rendered_template"])
@@ -95,13 +105,19 @@ class DraftAuditorTests(unittest.TestCase):
     def test_cli_draft_structure_and_audit_pretty(self):
         buf = io.StringIO()
         with redirect_stdout(buf):
-            rc1 = cli.main([
-                "draft", "structure",
-                "--topic", "Causal Inference in Panel Data",
-                "--venue", "aer",
-                "--findings", "Significant ATT reduction; Robust to placebo tests",
-                "--pretty",
-            ])
+            rc1 = cli.main(
+                [
+                    "draft",
+                    "structure",
+                    "--topic",
+                    "Causal Inference in Panel Data",
+                    "--venue",
+                    "aer",
+                    "--findings",
+                    "Significant ATT reduction; Robust to placebo tests",
+                    "--pretty",
+                ]
+            )
         self.assertEqual(rc1, 0)
         self.assertIn("## 1. Introduction", buf.getvalue())
 

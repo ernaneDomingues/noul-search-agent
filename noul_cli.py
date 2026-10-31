@@ -31,6 +31,7 @@ Usage:
   noul_cli.py mcp [--http [PORT]] [--host H]       (MCP server; same as noul-mcp)
   noul_cli.py install [targets] [--runner python|uvx|npx] [--dry-run] [--uninstall]   (same as noul-install)
 """
+
 import argparse
 import json
 import sys
@@ -99,7 +100,9 @@ def _parse_config_pairs(pairs):
         elif "@" in pair and not sep:
             out["email"] = pair.strip()
         else:
-            raise ValueError(f"Unknown setting '{pair}'. Use key:value with key in email, workspace, download_dir, research_dir")
+            raise ValueError(
+                f"Unknown setting '{pair}'. Use key:value with key in email, workspace, download_dir, research_dir"
+            )
     return out
 
 
@@ -136,9 +139,13 @@ def _split_ids(values):
 
 
 def _format_pretty_expand(res):
-    lines = [f"# Boolean query suggestions for: {res.get('original_query') or '(papers)'}", "",
-             f"Acronyms: {', '.join(res['extracted_acronyms']) or '-'}",
-             f"Emerging terms: {', '.join(res['emerging_terms']) or '-'}", ""]
+    lines = [
+        f"# Boolean query suggestions for: {res.get('original_query') or '(papers)'}",
+        "",
+        f"Acronyms: {', '.join(res['extracted_acronyms']) or '-'}",
+        f"Emerging terms: {', '.join(res['emerging_terms']) or '-'}",
+        "",
+    ]
     for s in res["suggestions"]:
         lines += [f"[{s['index']}] {s['strategy']}", f"    {s['boolean_query']}", f"    {s['rationale']}"]
     lines += [f"> {w}" for w in res.get("warnings", [])]
@@ -146,8 +153,17 @@ def _format_pretty_expand(res):
 
 
 def _format_pretty_compare(res):
-    lines = ["# Comparative matrix", "", res["markdown_table"], "",
-             "## Convergence", res["convergence_summary"], "", "## Divergence", res["divergence_summary"]]
+    lines = [
+        "# Comparative matrix",
+        "",
+        res["markdown_table"],
+        "",
+        "## Convergence",
+        res["convergence_summary"],
+        "",
+        "## Divergence",
+        res["divergence_summary"],
+    ]
     if res.get("warnings"):
         lines += ["", "> Warnings: " + "; ".join(res["warnings"])]
     return "\n".join(lines)
@@ -155,9 +171,11 @@ def _format_pretty_compare(res):
 
 def _format_pretty_insights(res):
     lines = [f"# Thematic insights: {res['topic']}"]
-    for title, key in (("Consolidated consensuses", "consolidated_consensuses"),
-                       ("Methodological tensions", "methodological_tensions"),
-                       ("Emerging future work", "emerging_future_work")):
+    for title, key in (
+        ("Consolidated consensuses", "consolidated_consensuses"),
+        ("Methodological tensions", "methodological_tensions"),
+        ("Emerging future work", "emerging_future_work"),
+    ):
         lines += ["", f"## {title}"] + [f"- {x}" for x in res[key]]
     lines += ["", "## References"] + [f"- {tag}: {', '.join(ids)}" for tag, ids in res["citations_map"].items()]
     if res.get("warnings"):
@@ -175,8 +193,7 @@ def _format_pretty_benchmarks(res):
         lines += ["", f"## {tb['label']} (page {tb['page']}, {tb['format']})"]
         if tb["caption"]:
             lines.append(f"_{tb['caption']}_")
-        lines += ["", "| " + " | ".join(_md_cell(h) for h in tb["headers"]) + " |",
-                  "|" + " --- |" * len(tb["headers"])]
+        lines += ["", "| " + " | ".join(_md_cell(h) for h in tb["headers"]) + " |", "|" + " --- |" * len(tb["headers"])]
         lines += ["| " + " | ".join(_md_cell(row.get(h)) for h in tb["headers"]) + " |" for row in tb["rows"]]
     best = res["normalized_summary"]["best_by_metric"]
     if best:
@@ -187,16 +204,20 @@ def _format_pretty_benchmarks(res):
 
 def _format_pretty_hardware(res):
     active = f" ({res['active_parameters_billion']}B active)" if res.get("active_parameters_billion") else ""
-    lines = [f"# Hardware feasibility: {res.get('title') or res['paper_id']}",
-             f"Model: {res['total_parameters_billion']}B parameters{active} | Architecture: {res['architecture_type']}"
-             f" | Tier: **{res['operational_tier']}**",
-             f"Reported training hardware: {res.get('reported_training_hardware') or 'not reported'}", "",
-             f"| Precision | Weights (GB) | KV cache @ {res['context_length']} tokens (GB) | Min. VRAM (GB) |",
-             "| --- | --- | --- | --- |"]
+    lines = [
+        f"# Hardware feasibility: {res.get('title') or res['paper_id']}",
+        f"Model: {res['total_parameters_billion']}B parameters{active} | Architecture: {res['architecture_type']}"
+        f" | Tier: **{res['operational_tier']}**",
+        f"Reported training hardware: {res.get('reported_training_hardware') or 'not reported'}",
+        "",
+        f"| Precision | Weights (GB) | KV cache @ {res['context_length']} tokens (GB) | Min. VRAM (GB) |",
+        "| --- | --- | --- | --- |",
+    ]
     for prec in ("fp16", "int8", "int4"):
         m = res[prec]
-        lines.append(f"| {prec.upper()} | {m['weights_gb']} | {m['kv_cache_8k_context_gb']} | "
-                     f"{m['recommended_min_vram_gb']} |")
+        lines.append(
+            f"| {prec.upper()} | {m['weights_gb']} | {m['kv_cache_8k_context_gb']} | {m['recommended_min_vram_gb']} |"
+        )
     lines += [""] + [f"- {n}" for n in res["notes"]]
     return "\n".join(lines)
 
@@ -206,19 +227,26 @@ _STATUS_ICON = {"verified": "✅", "partially_supported": "⚠️", "extrapolate
 
 def _format_pretty_ground(res):
     s = res["summary"]
-    lines = [f"# Claim grounding: {res.get('title') or res['paper_id']}",
-             f"Verified: {s['verified']} | Partially supported: {s['partially_supported']} | "
-             f"Extrapolated: {s['extrapolated']}", ""]
+    lines = [
+        f"# Claim grounding: {res.get('title') or res['paper_id']}",
+        f"Verified: {s['verified']} | Partially supported: {s['partially_supported']} | "
+        f"Extrapolated: {s['extrapolated']}",
+        "",
+    ]
     for cl in res["claims"]:
-        lines += [f"- {_STATUS_ICON.get(cl['status'], '')} **{cl['status']}** — {cl['claim']}",
-                  f"  {cl['citation_tag']}"]
+        lines += [
+            f"- {_STATUS_ICON.get(cl['status'], '')} **{cl['status']}** — {cl['claim']}",
+            f"  {cl['citation_tag']}",
+        ]
     lines += [f"> {w}" for w in res.get("warnings", [])]
     return "\n".join(lines)
 
 
 def _format_pretty_math(res):
-    lines = [f"# Math & algorithms: {res.get('title') or res['paper_id']}",
-             f"Equations: {res['equation_count']} | Algorithms: {res['algorithm_count']} | Mode: {res['mode']}"]
+    lines = [
+        f"# Math & algorithms: {res.get('title') or res['paper_id']}",
+        f"Equations: {res['equation_count']} | Algorithms: {res['algorithm_count']} | Mode: {res['mode']}",
+    ]
     for it in res["items"]:
         lines += ["", f"## {it['index']}. {it['label']} ({it['kind']})"]
         if it["latex"]:
@@ -235,11 +263,16 @@ def _format_pretty_ablation(res):
     if ref:
         vals = ", ".join(f"{k} = {v}" for k, v in ref["values"].items())
         lines.append(f"Reference: {ref['component']} ({vals})")
-    lines += ["", "| Component | Metric | Reference | Variant | Δ | Δ% | Marginal |",
-              "| --- | --- | --- | --- | --- | --- | --- |"]
-    lines += [f"| {_md_cell(e['component'])} | {_md_cell(e['metric'])} | {e['baseline_value']} | {e['variant_value']} "
-              f"| {e['delta']:+g} | {e['delta_percent']:+.2f}% | {'yes' if e['is_marginal'] else ''} |"
-              for e in res["ablations"]]
+    lines += [
+        "",
+        "| Component | Metric | Reference | Variant | Δ | Δ% | Marginal |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    lines += [
+        f"| {_md_cell(e['component'])} | {_md_cell(e['metric'])} | {e['baseline_value']} | {e['variant_value']} "
+        f"| {e['delta']:+g} | {e['delta_percent']:+.2f}% | {'yes' if e['is_marginal'] else ''} |"
+        for e in res["ablations"]
+    ]
     if res["warnings_and_alerts"]:
         lines += ["", "## Alerts"] + [f"- {w}" for w in res["warnings_and_alerts"]]
     lines += [f"> {w}" for w in res.get("warnings", [])]
@@ -247,11 +280,12 @@ def _format_pretty_ablation(res):
 
 
 def _format_pretty_prompts(res):
-    lines = [f"# Prompts & decoding: {res.get('title') or res['paper_id']}",
-             f"Variables: {', '.join(res['variables']) or 'none'}"]
+    lines = [
+        f"# Prompts & decoding: {res.get('title') or res['paper_id']}",
+        f"Variables: {', '.join(res['variables']) or 'none'}",
+    ]
     for p in res["prompts"]:
-        lines += ["", f"## {p['index']}. {p['label']} ({p['type']}, page {p['page']})", "", "```text",
-                  p["text"], "```"]
+        lines += ["", f"## {p['index']}. {p['label']} ({p['type']}, page {p['page']})", "", "```text", p["text"], "```"]
     if res["hyperparameters"]:
         lines += ["", "## Decoding hyperparameters"] + [f"- {k}: {v}" for k, v in res["hyperparameters"].items()]
     if res["json_schemas"]:
@@ -304,7 +338,9 @@ def main(argv=None):
 
         return install.main(argv[1:])
 
-    ap = argparse.ArgumentParser(prog="noul", description="Noul Search: scientific literature search for humans and agents.")
+    ap = argparse.ArgumentParser(
+        prog="noul", description="Noul Search: scientific literature search for humans and agents."
+    )
     ap.add_argument("--pretty", action="store_true", help="Human-friendly Markdown output")
     ap.add_argument("--version", action="version", version=f"noul-search-agent {__version__}")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -321,12 +357,23 @@ def main(argv=None):
     s.add_argument("--offset", type=int, default=0)
     s.add_argument("--domain", help=DOMAIN_HELP)
     s.add_argument("--pretty", action="store_true")
-    s.add_argument("--interactive", action="store_true",
-                   help="ask 2-3 scope questions on a terminal when the query is broad, then run the refined search")
-    s.add_argument("--skip-clarification", "--skip-clarify", dest="skip_clarification", action="store_true",
-                   help="never ask clarification questions (default for agents and non-interactive stdin)")
-    s.add_argument("--export-obsidian", metavar="VAULT_DIR",
-                   help="also export the returned papers as Obsidian notes into VAULT_DIR (inside the workspace)")
+    s.add_argument(
+        "--interactive",
+        action="store_true",
+        help="ask 2-3 scope questions on a terminal when the query is broad, then run the refined search",
+    )
+    s.add_argument(
+        "--skip-clarification",
+        "--skip-clarify",
+        dest="skip_clarification",
+        action="store_true",
+        help="never ask clarification questions (default for agents and non-interactive stdin)",
+    )
+    s.add_argument(
+        "--export-obsidian",
+        metavar="VAULT_DIR",
+        help="also export the returned papers as Obsidian notes into VAULT_DIR (inside the workspace)",
+    )
 
     cl = sub.add_parser("clarify")
     cl.add_argument("query")
@@ -354,10 +401,14 @@ def main(argv=None):
     ins_p.add_argument("--topic")
     ins_p.add_argument("--pretty", action="store_true")
 
-    hyp_p = sub.add_parser("hypotheses", help="Cross-analyze >= 2 papers to detect research gaps and generate hypotheses")
+    hyp_p = sub.add_parser(
+        "hypotheses", help="Cross-analyze >= 2 papers to detect research gaps and generate hypotheses"
+    )
     hyp_p.add_argument("ids", nargs="+", help="Paper IDs/DOIs (space- or comma-separated, at least 2)")
     hyp_p.add_argument("--topic")
-    hyp_p.add_argument("--max", dest="max_hypotheses", type=int, default=3, help="maximum hypotheses to generate (default: 3)")
+    hyp_p.add_argument(
+        "--max", dest="max_hypotheses", type=int, default=3, help="maximum hypotheses to generate (default: 3)"
+    )
     hyp_p.add_argument("--pretty", action="store_true")
 
     exp_p = sub.add_parser("expand", help="Suggest 3 boolean queries (AND/OR/NOT) from a query and/or papers")
@@ -392,7 +443,9 @@ def main(argv=None):
     pr_p = sub.add_parser("prompts", help="Extract prompt templates, decoding hyperparameters and JSON schemas")
     pr_p.add_argument("id")
     pr_p.add_argument("--pretty", action="store_true")
-    fm_p = sub.add_parser("failures", help="Detect failure modes, critical assumptions and baseline superiority scenarios")
+    fm_p = sub.add_parser(
+        "failures", help="Detect failure modes, critical assumptions and baseline superiority scenarios"
+    )
     fm_p.add_argument("id")
     fm_p.add_argument("--no-fulltext", action="store_true", help="analyse title/abstract only")
     fm_p.add_argument("--pretty", action="store_true")
@@ -408,7 +461,9 @@ def main(argv=None):
     rev_p.add_argument("--no-fulltext", action="store_true", help="analyse title/abstract only")
     rev_p.add_argument("--pretty", action="store_true")
 
-    sc_p = sub.add_parser("scaffold", help="Generate PyTorch, Statsmodels/R, or Clinical Protocol scaffold + unit tests")
+    sc_p = sub.add_parser(
+        "scaffold", help="Generate PyTorch, Statsmodels/R, or Clinical Protocol scaffold + unit tests"
+    )
     sc_p.add_argument("id")
     sc_p.add_argument("--target", help="pytorch|statsmodels|r|protocol (default: auto from domain)")
     sc_p.add_argument("--domain", help=DOMAIN_HELP)
@@ -431,7 +486,9 @@ def main(argv=None):
     dr_sub = dr_p.add_subparsers(dest="draft_cmd", required=True)
     dr_struct = dr_sub.add_parser("structure", help="Generate IMRaD manuscript blueprint")
     dr_struct.add_argument("--topic", required=True, help="Manuscript topic or working title")
-    dr_struct.add_argument("--venue", default="neurips", help="Target venue (neurips, icml, iclr, acl, ieee, nature, lancet, aer, general)")
+    dr_struct.add_argument(
+        "--venue", default="neurips", help="Target venue (neurips, icml, iclr, acl, ieee, nature, lancet, aer, general)"
+    )
     dr_struct.add_argument("--hypothesis", default="", help="Central hypothesis")
     dr_struct.add_argument("--findings", default="", help="Semicolon-separated key findings")
     dr_struct.add_argument("--format", dest="output_format", choices=["markdown", "latex"], default="markdown")
@@ -494,8 +551,12 @@ def main(argv=None):
 
     e = sub.add_parser("export")
     e.add_argument("ids", nargs="+", help="Paper IDs/DOIs (space- or comma-separated)")
-    e.add_argument("--format", default=None, choices=["bibtex", "ris", "csv", "obsidian"],
-                   help="default: bibtex (obsidian when --vault-dir/--export-obsidian is given)")
+    e.add_argument(
+        "--format",
+        default=None,
+        choices=["bibtex", "ris", "csv", "obsidian"],
+        help="default: bibtex (obsidian when --vault-dir/--export-obsidian is given)",
+    )
     e.add_argument("--vault-dir", help="Obsidian vault folder inside the workspace (implies --format obsidian)")
     e.add_argument("--export-obsidian", metavar="VAULT_DIR", help="alias of --vault-dir")
 
@@ -516,7 +577,9 @@ def main(argv=None):
     d_show.add_argument("--dir", default=None, help="Inside the workspace (default: configured research_dir)")
 
     cfg_p = sub.add_parser("config", help="View or update persistent settings (no arguments = show)")
-    cfg_p.add_argument("pairs", nargs="*", metavar="KEY:VALUE", help="e.g. email:you@university.edu workspace:~/research")
+    cfg_p.add_argument(
+        "pairs", nargs="*", metavar="KEY:VALUE", help="e.g. email:you@university.edu workspace:~/research"
+    )
     cfg_p.add_argument("--email")
     cfg_p.add_argument("--workspace")
     cfg_p.add_argument("--download-dir")
@@ -530,7 +593,9 @@ def main(argv=None):
     sub.add_parser("install", help="Install into Claude, Copilot, Codex, Gemini, Antigravity", add_help=False)
 
     a = ap.parse_args(argv)
-    split = lambda v: [x.strip() for x in v.split(",") if x.strip()] if v else None
+
+    def split(v):
+        return [x.strip() for x in v.split(",") if x.strip()] if v else None
 
     try:
         if a.cmd == "search":
@@ -550,15 +615,28 @@ def main(argv=None):
                 sources = sources or f.get("sources")
                 sort = sort or f.get("sort")
             out = t.search_papers(
-                query, sources, year_min, types, a.min_citations,
-                a.open_access, sort, a.limit, a.offset, domain=a.domain
+                query,
+                sources,
+                year_min,
+                types,
+                a.min_citations,
+                a.open_access,
+                sort,
+                a.limit,
+                a.offset,
+                domain=a.domain,
             )
             if refined:
-                out["clarification"] = {k: refined[k] for k in ("refined_query", "recommended_filters", "applied_answers")}
+                out["clarification"] = {
+                    k: refined[k] for k in ("refined_query", "recommended_filters", "applied_answers")
+                }
             if a.export_obsidian:
                 ids = [p["id"] for p in out["papers"] if p.get("id")]
-                out["obsidian_export"] = (t.export_obsidian_notes(ids, vault_dir=a.export_obsidian) if ids else
-                                          {"vault_dir": None, "exported_count": 0, "notes": []})
+                out["obsidian_export"] = (
+                    t.export_obsidian_notes(ids, vault_dir=a.export_obsidian)
+                    if ids
+                    else {"vault_dir": None, "exported_count": 0, "notes": []}
+                )
             if getattr(a, "pretty", False):
                 print(_format_pretty_search(out))
                 if a.export_obsidian:
@@ -571,7 +649,7 @@ def main(argv=None):
                 try:
                     answers = json.loads(a.answers)
                 except json.JSONDecodeError as e:
-                    raise ValueError(f"--answers must be a JSON object: {e}")
+                    raise ValueError(f"--answers must be a JSON object: {e}") from e
             out = t.clarify_search_scope(a.query, answers=answers, domain=a.domain)
         elif a.cmd == "paper":
             out = t.get_paper(a.id, domain=a.domain_override)
@@ -611,8 +689,9 @@ def main(argv=None):
                 print(_format_pretty_benchmarks(out))
                 return 0
         elif a.cmd == "hardware":
-            out = t.estimate_hardware_specs(a.id, total_params_b=a.params_b, active_params_b=a.active_params_b,
-                                            context_length=a.context_length)
+            out = t.estimate_hardware_specs(
+                a.id, total_params_b=a.params_b, active_params_b=a.active_params_b, context_length=a.context_length
+            )
             if a.pretty:
                 print(_format_pretty_hardware(out))
                 return 0
@@ -685,7 +764,7 @@ def main(argv=None):
                     "## Recommendations & Justifications",
                 ]
                 for rec in out.get("recommendations") or []:
-                    lines.append(f"- **Claim:** \"{rec['claim_sentence']}\"")
+                    lines.append(f'- **Claim:** "{rec["claim_sentence"]}"')
                     for j in rec.get("justifications") or []:
                         lines.append(f"  - {j}")
                 if out.get("bibtex_block"):
@@ -705,7 +784,11 @@ def main(argv=None):
             if a.draft_cmd == "structure":
                 findings = [x.strip() for x in a.findings.split(";") if x.strip()] if a.findings else None
                 out = t.generate_manuscript_blueprint(
-                    a.topic, venue=a.venue, hypothesis=a.hypothesis, key_findings=findings, output_format=a.output_format
+                    a.topic,
+                    venue=a.venue,
+                    hypothesis=a.hypothesis,
+                    key_findings=findings,
+                    output_format=a.output_format,
                 )
                 if a.pretty:
                     print(out["rendered_template"])
@@ -717,9 +800,7 @@ def main(argv=None):
                     return 0
         elif a.cmd == "bibtex":
             if a.bibtex_cmd == "sanitize":
-                out = t.sanitize_bibtex(
-                    a.bibtex_input, update_preprints=a.update_preprints, output_path=a.output_path
-                )
+                out = t.sanitize_bibtex(a.bibtex_input, update_preprints=a.update_preprints, output_path=a.output_path)
                 if a.pretty:
                     print(out["sanitized_bibtex"])
                     return 0

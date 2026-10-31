@@ -3,8 +3,8 @@
 Deterministic, stdlib-only critical audit across 3 specialized personas per scientific domain
 (Computer Science / NeurIPS-ICLR, Biomedical / CONSORT-STROBE-PRISMA, Economics / Causal Econometrics,
 and General STEM), consolidated by a Meta-Reviewer into a structured PeerReviewReport."""
+
 import re
-from typing import List, Optional
 
 from noul.prompts import rubrics_biomedical, rubrics_cs, rubrics_economics
 from noul.providers import artifact_radar, domain_classifier, pdf_parser
@@ -61,7 +61,7 @@ def _has_section(sections: list, pattern: str) -> bool:
     return any(rx.search(s.get("title") or "") for s in (sections or []))
 
 
-def _collect_evidence(paper_id: str, domain_Override: Optional[str], inspect_fulltext: bool) -> dict:
+def _collect_evidence(paper_id: str, domain_Override: str | None, inspect_fulltext: bool) -> dict:
     core = _core()
     if not isinstance(paper_id, str) or not paper_id.strip():
         raise core.HTTPError(400, "paper_id must be a non-empty string")
@@ -70,7 +70,7 @@ def _collect_evidence(paper_id: str, domain_Override: Optional[str], inspect_ful
     try:
         dom_enum = domain_classifier.resolve_domain(paper=paper, override_domain=domain_Override)
     except ValueError as e:
-        raise core.HTTPError(400, str(e))
+        raise core.HTTPError(400, str(e)) from e
 
     if inspect_fulltext:
         corpus = pdf_parser.get_paper_corpus(paper["id"])
@@ -106,7 +106,7 @@ def _collect_evidence(paper_id: str, domain_Override: Optional[str], inspect_ful
     }
 
 
-def _unverified_claim_strings(claims_res: dict) -> List[str]:
+def _unverified_claim_strings(claims_res: dict) -> list[str]:
     out = []
     for cl in claims_res.get("claims") or []:
         if cl.get("status") in ("extrapolated", "partially_supported"):
@@ -116,7 +116,8 @@ def _unverified_claim_strings(claims_res: dict) -> List[str]:
 
 # --------------------------------------------------------------------------- Computer Science (NeurIPS / ICLR)
 
-def _evaluate_cs(ev: dict) -> List[PersonaEvaluation]:
+
+def _evaluate_cs(ev: dict) -> list[PersonaEvaluation]:
     text = ev["text"]
     sections = ev["corpus"]["sections"]
     math_info = ev["math"]
@@ -154,12 +155,16 @@ def _evaluate_cs(ev: dict) -> List[PersonaEvaluation]:
             "Omitted analysis: asymptotic computational/memory complexity (e.g. Big-O scaling or FLOPs) is not formally derived."
         )
     for assump in (failures.get("critical_assumptions") or [])[:2]:
-        p1_flaws.append(f"Unvalidated theoretical/modeling assumption in text: \"{_clip(assump, 160)}\"")
+        p1_flaws.append(f'Unvalidated theoretical/modeling assumption in text: "{_clip(assump, 160)}"')
         p1_questions.append(f"How sensitive is the method when the assumption '{_clip(assump, 100)}' is violated?")
     if not p1_strengths:
-        p1_strengths.append(f"Problem formulation stated in manuscript abstract/introduction (\"{_clip(ev['paper'].get('title'), 120)}\").")
+        p1_strengths.append(
+            f'Problem formulation stated in manuscript abstract/introduction ("{_clip(ev["paper"].get("title"), 120)}").'
+        )
 
-    p1_score = 3.2 + (0.6 if eq_n + algo_n > 0 else -0.6) + (0.4 if len(p1_flaws) <= 1 else -0.3 * min(len(p1_flaws), 3))
+    p1_score = (
+        3.2 + (0.6 if eq_n + algo_n > 0 else -0.6) + (0.4 if len(p1_flaws) <= 1 else -0.3 * min(len(p1_flaws), 3))
+    )
 
     # Persona 2: Skeptical Empirical Reviewer (NeurIPS/ICLR)
     p2 = rubrics_cs.PERSONAS[1]
@@ -173,9 +178,7 @@ def _evaluate_cs(ev: dict) -> List[PersonaEvaluation]:
             f"{', '.join(metrics_list[:6]) or 'reported metrics'}."
         )
     else:
-        p2_flaws.append(
-            "Section omitted / not reported: no structured benchmark comparison table found in manuscript."
-        )
+        p2_flaws.append("Section omitted / not reported: no structured benchmark comparison table found in manuscript.")
     if abl_entries:
         top_abl = abl_entries[0]
         p2_strengths.append(
@@ -188,16 +191,24 @@ def _evaluate_cs(ev: dict) -> List[PersonaEvaluation]:
         p2_flaws.append(
             "Section omitted / not reported: no ablation study ('w/o component' or component contribution table) found in manuscript."
         )
-    if not re.search(r"(?:±|\+/-|\bstd\b|\bstandard\s+deviation\b|\bconfidence\s+interval\b|\bmultiple\s+seeds?\b|\b\d+\s+seeds?\b)", text, re.I):
+    if not re.search(
+        r"(?:±|\+/-|\bstd\b|\bstandard\s+deviation\b|\bconfidence\s+interval\b|\bmultiple\s+seeds?\b|\b\d+\s+seeds?\b)",
+        text,
+        re.I,
+    ):
         p2_flaws.append(
             "Omitted statistical rigor: error bars, multi-seed variance (± std), or significance tests across runs are not reported."
         )
     for bsup in (failures.get("baseline_superiority_scenarios") or [])[:2]:
         p2_flaws.append(f"Baseline superiority / competitive weakness: {_clip(bsup, 180)}")
     for fm in (failures.get("failure_modes") or [])[:2]:
-        p2_flaws.append(f"Empirical failure mode [{fm['category']}, severity={fm['severity']}]: {_clip(fm['description'], 170)}")
+        p2_flaws.append(
+            f"Empirical failure mode [{fm['category']}, severity={fm['severity']}]: {_clip(fm['description'], 170)}"
+        )
     if not _has_section(sections, r"limitation|error\s+analysis|failure|threat"):
-        p2_flaws.append("Section omitted: dedicated 'Limitations' or 'Error Analysis' section not found in document structure.")
+        p2_flaws.append(
+            "Section omitted: dedicated 'Limitations' or 'Error Analysis' section not found in document structure."
+        )
     if not p2_strengths:
         p2_strengths.append("Empirical claims and target task are outlined in the paper summary.")
 
@@ -209,9 +220,7 @@ def _evaluate_cs(ev: dict) -> List[PersonaEvaluation]:
     if art.get("has_code"):
         p3_strengths.append(f"Open-source code repository linked in manuscript ({art.get('code_url')}).")
     else:
-        p3_flaws.append(
-            "Reproducibility omission: no public code repository (GitHub/GitLab) linked in the paper."
-        )
+        p3_flaws.append("Reproducibility omission: no public code repository (GitHub/GitLab) linked in the paper.")
     if art.get("has_weights"):
         p3_strengths.append(f"Pretrained model weights / checkpoints linked ({art.get('weights_url')}).")
     if art.get("evasive_availability_statement"):
@@ -237,7 +246,12 @@ def _evaluate_cs(ev: dict) -> List[PersonaEvaluation]:
         hp_keys = ", ".join(sorted((prompts.get("hyperparameters") or {}).keys()))
         p3_strengths.append(f"Hyperparameters explicitly documented ({hp_keys}).")
 
-    p3_score = 3.1 + (0.7 if art.get("has_code") else -0.6) + (0.3 if prompts.get("hyperparameters") else -0.2) - (0.5 if art.get("evasive_availability_statement") else 0.0)
+    p3_score = (
+        3.1
+        + (0.7 if art.get("has_code") else -0.6)
+        + (0.3 if prompts.get("hyperparameters") else -0.2)
+        - (0.5 if art.get("evasive_availability_statement") else 0.0)
+    )
 
     return [
         PersonaEvaluation(
@@ -275,7 +289,8 @@ def _evaluate_cs(ev: dict) -> List[PersonaEvaluation]:
 
 # --------------------------------------------------------------------------- Biomedical (CONSORT / STROBE / PRISMA)
 
-def _evaluate_biomedical(ev: dict) -> List[PersonaEvaluation]:
+
+def _evaluate_biomedical(ev: dict) -> list[PersonaEvaluation]:
     text = ev["text"]
     paper = ev["paper"]
     evidence_lvl = paper.get("evidence") or "other"
@@ -287,7 +302,9 @@ def _evaluate_biomedical(ev: dict) -> List[PersonaEvaluation]:
     p1 = rubrics_biomedical.PERSONAS[0]
     p1_strengths, p1_flaws, p1_questions = [], [], list(p1["default_questions"])
     if evidence_lvl in ("rct", "meta-analysis", "systematic-review"):
-        p1_strengths.append(f"High-evidence study design detected: '{evidence_lvl}' (top tier of the clinical evidence pyramid).")
+        p1_strengths.append(
+            f"High-evidence study design detected: '{evidence_lvl}' (top tier of the clinical evidence pyramid)."
+        )
     elif evidence_lvl == "cohort":
         p1_strengths.append("Observational cohort study design identified; evaluates longitudinal outcomes.")
     if re.search(r"(?<!without\s)(?<!no\s)\brandomi[sz](?:ed|ation)\b", text, re.I):
@@ -296,16 +313,21 @@ def _evaluate_biomedical(ev: dict) -> List[PersonaEvaluation]:
         p1_flaws.append(
             "Control / design omission: randomization procedure and allocation concealment are not reported in the manuscript."
         )
-    if (
-        re.search(r"\b(?:double[-\s]blind|single[-\s]blind|placebo[-\s]controlled|masked|blinding)\b", text, re.I)
-        and not re.search(r"\b(?:without|no|unblinded|lack\s+of)\s+(?:[a-z-]+\s+){0,3}?(?:blinding|masking)\b", text, re.I)
+    if re.search(
+        r"\b(?:double[-\s]blind|single[-\s]blind|placebo[-\s]controlled|masked|blinding)\b", text, re.I
+    ) and not re.search(
+        r"\b(?:without|no|unblinded|lack\s+of)\s+(?:[a-z-]+\s+){0,3}?(?:blinding|masking)\b", text, re.I
     ):
         p1_strengths.append("Blinding / masking or placebo-control protocol reported.")
     else:
         p1_flaws.append(
             "Section / control omitted: double-blinding / outcome-assessor masking and placebo control are not reported in text."
         )
-    if not re.search(r"\b(?:NCT\d{6,}|ISRCTN\d+|PROSPERO|CRD\d+|pre[-\s]?registered|trial\s+registration|ethics\s+committee|IRB)\b", text, re.I):
+    if not re.search(
+        r"\b(?:NCT\d{6,}|ISRCTN\d+|PROSPERO|CRD\d+|pre[-\s]?registered|trial\s+registration|ethics\s+committee|IRB)\b",
+        text,
+        re.I,
+    ):
         p1_flaws.append(
             "CONSORT/PRISMA omission: no clinical trial registration identifier (e.g. NCT/PROSPERO) or protocol pre-registration reported."
         )
@@ -316,39 +338,60 @@ def _evaluate_biomedical(ev: dict) -> List[PersonaEvaluation]:
     if not p1_strengths:
         p1_strengths.append(f"Biomedical research question and study scope defined ({evidence_lvl} design).")
 
-    p1_score = 3.0 + (0.7 if evidence_lvl in ("rct", "meta-analysis", "systematic-review") else -0.3) - 0.25 * min(len(p1_flaws), 3)
+    p1_score = (
+        3.0
+        + (0.7 if evidence_lvl in ("rct", "meta-analysis", "systematic-review") else -0.3)
+        - 0.25 * min(len(p1_flaws), 3)
+    )
 
     # Persona 2: Biostatistician & Statistical Power Auditor
     p2 = rubrics_biomedical.PERSONAS[1]
     p2_strengths, p2_flaws, p2_questions = [], [], list(p2["default_questions"])
-    m_n = re.search(r"\b[nN]\s*=\s*(\d[\d,]*)|\b(\d[\d,]*)\s+(?:patients|participants|subjects|adults|cases)\b", text, re.I)
+    m_n = re.search(
+        r"\b[nN]\s*=\s*(\d[\d,]*)|\b(\d[\d,]*)\s+(?:patients|participants|subjects|adults|cases)\b", text, re.I
+    )
     if m_n:
         n_str = (m_n.group(1) or m_n.group(2)).replace(",", "")
         p2_strengths.append(f"Sample size explicitly reported in text (N = {n_str}).")
         try:
             if int(n_str) < 50:
-                p2_flaws.append(f"Small sample size warning (N = {n_str}): high risk of Type II error and inflated effect sizes.")
+                p2_flaws.append(
+                    f"Small sample size warning (N = {n_str}): high risk of Type II error and inflated effect sizes."
+                )
         except ValueError:
             pass
     else:
-        p2_flaws.append("Statistical omission: exact sample size (N) per study arm is not reported in the analyzed text.")
+        p2_flaws.append(
+            "Statistical omission: exact sample size (N) per study arm is not reported in the analyzed text."
+        )
 
-    if (
-        re.search(r"\b(?:power\s+calculation|statistical\s+power|1\s*-\s*\\?beta|80%\s+power|90%\s+power|sample\s+size\s+calculation)\b", text, re.I)
-        and not re.search(r"\b(?:without|no|lack\s+of)\s+(?:[a-z-]+\s+){0,5}?(?:power\s+calculation|sample\s+size\s+calculation)\b", text, re.I)
+    if re.search(
+        r"\b(?:power\s+calculation|statistical\s+power|1\s*-\s*\\?beta|80%\s+power|90%\s+power|sample\s+size\s+calculation)\b",
+        text,
+        re.I,
+    ) and not re.search(
+        r"\b(?:without|no|lack\s+of)\s+(?:[a-z-]+\s+){0,5}?(?:power\s+calculation|sample\s+size\s+calculation)\b",
+        text,
+        re.I,
     ):
         p2_strengths.append("A priori statistical power (1-beta) / sample-size justification reported.")
     else:
         p2_flaws.append(
             "Section omitted / not reported: sample-size power calculation (1-beta) and minimum detectable effect size are missing."
         )
-    if re.search(r"\b(?:95%\s*CI|confidence\s+interval|hazard\s+ratio|odds\s+ratio|relative\s+risk|\bp\s*[<=>])\b", text, re.I):
+    if re.search(
+        r"\b(?:95%\s*CI|confidence\s+interval|hazard\s+ratio|odds\s+ratio|relative\s+risk|\bp\s*[<=>])\b", text, re.I
+    ):
         p2_strengths.append("Effect estimates with confidence intervals (95% CI) or p-values are reported.")
     else:
         p2_flaws.append(
             "Biostatistical omission: 95% confidence intervals (CI) and exact p-values for primary endpoints are not reported."
         )
-    if not re.search(r"\b(?:intention[-\s]to[-\s]treat|\bITT\b|per[-\s]protocol|attrition|loss\s+to\s+follow[-\s]up|missing\s+data)\b", text, re.I):
+    if not re.search(
+        r"\b(?:intention[-\s]to[-\s]treat|\bITT\b|per[-\s]protocol|attrition|loss\s+to\s+follow[-\s]up|missing\s+data)\b",
+        text,
+        re.I,
+    ):
         p2_flaws.append(
             "CONSORT omission: intention-to-treat (ITT) analysis and attrition / loss-to-follow-up accounting are not reported."
         )
@@ -360,13 +403,19 @@ def _evaluate_biomedical(ev: dict) -> List[PersonaEvaluation]:
     # Persona 3: Translational Medicine & Clinical Safety Reviewer
     p3 = rubrics_biomedical.PERSONAS[2]
     p3_strengths, p3_flaws, p3_questions = [], [], list(p3["default_questions"])
-    if evidence_lvl == "preclinical" or re.search(r"\b(?:in\s+vitro|mice|murine|rat\s+model|animal\s+model|cell\s+line|xenograft)\b", text, re.I):
+    if evidence_lvl == "preclinical" or re.search(
+        r"\b(?:in\s+vitro|mice|murine|rat\s+model|animal\s+model|cell\s+line|xenograft)\b", text, re.I
+    ):
         p3_flaws.append(
             "Translational gap warning: preclinical study (in vitro / animal model) — efficacy and dosing cannot be directly extrapolated to human patients."
         )
     else:
         p3_strengths.append("Human clinical or population-level investigation with translational relevance.")
-    if re.search(r"\b(?:adverse\s+events?|side\s+effects?|toxicity|safety\s+profile|tolerability|serious\s+adverse)\b", text, re.I):
+    if re.search(
+        r"\b(?:adverse\s+events?|side\s+effects?|toxicity|safety\s+profile|tolerability|serious\s+adverse)\b",
+        text,
+        re.I,
+    ):
         p3_strengths.append("Clinical safety, tolerability, or adverse event (AE) profile is addressed.")
     else:
         p3_flaws.append(
@@ -417,7 +466,8 @@ def _evaluate_biomedical(ev: dict) -> List[PersonaEvaluation]:
 
 # --------------------------------------------------------------------------- Economics (Econometrics & Causal ID)
 
-def _evaluate_economics(ev: dict) -> List[PersonaEvaluation]:
+
+def _evaluate_economics(ev: dict) -> list[PersonaEvaluation]:
     text = ev["text"]
     failures = ev["failures"]
     art = ev["artifacts"]
@@ -442,8 +492,14 @@ def _evaluate_economics(ev: dict) -> List[PersonaEvaluation]:
             "Identification omission: no quasi-experimental causal identification strategy (DiD, IV/2SLS, RDD, or panel fixed effects) explicitly stated."
         )
     if math_info.get("equation_count", 0) > 0:
-        p1_strengths.append(f"Structural or reduced-form econometric specification formalized ({math_info['equation_count']} equation(s)).")
-    if not re.search(r"\b(?:parallel\s+trends?|exclusion\s+restriction|exogen(?:ous|eity)|omitted\s+variable|endogeneity|pre[-\s]?trends?)\b", text, re.I):
+        p1_strengths.append(
+            f"Structural or reduced-form econometric specification formalized ({math_info['equation_count']} equation(s))."
+        )
+    if not re.search(
+        r"\b(?:parallel\s+trends?|exclusion\s+restriction|exogen(?:ous|eity)|omitted\s+variable|endogeneity|pre[-\s]?trends?)\b",
+        text,
+        re.I,
+    ):
         p1_flaws.append(
             "Section omitted / not reported: formal discussion of endogeneity, omitted variable bias (OVB), or parallel-trends / exclusion-restriction validity is missing."
         )
@@ -451,27 +507,39 @@ def _evaluate_economics(ev: dict) -> List[PersonaEvaluation]:
         p1_strengths.append("Addresses identifying assumptions (parallel trends / exogeneity / endogeneity threats).")
 
     for assump in (failures.get("critical_assumptions") or [])[:2]:
-        p1_flaws.append(f"Econometric assumption requiring verification: \"{_clip(assump, 160)}\"")
+        p1_flaws.append(f'Econometric assumption requiring verification: "{_clip(assump, 160)}"')
 
     p1_score = 3.2 + (0.6 if m_id else -0.6) - 0.25 * min(len(p1_flaws), 3)
 
     # Persona 2: Empirical Robustness & Inference Auditor
     p2 = rubrics_economics.PERSONAS[1]
     p2_strengths, p2_flaws, p2_questions = [], [], list(p2["default_questions"])
-    if re.search(r"\b(?:cluster(?:ed)?\s+standard\s+errors?|robust\s+standard\s+errors?|heteroskedasticity|wild\s+bootstrap|two[-\s]way\s+cluster)\b", text, re.I):
-        p2_strengths.append("Inference accounts for error correlation via clustered or heteroskedasticity-robust standard errors.")
+    if re.search(
+        r"\b(?:cluster(?:ed)?\s+standard\s+errors?|robust\s+standard\s+errors?|heteroskedasticity|wild\s+bootstrap|two[-\s]way\s+cluster)\b",
+        text,
+        re.I,
+    ):
+        p2_strengths.append(
+            "Inference accounts for error correlation via clustered or heteroskedasticity-robust standard errors."
+        )
     else:
         p2_flaws.append(
             "Inference omission: no clustered standard errors or heteroskedasticity-robust inference procedure reported in manuscript."
         )
-    if re.search(r"\b(?:placebo\s+test|falsification\s+test|robustness\s+check|alternative\s+specification|sub[-\s]?sample)\b", text, re.I):
+    if re.search(
+        r"\b(?:placebo\s+test|falsification\s+test|robustness\s+check|alternative\s+specification|sub[-\s]?sample)\b",
+        text,
+        re.I,
+    ):
         p2_strengths.append("Includes empirical robustness checks or placebo/falsification tests.")
     else:
         p2_flaws.append(
             "Section omitted / not reported: no placebo falsification test, pre-trend event study, or covariate sensitivity matrix reported."
         )
     if bench.get("tables"):
-        p2_strengths.append(f"Empirical estimation results structured across {len(bench['tables'])} regression/summary table(s).")
+        p2_strengths.append(
+            f"Empirical estimation results structured across {len(bench['tables'])} regression/summary table(s)."
+        )
     if not p2_strengths:
         p2_strengths.append("Empirical dataset and quantitative estimation scope described.")
 
@@ -480,7 +548,11 @@ def _evaluate_economics(ev: dict) -> List[PersonaEvaluation]:
     # Persona 3: Policy & External Validity Economist
     p3 = rubrics_economics.PERSONAS[2]
     p3_strengths, p3_flaws, p3_questions = [], [], list(p3["default_questions"])
-    if re.search(r"\b(?:policy|welfare|elasticity|percentage\s+points?|basis\s+points?|economic\s+significance|cost[-\s]benefit)\b", text, re.I):
+    if re.search(
+        r"\b(?:policy|welfare|elasticity|percentage\s+points?|basis\s+points?|economic\s+significance|cost[-\s]benefit)\b",
+        text,
+        re.I,
+    ):
         p3_strengths.append("Discusses economic magnitude, policy implications, or welfare/elasticity interpretation.")
     else:
         p3_flaws.append(
@@ -535,7 +607,8 @@ def _evaluate_economics(ev: dict) -> List[PersonaEvaluation]:
 
 # --------------------------------------------------------------------------- General STEM fallback
 
-def _evaluate_general_stem(ev: dict) -> List[PersonaEvaluation]:
+
+def _evaluate_general_stem(ev: dict) -> list[PersonaEvaluation]:
     text = ev["text"]
     math_info = ev["math"]
     bench = ev["benchmarks"]
@@ -548,13 +621,17 @@ def _evaluate_general_stem(ev: dict) -> List[PersonaEvaluation]:
         strengths, flaws = [], []
         if idx == 0:
             if math_info.get("equation_count", 0) > 0:
-                strengths.append(f"Formal quantitative equations extracted ({math_info['equation_count']} equation(s)).")
+                strengths.append(
+                    f"Formal quantitative equations extracted ({math_info['equation_count']} equation(s))."
+                )
             else:
                 flaws.append("Section omitted: no formal mathematical model or governing equations reported.")
             for fm in (failures.get("failure_modes") or [])[:2]:
                 flaws.append(f"Methodological limitation [{fm['category']}]: {_clip(fm['description'], 160)}")
             if not flaws:
-                flaws.append("Control omission: explicit negative control or baseline calibration not detailed in text.")
+                flaws.append(
+                    "Control omission: explicit negative control or baseline calibration not detailed in text."
+                )
         elif idx == 1:
             if bench.get("tables"):
                 strengths.append(f"Structured quantitative tables present ({len(bench['tables'])} table(s)).")
@@ -630,7 +707,7 @@ def _format_markdown_report(report: PeerReviewReport) -> str:
     return "\n".join(lines)
 
 
-def review_paper(paper_id: str, domain: Optional[str] = None, inspect_fulltext: bool = True) -> dict:
+def review_paper(paper_id: str, domain: str | None = None, inspect_fulltext: bool = True) -> dict:
     """Run a domain-adaptive 3-persona peer-review committee (#17, #20) and consolidate via a Meta-Reviewer."""
     ev = _collect_evidence(paper_id, domain_Override=domain, inspect_fulltext=bool(inspect_fulltext))
     dom = ev["domain"]
@@ -650,7 +727,9 @@ def review_paper(paper_id: str, domain: Optional[str] = None, inspect_fulltext: 
 
     overall_score = round(sum(e.score for e in evaluations) / 3.0, 2)
     all_flaws = [f for e in evaluations for f in e.critical_flaws]
-    severe_flaw_count = sum(1 for f in all_flaws if re.search(r"omitted|missing|no\s+public|evasive|preclinical", f, re.I))
+    severe_flaw_count = sum(
+        1 for f in all_flaws if re.search(r"omitted|missing|no\s+public|evasive|preclinical", f, re.I)
+    )
 
     if overall_score >= 4.0 and severe_flaw_count == 0:
         verdict = ReviewVerdict.ACCEPT
@@ -709,6 +788,6 @@ def review_paper(paper_id: str, domain: Optional[str] = None, inspect_fulltext: 
     return out
 
 
-def review_paper_scientific(paper_id: str, domain: Optional[str] = None, inspect_fulltext: bool = True) -> dict:
+def review_paper_scientific(paper_id: str, domain: str | None = None, inspect_fulltext: bool = True) -> dict:
     """Alias for review_paper (#20 specification compatibility)."""
     return review_paper(paper_id=paper_id, domain=domain, inspect_fulltext=inspect_fulltext)

@@ -25,19 +25,20 @@ def setUpModule():
     base = Path(temp.name)
     for folder in ("home", "cache", "workspace", "appdata"):
         (base / folder).mkdir()
-    ENV.update({
-        k: v for k, v in os.environ.items()
-        if not k.startswith("NOUL_") and k not in ("DB_PATH", "UNPAYWALL_EMAIL")
-    })
-    ENV.update({
-        "HOME": str(base / "home"),
-        "USERPROFILE": str(base / "home"),
-        "APPDATA": str(base / "appdata"),
-        "LOCALAPPDATA": str(base / "appdata"),
-        "NOUL_HOME": str(base / "cache"),
-        "NOUL_DB_PATH": str(base / "cache/cache.db"),
-        "NOUL_WORKSPACE": str(base / "workspace"),
-    })
+    ENV.update(
+        {k: v for k, v in os.environ.items() if not k.startswith("NOUL_") and k not in ("DB_PATH", "UNPAYWALL_EMAIL")}
+    )
+    ENV.update(
+        {
+            "HOME": str(base / "home"),
+            "USERPROFILE": str(base / "home"),
+            "APPDATA": str(base / "appdata"),
+            "LOCALAPPDATA": str(base / "appdata"),
+            "NOUL_HOME": str(base / "cache"),
+            "NOUL_DB_PATH": str(base / "cache/cache.db"),
+            "NOUL_WORKSPACE": str(base / "workspace"),
+        }
+    )
     env_patch = mock.patch.dict(os.environ, ENV, clear=True)
     env_patch.start()
     unittest.addModuleCleanup(env_patch.stop)
@@ -60,7 +61,7 @@ def rpc(*msgs):
     return [json.loads(x) for x in p.stdout.splitlines() if x.strip()]
 
 
-def test_mcp_handshake_and_tools():
+def check_mcp_handshake_and_tools():
     out = rpc(
         {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
         {"jsonrpc": "2.0", "method": "notifications/initialized"},
@@ -89,7 +90,7 @@ def test_mcp_handshake_and_tools():
     assert "resources" in out[4]["result"]
 
 
-def test_installer_roundtrip():
+def check_installer_roundtrip():
     def run(*a):
         return subprocess.run([sys.executable, str(ROOT / "install.py"), *a], env=ENV, capture_output=True, text=True)
 
@@ -98,7 +99,10 @@ def test_installer_roundtrip():
     (h / ".codex/config.toml").write_text('model = "x"\n', encoding="utf-8")
     assert run("--all").returncode == 0 and run("--all").returncode == 0  # idempotent
     assert "__NOUL_DIR__" not in (h / ".claude/agents/noul-researcher.md").read_text(encoding="utf-8")
-    assert json.loads((h / ".copilot/mcp-config.json").read_text(encoding="utf-8"))["mcpServers"]["noul"]["command"] == sys.executable
+    assert (
+        json.loads((h / ".copilot/mcp-config.json").read_text(encoding="utf-8"))["mcpServers"]["noul"]["command"]
+        == sys.executable
+    )
     assert (h / ".claude/commands/noul-search-config.md").exists()
     toml = (h / ".codex/config.toml").read_text(encoding="utf-8")
     assert toml.count("[mcp_servers.noul]") == 1 and 'model = "x"' in toml
@@ -112,7 +116,7 @@ def test_installer_roundtrip():
     assert "noul" not in json.loads((h / ".claude.json").read_text(encoding="utf-8"))["mcpServers"]
 
 
-def test_dossier_download_and_multi_paper_workflow():
+def check_dossier_download_and_multi_paper_workflow():
     tmp_dir = Path(tempfile.mkdtemp(dir=ENV["NOUL_WORKSPACE"]))
     p1 = {
         "id": "doi:10.1000_test1",
@@ -151,11 +155,14 @@ def test_dossier_download_and_multi_paper_workflow():
     c.cache_set("paper:" + p2["id"], p2)
 
     # 1. Test query_fulltexts with abstract fallback / cached fulltext
-    c.cache_set("ft:" + p1["id"], {
-        "text": "Methods: Subjects ingested 5 grams per day of creatine monohydrate or placebo for 42 days. No adverse renal effects.",
-        "url": p1["pdf_url"],
-        "source": "openalex",
-    })
+    c.cache_set(
+        "ft:" + p1["id"],
+        {
+            "text": "Methods: Subjects ingested 5 grams per day of creatine monohydrate or placebo for 42 days. No adverse renal effects.",
+            "url": p1["pdf_url"],
+            "source": "openalex",
+        },
+    )
     with mock.patch.object(c, "_http_get", return_value=b"Full text unavailable") as fetch:
         q_res = t.query_fulltexts([p1["id"], p2["id"]], question="dosage grams per day")
     fetch.assert_called_once_with(p2["pdf_url"], timeout=20, binary=True, public_only=True)
@@ -228,13 +235,25 @@ def assert_http_error(code, fn, *args, **kwargs):
         raise AssertionError(f"{getattr(fn, '__name__', fn)} did not raise HTTPError({code})")
 
 
-def test_http_security_cors_and_write_block():
-    rpc_call = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
-                "params": {"name": "download_papers", "arguments": {"ids": ["doi:10.1000/x"]}}}
+def check_http_security_cors_and_write_block():
+    rpc_call = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {"name": "download_papers", "arguments": {"ids": ["doi:10.1000/x"]}},
+    }
     with http_server(token="", cors_origins=("https://chat.openai.com",), allow_write=False) as port:
         assert http_request(port, "GET", "/tools", headers={"Origin": "https://evil.example"})[0] == 403
-        assert http_request(port, "POST", "/mcp", {"jsonrpc": "2.0", "id": 1, "method": "ping"},
-                            headers={"Origin": "https://evil.example"})[0] == 403
+        assert (
+            http_request(
+                port,
+                "POST",
+                "/mcp",
+                {"jsonrpc": "2.0", "id": 1, "method": "ping"},
+                headers={"Origin": "https://evil.example"},
+            )[0]
+            == 403
+        )
         status, _, resp = http_request(port, "GET", "/healthz", headers={"Origin": "https://chat.openai.com"})
         assert status == 200 and resp.getheader("Access-Control-Allow-Origin") == "https://chat.openai.com"
         assert http_request(port, "GET", "/healthz", headers={"Host": "evil.example"})[0] == 403  # DNS rebinding
@@ -267,7 +286,7 @@ def test_http_security_cors_and_write_block():
     assert not outside.exists()
 
 
-def test_october_arxiv_id_not_confused_with_doi():
+def check_october_arxiv_id_not_confused_with_doi():
     assert c._norm_doi("2410.12345") is None
     assert c._norm_doi("arxiv:2410.12345") is None
     assert c._norm_doi("10.1038/s41586-020-2649-2") == "10.1038/s41586-020-2649-2"
@@ -277,8 +296,14 @@ def test_october_arxiv_id_not_confused_with_doi():
 
     def fake_json(url, *a, **kw):
         urls.append(url)
-        return {"paperId": "f" * 40, "externalIds": {"ArXiv": "2410.12345"}, "title": "An October preprint",
-                "year": 2024, "authors": [{"name": "A. Author"}], "citationCount": 0}
+        return {
+            "paperId": "f" * 40,
+            "externalIds": {"ArXiv": "2410.12345"},
+            "title": "An October preprint",
+            "year": 2024,
+            "authors": [{"name": "A. Author"}],
+            "citationCount": 0,
+        }
 
     with mock.patch.object(c, "_http_json", side_effect=fake_json):
         paper = c.resolve_paper("2410.12345")
@@ -287,7 +312,7 @@ def test_october_arxiv_id_not_confused_with_doi():
     assert paper["title"] == "An October preprint"
 
 
-def test_journal_impact_no_false_q1():
+def check_journal_impact_no_false_q1():
     for venue in ("Journal of Food Science", "Procedia Computer Science", "Stem Cells International"):
         impact, tier = c._estimate_impact(0, 2024, venue)
         assert tier not in ("top", "Q1") and "Q1" not in tier, (venue, impact, tier)
@@ -295,18 +320,20 @@ def test_journal_impact_no_false_q1():
     assert c._estimate_impact(0, 2024, "Nature") == ("high", "top")
 
 
-def test_classifier_negative_contexts():
+def check_classifier_negative_contexts():
     assert c.classify_evidence("A cross-sectional study. Future meta-analyses are needed.") == "cohort"
     assert c.classify_evidence("", "A cross-sectional study. Future meta-analyses are needed.") == "cohort"
     assert c.classify_evidence("A non-randomized clinical trial of X") != "rct"
     assert c.classify_evidence("A randomized controlled trial of X") == "rct"
     assert c.classify_evidence("Creatine and cognition: a systematic review and meta-analysis") == "meta-analysis"
     assert c.classify_evidence("A cohort study", "Earlier randomized controlled trials reported benefits.") == "cohort"
-    assert c.classify_evidence("Experiments in mice", "Previous meta-analyses assessed human outcomes.") == "preclinical"
+    assert (
+        c.classify_evidence("Experiments in mice", "Previous meta-analyses assessed human outcomes.") == "preclinical"
+    )
     assert c.classify_evidence("An intervention study", pub_types=["Randomized Controlled Trial"]) == "rct"
 
 
-def test_ssrf_protection():
+def check_ssrf_protection():
     for url in (
         "http://127.0.0.1/secret",
         "http://169.254.169.254/latest/meta-data/",
@@ -329,11 +356,12 @@ def test_ssrf_protection():
     with mock.patch.object(c.socket, "getaddrinfo", return_value=addresses[:1]):
         assert c._validate_public_url("https://example.org/paper.pdf") == "https://example.org/paper.pdf"
     request = c.urllib.request.Request("https://example.org/paper.pdf")
-    assert_http_error(400, c._PublicRedirectHandler().redirect_request,
-                      request, None, 302, "Found", {}, "http://127.0.0.1/private")
+    assert_http_error(
+        400, c._PublicRedirectHandler().redirect_request, request, None, 302, "Found", {}, "http://127.0.0.1/private"
+    )
 
 
-def test_config_and_deterministic_evidence_meter():
+def check_config_and_deterministic_evidence_meter():
     cfg_file = Path(c.get_config()["config_file"])
     try:
         assert not cfg_file.exists()
@@ -350,7 +378,9 @@ def test_config_and_deterministic_evidence_meter():
         t.configure_noul(clear=True)
     assert not cfg_file.exists()
 
-    c.cache_set("paper:doi:10.1000_meter-ma", {"id": "doi:10.1000_meter-ma", "title": "MA", "evidence": "meta-analysis"})
+    c.cache_set(
+        "paper:doi:10.1000_meter-ma", {"id": "doi:10.1000_meter-ma", "title": "MA", "evidence": "meta-analysis"}
+    )
     items = [
         {"id": "doi:10.1000_meter-ma", "stance": "supports", "evidence": "other"},  # cached design wins
         {"id": "x2", "stance": "contrary", "evidence": "preclinical"},
@@ -377,10 +407,19 @@ class AgentTestSuite(unittest.TestCase):
         self.addCleanup(blocked.assert_not_called)
 
     def test_p0_5_config_email_and_database_precedence(self):
-        with tempfile.TemporaryDirectory() as cache, mock.patch.dict(os.environ, {
-            "NOUL_HOME": cache, "NOUL_EMAIL": "", "UNPAYWALL_EMAIL": "",
-            "NOUL_DB_PATH": str(Path(cache) / "noul.db"), "DB_PATH": str(Path(cache) / "legacy.db"),
-        }):
+        with (
+            tempfile.TemporaryDirectory() as cache,
+            mock.patch.dict(
+                os.environ,
+                {
+                    "NOUL_HOME": cache,
+                    "NOUL_EMAIL": "",
+                    "UNPAYWALL_EMAIL": "",
+                    "NOUL_DB_PATH": str(Path(cache) / "noul.db"),
+                    "DB_PATH": str(Path(cache) / "legacy.db"),
+                },
+            ),
+        ):
             with mock.patch.object(c, "_http_json", return_value={}) as fetch:
                 c._search_openalex("offline")
                 c._search_crossref("offline")
@@ -417,8 +456,9 @@ class AgentTestSuite(unittest.TestCase):
                 env = {**ENV}
                 if explicit:
                     env["NOUL_APP_DIR"] = explicit
-                result = subprocess.run([sys.executable, "-c", probe], cwd=agent, env=env,
-                                        capture_output=True, text=True, timeout=30)
+                result = subprocess.run(
+                    [sys.executable, "-c", probe], cwd=agent, env=env, capture_output=True, text=True, timeout=30
+                )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(result.stdout.strip(), expected)
 
@@ -453,9 +493,11 @@ class AgentTestSuite(unittest.TestCase):
             finally:
                 returned.set()
 
-        with mock.patch.object(c, "_search_openalex", side_effect=slow), \
-                mock.patch.object(c, "_search_europepmc", return_value=[]), \
-                mock.patch.object(c, "SEARCH_TIMEOUT", 0.05):
+        with (
+            mock.patch.object(c, "_search_openalex", side_effect=slow),
+            mock.patch.object(c, "_search_europepmc", return_value=[]),
+            mock.patch.object(c, "SEARCH_TIMEOUT", 0.05),
+        ):
             worker = threading.Thread(target=search)
             worker.start()
             try:
@@ -479,14 +521,19 @@ class AgentTestSuite(unittest.TestCase):
         response.__exit__.assert_called_once()
 
         paper = {"id": "test:html-cleaning", "title": "HTML study", "pdf_url": "https://example.org/article"}
-        boilerplate = "".join(f"<{tag}>{'boilerplate ' * 300}</{tag}>" for tag in
-                              ("script", "style", "nav", "header", "footer"))
-        with mock.patch.object(c, "resolve_paper", return_value=paper), \
-                mock.patch.object(c, "_http_get", return_value=(boilerplate + "<p>Sign in</p>").encode()):
+        boilerplate = "".join(
+            f"<{tag}>{'boilerplate ' * 300}</{tag}>" for tag in ("script", "style", "nav", "header", "footer")
+        )
+        with (
+            mock.patch.object(c, "resolve_paper", return_value=paper),
+            mock.patch.object(c, "_http_get", return_value=(boilerplate + "<p>Sign in</p>").encode()),
+        ):
             self.assertFalse(c.fulltext(paper["id"])["available"])
         article = "<article>" + ("Methods and results of our study. " * 100) + "</article>"
-        with mock.patch.object(c, "resolve_paper", return_value=paper), \
-                mock.patch.object(c, "_http_get", return_value=(boilerplate + article).encode()) as fetch:
+        with (
+            mock.patch.object(c, "resolve_paper", return_value=paper),
+            mock.patch.object(c, "_http_get", return_value=(boilerplate + article).encode()) as fetch,
+        ):
             self.assertTrue(c.fulltext(paper["id"])["available"])
         fetch.assert_called_once_with(paper["pdf_url"], timeout=20, binary=True, public_only=True)
         self.assertNotIn("boilerplate", c.cache_get("ft:" + paper["id"])["text"])
@@ -500,17 +547,29 @@ class AgentTestSuite(unittest.TestCase):
         self.assertEqual(t.call("configure_noul", None), t.configure_noul())
 
     def test_p0_14_europepmc_source_search(self):
-        fixture = {"resultList": {"result": [{
-            "title": "A study", "doi": "10.1000/europepmc", "pmid": "123", "pmcid": "PMC123",
-            "pubYear": "2024", "isOpenAccess": "Y", "citedByCount": 7,
-            "abstractText": "<p>Trial methods and findings</p>",
-            "authorList": {"author": [{"firstName": "Alice", "lastName": "Smith"}]},
-            "journalInfo": {"journal": {"title": "Journal of Testing"}},
-            "pubTypeList": {"pubType": ["Randomized Controlled Trial"]},
-        }]}}
+        fixture = {
+            "resultList": {
+                "result": [
+                    {
+                        "title": "A study",
+                        "doi": "10.1000/europepmc",
+                        "pmid": "123",
+                        "pmcid": "PMC123",
+                        "pubYear": "2024",
+                        "isOpenAccess": "Y",
+                        "citedByCount": 7,
+                        "abstractText": "<p>Trial methods and findings</p>",
+                        "authorList": {"author": [{"firstName": "Alice", "lastName": "Smith"}]},
+                        "journalInfo": {"journal": {"title": "Journal of Testing"}},
+                        "pubTypeList": {"pubType": ["Randomized Controlled Trial"]},
+                    }
+                ]
+            }
+        }
         with mock.patch.object(c, "_http_json", return_value=fixture) as fetch:
-            result = c.search("Europe PMC regression", filters={"year_min": 2020, "open_access": True},
-                              sources=["europepmc"])
+            result = c.search(
+                "Europe PMC regression", filters={"year_min": 2020, "open_access": True}, sources=["europepmc"]
+            )
         params = c.urllib.parse.parse_qs(c.urllib.parse.urlparse(fetch.call_args.args[0]).query)
         self.assertEqual(params["resultType"], ["core"])
         self.assertIn("PUB_YEAR:[2020 TO 3000]", params["query"][0])
@@ -530,8 +589,13 @@ class AgentTestSuite(unittest.TestCase):
             config.write_text(original, encoding="utf-8")
 
             def run(*args):
-                return subprocess.run([sys.executable, str(ROOT / "install.py"), "claude", *args],
-                                      env=env, capture_output=True, text=True, timeout=30)
+                return subprocess.run(
+                    [sys.executable, str(ROOT / "install.py"), "claude", *args],
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
 
             self.assertEqual(run("--dry-run").returncode, 0)
             self.assertEqual(config.read_text(encoding="utf-8"), original)
@@ -556,8 +620,14 @@ class AgentTestSuite(unittest.TestCase):
             env = {**ENV, "NOUL_HOME": cache, "NOUL_DB_PATH": str(Path(cache) / "cache.db")}
 
             def run(*args, stdin=None):
-                result = subprocess.run([sys.executable, str(ROOT / "noul_cli.py"), *args],
-                                        env=env, input=stdin, capture_output=True, text=True, timeout=30)
+                result = subprocess.run(
+                    [sys.executable, str(ROOT / "noul_cli.py"), *args],
+                    env=env,
+                    input=stdin,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 return json.loads(result.stdout)
 
@@ -586,19 +656,27 @@ class AgentTestSuite(unittest.TestCase):
                 self.assertEqual(status, 200)
                 self.assertEqual(spec["servers"], [{"url": f"https://127.0.0.1:{port}"}])
                 self.assertIn("/tools/save_research_dossier", spec["paths"])
-                self.assertEqual(http_request(
-                    port, "POST", "/mcp", headers={**headers, "Content-Length": str(m.MAX_BODY_BYTES + 1)}
-                )[0], 413)
+                self.assertEqual(
+                    http_request(
+                        port, "POST", "/mcp", headers={**headers, "Content-Length": str(m.MAX_BODY_BYTES + 1)}
+                    )[0],
+                    413,
+                )
 
     def test_protocol_negotiation_and_cloud_run_binding(self):
-        responses = rpc(*[
-            {"jsonrpc": "2.0", "id": i, "method": "initialize", "params": {"protocolVersion": version}}
-            for i, version in enumerate(("2025-03-26", "2024-11-05", "unsupported"), 1)
-        ])
-        self.assertEqual([r["result"]["protocolVersion"] for r in responses],
-                         ["2025-03-26", "2024-11-05", "2025-06-18"])
-        with mock.patch.object(m, "serve_http") as serve, \
-                mock.patch.dict(os.environ, {"K_SERVICE": "test", "PORT": "8080", "NOUL_HTTP_HOST": ""}):
+        responses = rpc(
+            *[
+                {"jsonrpc": "2.0", "id": i, "method": "initialize", "params": {"protocolVersion": version}}
+                for i, version in enumerate(("2025-03-26", "2024-11-05", "unsupported"), 1)
+            ]
+        )
+        self.assertEqual(
+            [r["result"]["protocolVersion"] for r in responses], ["2025-03-26", "2024-11-05", "2025-06-18"]
+        )
+        with (
+            mock.patch.object(m, "serve_http") as serve,
+            mock.patch.dict(os.environ, {"K_SERVICE": "test", "PORT": "8080", "NOUL_HTTP_HOST": ""}),
+        ):
             m.main(["--http"])
             serve.assert_called_with(8080, "0.0.0.0")
             with mock.patch.dict(os.environ, {"NOUL_HTTP_HOST": "127.0.0.1"}):
@@ -611,16 +689,24 @@ class AgentTestSuite(unittest.TestCase):
         with tempfile.TemporaryDirectory() as external:
             outside = Path(external)
             (outside / "README.md").write_text("outside workspace", encoding="utf-8")
-            index = {"outside": {"slug": "outside", "topic": "Outside", "path": str(outside),
-                                 "readme_path": str(outside / "README.md")}}
+            index = {
+                "outside": {
+                    "slug": "outside",
+                    "topic": "Outside",
+                    "path": str(outside),
+                    "readme_path": str(outside / "README.md"),
+                }
+            }
             with mock.patch.object(c, "cache_get", return_value=index):
                 self.assertEqual(t.list_research_dossiers()["dossiers"], [])
                 assert_http_error(404, t.get_research_dossier, "outside")
 
     def test_workspace_symlinks_stay_confined(self):
-        with tempfile.TemporaryDirectory(dir=ENV["NOUL_WORKSPACE"]) as workspace, \
-                tempfile.TemporaryDirectory() as external, \
-                mock.patch.dict(os.environ, {"NOUL_WORKSPACE": workspace, "NOUL_ALLOW_ANY_PATH": ""}):
+        with (
+            tempfile.TemporaryDirectory(dir=ENV["NOUL_WORKSPACE"]) as workspace,
+            tempfile.TemporaryDirectory() as external,
+            mock.patch.dict(os.environ, {"NOUL_WORKSPACE": workspace, "NOUL_ALLOW_ANY_PATH": ""}),
+        ):
             root, outside = Path(workspace), Path(external)
             (outside / "README.md").write_text("unchanged", encoding="utf-8")
             research = root / "research"
@@ -645,31 +731,31 @@ class AgentTestSuite(unittest.TestCase):
             self.assertFalse((outside / "paper.pdf").exists())
 
     def test_1_mcp(self):
-        test_mcp_handshake_and_tools()
+        check_mcp_handshake_and_tools()
 
     def test_2_installer(self):
-        test_installer_roundtrip()
+        check_installer_roundtrip()
 
     def test_3_workflow(self):
-        test_dossier_download_and_multi_paper_workflow()
+        check_dossier_download_and_multi_paper_workflow()
 
     def test_p0_1_http_security_cors_and_write_block(self):
-        test_http_security_cors_and_write_block()
+        check_http_security_cors_and_write_block()
 
     def test_p0_2_october_arxiv_id_not_confused_with_doi(self):
-        test_october_arxiv_id_not_confused_with_doi()
+        check_october_arxiv_id_not_confused_with_doi()
 
     def test_p0_3_journal_impact_no_false_q1(self):
-        test_journal_impact_no_false_q1()
+        check_journal_impact_no_false_q1()
 
     def test_p0_4_classifier_negative_contexts(self):
-        test_classifier_negative_contexts()
+        check_classifier_negative_contexts()
 
     def test_p0_10_ssrf_protection(self):
-        test_ssrf_protection()
+        check_ssrf_protection()
 
-    def test_config_and_deterministic_evidence_meter(self):
-        test_config_and_deterministic_evidence_meter()
+    def check_config_and_deterministic_evidence_meter(self):
+        check_config_and_deterministic_evidence_meter()
 
 
 if __name__ == "__main__":

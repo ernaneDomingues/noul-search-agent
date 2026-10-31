@@ -1,4 +1,5 @@
 """Unit tests for Phase 6 Issues #22 (recommend_citations) & #24 (synthesize_related_work)."""
+
 import io
 import json
 import unittest
@@ -145,23 +146,23 @@ class CitationAndRelatedWorkTests(unittest.TestCase):
             output_format="markdown",
         )
         self.assertIn("## Related Work", res_md["rendered_related_work"])
-        multi_cluster = next(
-            cl for cl in res_md["thematic_clusters"] if len(cl["paper_ids"]) >= 2
-        )
+        multi_cluster = next(cl for cl in res_md["thematic_clusters"] if len(cl["paper_ids"]) >= 2)
         self.assertIn("while ", multi_cluster["comparative_narrative"].lower())
         self.assertIn("[1]", multi_cluster["comparative_narrative"])
 
     def test_cli_related_work_pretty_and_validation(self):
         buf = io.StringIO()
         with redirect_stdout(buf):
-            rc = cli.main([
-                "related-work",
-                self.p1["id"],
-                self.p2["id"],
-                "--proposal",
-                "Low-rank KV quantization with RLHF calibration",
-                "--pretty",
-            ])
+            rc = cli.main(
+                [
+                    "related-work",
+                    self.p1["id"],
+                    self.p2["id"],
+                    "--proposal",
+                    "Low-rank KV quantization with RLHF calibration",
+                    "--pretty",
+                ]
+            )
         self.assertEqual(rc, 0)
         out = buf.getvalue()
         self.assertIn("## Related Work", out)

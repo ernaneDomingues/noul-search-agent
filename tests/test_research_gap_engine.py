@@ -1,4 +1,5 @@
 """Unit tests for Phase 5 Autonomous Research Gap & Hypothesis Engine (#18)."""
+
 import io
 import unittest
 from contextlib import redirect_stdout
@@ -76,7 +77,11 @@ class ResearchGapEngineTests(unittest.TestCase):
     def test_cross_analyzes_contradictions_complementarities_and_hypotheses(self):
         res = noul_tools.call(
             "generate_research_hypotheses",
-            {"paper_ids": [self.id1, self.id2, self.id3], "topic": "Long-Context Robust LLM Inference", "max_hypotheses": 3},
+            {
+                "paper_ids": [self.id1, self.id2, self.id3],
+                "topic": "Long-Context Robust LLM Inference",
+                "max_hypotheses": 3,
+            },
         )
         self.assertEqual(res["paper_ids"], [self.id1, self.id2, self.id3])
         self.assertTrue(len(res["contradictions_found"]) >= 1)

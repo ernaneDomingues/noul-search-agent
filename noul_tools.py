@@ -1,5 +1,6 @@
 """Tool layer shared by the CLI and the MCP server. The host agent's own LLM does
 stance classification and synthesis; these tools retrieve, structure, download, and persist evidence."""
+
 import json
 import os
 import re
@@ -19,19 +20,34 @@ if _explicit_app_dir and (Path(_explicit_app_dir) / "noul" / "core.py").exists()
     sys.path.insert(0, _explicit_app_dir)
     from noul import core as c  # noqa: E402
 else:
-    c = _local_core
+    c = _local_core  # type: ignore[misc]
 
 # Configuration always comes from the built-in core (an external core may not implement it).
 _cfg = c if hasattr(c, "get_config") and hasattr(c, "set_config") else _local_core
 
 EVIDENCE = list(c.EV_W)
 STANCE_ALIASES = {
-    "supportive": "supportive", "support": "supportive", "supports": "supportive", "yes": "supportive",
-    "positive": "supportive", "favorable": "supportive", "favoravel": "supportive", "favorável": "supportive",
-    "contrary": "contrary", "contradicts": "contrary", "against": "contrary", "no": "contrary",
-    "negative": "contrary", "contrario": "contrary", "contrário": "contrary",
-    "inconclusive": "inconclusive", "possibly": "inconclusive", "mixed": "inconclusive", "neutral": "inconclusive",
-    "unclear": "inconclusive", "inconclusivo": "inconclusive",
+    "supportive": "supportive",
+    "support": "supportive",
+    "supports": "supportive",
+    "yes": "supportive",
+    "positive": "supportive",
+    "favorable": "supportive",
+    "favoravel": "supportive",
+    "favorável": "supportive",
+    "contrary": "contrary",
+    "contradicts": "contrary",
+    "against": "contrary",
+    "no": "contrary",
+    "negative": "contrary",
+    "contrario": "contrary",
+    "contrário": "contrary",
+    "inconclusive": "inconclusive",
+    "possibly": "inconclusive",
+    "mixed": "inconclusive",
+    "neutral": "inconclusive",
+    "unclear": "inconclusive",
+    "inconclusivo": "inconclusive",
 }
 
 
@@ -51,7 +67,7 @@ def _safe_output_dir(requested_dir=None, default_subdir="papers") -> Path:
                 403,
                 f"Path '{target}' is outside the allowed workspace '{workspace}'. "
                 "Use a path inside the workspace or change it with configure_noul(workspace=...).",
-            )
+            ) from None
     return target
 
 
@@ -76,11 +92,29 @@ def _slim(p, idx=None, abstract_chars=1500):
     out = {
         k: p.get(k)
         for k in (
-            "id", "title", "authors", "year", "journal", "doi", "pmid", "arxiv_id",
-            "citations", "evidence", "impact", "tier", "open_access", "pdf_url", "sources", "domain",
-            "has_code", "has_weights", "has_dataset", "artifacts",
+            "id",
+            "title",
+            "authors",
+            "year",
+            "journal",
+            "doi",
+            "pmid",
+            "arxiv_id",
+            "citations",
+            "evidence",
+            "impact",
+            "tier",
+            "open_access",
+            "pdf_url",
+            "sources",
+            "domain",
+            "has_code",
+            "has_weights",
+            "has_dataset",
+            "artifacts",
         )
-        if p.get(k) is not None or k in ("id", "title", "authors", "year", "journal", "doi", "citations", "evidence", "open_access")
+        if p.get(k) is not None
+        or k in ("id", "title", "authors", "year", "journal", "doi", "citations", "evidence", "open_access")
     }
     out["authors"] = (out.get("authors") or [])[:4]
     out["abstract"] = (p.get("abstract") or "")[:abstract_chars]
@@ -96,7 +130,7 @@ def _phase1(module):
     try:
         return importlib.import_module(module)
     except ImportError as e:
-        raise c.HTTPError(501, f"Feature unavailable: module '{module}' could not be imported ({e})")
+        raise c.HTTPError(501, f"Feature unavailable: module '{module}' could not be imported ({e})") from e
 
 
 def _domain_override(domain):
@@ -107,7 +141,7 @@ def _domain_override(domain):
     try:
         return dc.resolve_domain(override_domain=domain).value
     except ValueError as e:
-        raise c.HTTPError(400, str(e))
+        raise c.HTTPError(400, str(e)) from e
 
 
 def _paper_domain(p):
@@ -128,8 +162,20 @@ def _resolve(id_or_doi):
     return p
 
 
-def search_papers(query, sources=None, year_min=None, study_types=None, min_citations=None,
-                  open_access=False, sort=None, limit=15, offset=0, exclude_ids=None, domain=None, clarify=False):
+def search_papers(
+    query,
+    sources=None,
+    year_min=None,
+    study_types=None,
+    min_citations=None,
+    open_access=False,
+    sort=None,
+    limit=15,
+    offset=0,
+    exclude_ids=None,
+    domain=None,
+    clarify=False,
+):
     wanted_domain = _domain_override(domain)
     f = {"open_access": bool(open_access)}
     if year_min:
@@ -195,7 +241,7 @@ def detect_paper_domain(paper_id, domain=None):
     try:
         info = dc.explain_domain(paper=p, override_domain=domain)
     except ValueError as e:
-        raise c.HTTPError(400, str(e))
+        raise c.HTTPError(400, str(e)) from e
     return {
         "id": p.get("id"),
         "title": p.get("title"),
@@ -224,11 +270,17 @@ def scan_paper_artifacts(id, verify_http=True, inspect_fulltext=False):
                 warnings.append("Full text not available; scanned title/abstract only.")
         except Exception as e:
             warnings.append(f"Full text unavailable ({type(e).__name__}); scanned title/abstract only.")
-    res = radar.scan_artifacts_from_paper(p, fulltext=text, verify_http=bool(verify_http),
-                                          max_urls=radar.MAX_VERIFY_URLS)
+    res = radar.scan_artifacts_from_paper(
+        p, fulltext=text, verify_http=bool(verify_http), max_urls=radar.MAX_VERIFY_URLS
+    )
     c.cache_set("paper:" + pid, p)
-    out = {"id": pid, "title": p.get("title"), "verified_http": bool(verify_http),
-           "scanned_fulltext": bool(text), **res}
+    out = {
+        "id": pid,
+        "title": p.get("title"),
+        "verified_http": bool(verify_http),
+        "scanned_fulltext": bool(text),
+        **res,
+    }
     if res["evasive_availability_statement"]:
         warnings.append("Paper states artifacts are only available on request/after publication (evasive statement).")
     if warnings:
@@ -250,13 +302,14 @@ def get_thematic_insights(paper_ids, topic=None):
 
 def generate_research_hypotheses(paper_ids, topic=None, max_hypotheses=3):
     return _phase1("noul.tools.comparative_tools").generate_research_hypotheses(
-        paper_ids, topic=topic, max_hypotheses=max_hypotheses)
-
+        paper_ids, topic=topic, max_hypotheses=max_hypotheses
+    )
 
 
 def export_obsidian_notes(paper_ids, vault_dir=None, include_related_wikilinks=True):
     return _phase1("noul.tools.comparative_tools").export_obsidian_notes(
-        paper_ids, vault_dir=vault_dir, include_related_wikilinks=include_related_wikilinks)
+        paper_ids, vault_dir=vault_dir, include_related_wikilinks=include_related_wikilinks
+    )
 
 
 def suggest_boolean_queries(query="", paper_ids=None):
@@ -269,7 +322,8 @@ def extract_benchmark_tables(paper_id):
 
 def estimate_hardware_specs(paper_id, total_params_b=None, active_params_b=None, context_length=8192):
     return _phase1("noul.tools.hardware_tools").estimate_hardware_specs(
-        paper_id, total_params_b=total_params_b, active_params_b=active_params_b, context_length=context_length)
+        paper_id, total_params_b=total_params_b, active_params_b=active_params_b, context_length=context_length
+    )
 
 
 def verify_paper_claims(paper_id, claims=None):
@@ -289,71 +343,75 @@ def extract_prompts_and_decoding(paper_id):
 
 
 def detect_failure_modes(paper_id, inspect_fulltext=True):
-    return _phase1("noul.tools.technical_tools").detect_failure_modes(
-        paper_id, inspect_fulltext=bool(inspect_fulltext))
+    return _phase1("noul.tools.technical_tools").detect_failure_modes(paper_id, inspect_fulltext=bool(inspect_fulltext))
 
 
 def diff_arxiv_versions(arxiv_id, from_version="v1", to_version="v2"):
     return _phase1("noul.tools.technical_tools").diff_arxiv_versions(
-        arxiv_id, from_version=from_version, to_version=to_version)
+        arxiv_id, from_version=from_version, to_version=to_version
+    )
 
 
 def review_paper(paper_id, domain=None, inspect_fulltext=True):
     return _phase1("noul.tools.review_tools").review_paper(
-        paper_id, domain=domain, inspect_fulltext=bool(inspect_fulltext))
+        paper_id, domain=domain, inspect_fulltext=bool(inspect_fulltext)
+    )
 
 
 def review_paper_scientific(paper_id, domain=None, inspect_fulltext=True):
     return _phase1("noul.tools.review_tools").review_paper_scientific(
-        paper_id, domain=domain, inspect_fulltext=bool(inspect_fulltext))
+        paper_id, domain=domain, inspect_fulltext=bool(inspect_fulltext)
+    )
 
 
 def scaffold_implementation(paper_id, target=None, domain=None):
-    return _phase1("noul.tools.scaffold_tools").scaffold_implementation(
-        paper_id, target=target, domain=domain)
+    return _phase1("noul.tools.scaffold_tools").scaffold_implementation(paper_id, target=target, domain=domain)
 
 
 def scaffold_paper_code(paper_id, target_language=None, domain=None):
     return _phase1("noul.tools.scaffold_tools").scaffold_paper_code(
-        paper_id, target_language=target_language, domain=domain)
+        paper_id, target_language=target_language, domain=domain
+    )
 
 
 def recommend_citations(draft_text, max_per_claim=2, citation_style="latex"):
     return _phase1("noul.tools.authoring_tools").recommend_citations(
-        draft_text, max_per_claim=max_per_claim, citation_style=citation_style)
+        draft_text, max_per_claim=max_per_claim, citation_style=citation_style
+    )
 
 
 def synthesize_related_work(paper_ids, proposal, citation_style="latex", output_format="markdown"):
     return _phase1("noul.tools.authoring_tools").synthesize_related_work(
-        paper_ids, proposal=proposal, citation_style=citation_style, output_format=output_format)
+        paper_ids, proposal=proposal, citation_style=citation_style, output_format=output_format
+    )
 
 
 def generate_manuscript_blueprint(topic, venue="neurips", hypothesis="", key_findings=None, output_format="markdown"):
     return _phase1("noul.tools.authoring_tools").generate_manuscript_blueprint(
-        topic, venue=venue, hypothesis=hypothesis, key_findings=key_findings, output_format=output_format)
+        topic, venue=venue, hypothesis=hypothesis, key_findings=key_findings, output_format=output_format
+    )
 
 
 def audit_manuscript_draft(draft_input, venue="neurips", output_format="markdown"):
     return _phase1("noul.tools.authoring_tools").audit_manuscript_draft(
-        draft_input, venue=venue, output_format=output_format)
+        draft_input, venue=venue, output_format=output_format
+    )
 
 
 def sanitize_bibtex(bibtex_input, update_preprints=True, output_path=None):
     return _phase1("noul.tools.authoring_tools").sanitize_bibtex(
-        bibtex_input, update_preprints=bool(update_preprints), output_path=output_path)
+        bibtex_input, update_preprints=bool(update_preprints), output_path=output_path
+    )
 
 
 def parse_and_draft_rebuttal(reviews_input, paper_id=None, draft_input=None, output_format="markdown"):
     return _phase1("noul.tools.authoring_tools").parse_and_draft_rebuttal(
-        reviews_input, paper_id=paper_id, draft_input=draft_input, output_format=output_format)
+        reviews_input, paper_id=paper_id, draft_input=draft_input, output_format=output_format
+    )
 
 
 def audit_submission_readiness(draft_path, venue="neurips"):
-    return _phase1("noul.tools.gatekeeper_tools").audit_submission_readiness(
-        draft_path, venue=venue)
-
-
-
+    return _phase1("noul.tools.gatekeeper_tools").audit_submission_readiness(draft_path, venue=venue)
 
 
 def get_fulltext(id, question=""):
@@ -383,29 +441,33 @@ def query_fulltexts(ids, question, max_chunks_per_paper=4):
             if ft_meta.get("available"):
                 text = (c.cache_get("ft:" + pid) or {}).get("text") or ""
                 chunks = c.pick_chunks(text, question, n=max_chunks)
-                results.append({
-                    "id": pid,
-                    "title": p.get("title"),
-                    "authors": (p.get("authors") or [])[:3],
-                    "year": p.get("year"),
-                    "doi": p.get("doi"),
-                    "evidence": p.get("evidence"),
-                    "content_source": "fulltext",
-                    "excerpts": chunks,
-                })
+                results.append(
+                    {
+                        "id": pid,
+                        "title": p.get("title"),
+                        "authors": (p.get("authors") or [])[:3],
+                        "year": p.get("year"),
+                        "doi": p.get("doi"),
+                        "evidence": p.get("evidence"),
+                        "content_source": "fulltext",
+                        "excerpts": chunks,
+                    }
+                )
             else:
                 abs_txt = p.get("abstract") or ""
                 chunks = c.pick_chunks(abs_txt, question, n=2) if abs_txt else []
-                results.append({
-                    "id": pid,
-                    "title": p.get("title"),
-                    "authors": (p.get("authors") or [])[:3],
-                    "year": p.get("year"),
-                    "doi": p.get("doi"),
-                    "evidence": p.get("evidence"),
-                    "content_source": "abstract_only",
-                    "excerpts": chunks,
-                })
+                results.append(
+                    {
+                        "id": pid,
+                        "title": p.get("title"),
+                        "authors": (p.get("authors") or [])[:3],
+                        "year": p.get("year"),
+                        "doi": p.get("doi"),
+                        "evidence": p.get("evidence"),
+                        "content_source": "abstract_only",
+                        "excerpts": chunks,
+                    }
+                )
         except Exception as e:
             results.append({"id": raw_id, "error": str(e)})
     return {"question": question, "results": results}
@@ -458,12 +520,14 @@ def download_papers(ids, output_dir=None):
                 results.append(c.download_paper_pdf(raw_id, output_dir=str(dest)))
             else:
                 p = _resolve(raw_id)
-                results.append({
-                    "id": p["id"],
-                    "title": p.get("title"),
-                    "status": "unsupported_in_external_core",
-                    "doi_url": f"https://doi.org/{p['doi']}" if p.get("doi") else None,
-                })
+                results.append(
+                    {
+                        "id": p["id"],
+                        "title": p.get("title"),
+                        "status": "unsupported_in_external_core",
+                        "doi_url": f"https://doi.org/{p['doi']}" if p.get("doi") else None,
+                    }
+                )
         except Exception as e:
             results.append({"id": raw_id, "status": "error", "error": str(e)})
     downloaded_count = sum(1 for r in results if r.get("status") == "downloaded")
@@ -494,10 +558,10 @@ def _slugify(text):
 
 def _dossier_paths(directory):
     base = _safe_output_dir(directory, "research")
-    return (base, *(
-        _safe_output_dir(base / name, "research")
-        for name in ("README.md", "papers.json", "references.bib")
-    ))
+    return (
+        base,
+        *(_safe_output_dir(base / name, "research") for name in ("README.md", "papers.json", "references.bib")),
+    )
 
 
 def save_research_dossier(topic, synthesis_markdown, paper_ids=None, output_dir=None):
@@ -626,8 +690,9 @@ def configure_noul(email=None, workspace=None, download_dir=None, research_dir=N
     """View or update persistent Noul configuration (email for Unpaywall/polite pool, workspace, default folders).
     Called without arguments it only reads the configuration."""
     if clear or any(v is not None for v in (email, workspace, download_dir, research_dir)):
-        return _cfg.set_config(email=email, workspace=workspace, download_dir=download_dir,
-                               research_dir=research_dir, clear=bool(clear))
+        return _cfg.set_config(
+            email=email, workspace=workspace, download_dir=download_dir, research_dir=research_dir, clear=bool(clear)
+        )
     return _cfg.get_config()
 
 
@@ -690,12 +755,21 @@ def evidence_meter(items):
 
 
 S = {"type": "string"}
-_OUT_PAPERS = {"type": "string", "description": "Folder inside the workspace (relative paths are workspace-relative). "
-               "Default: configured download_dir (./papers)."}
-_OUT_RESEARCH = {"type": "string", "description": "Folder inside the workspace (relative paths are workspace-relative). "
-                 "Default: configured research_dir (./research)."}
-_DOMAIN = {"type": "string", "description": "Scientific domain: computer_science (cs), biomedical (bio, med), "
-           "economics (econ) or general_stem (stem). Filters search results / overrides the detected domain."}
+_OUT_PAPERS = {
+    "type": "string",
+    "description": "Folder inside the workspace (relative paths are workspace-relative). "
+    "Default: configured download_dir (./papers).",
+}
+_OUT_RESEARCH = {
+    "type": "string",
+    "description": "Folder inside the workspace (relative paths are workspace-relative). "
+    "Default: configured research_dir (./research).",
+}
+_DOMAIN = {
+    "type": "string",
+    "description": "Scientific domain: computer_science (cs), biomedical (bio, med), "
+    "economics (econ) or general_stem (stem). Filters search results / overrides the detected domain.",
+}
 TOOLS = {
     "search_papers": (
         "Search peer-reviewed and preprint literature across all scientific disciplines (OpenAlex, PubMed, Semantic Scholar, "
@@ -715,8 +789,11 @@ TOOLS = {
             "offset": {"type": "integer", "default": 0},
             "exclude_ids": {"type": "array", "items": S},
             "domain": _DOMAIN,
-            "clarify": {"type": "boolean", "default": False,
-                        "description": "If the query is broad, add `clarification_suggested` questions to the response."},
+            "clarify": {
+                "type": "boolean",
+                "default": False,
+                "description": "If the query is broad, add `clarification_suggested` questions to the response.",
+            },
         },
         ["query"],
         search_papers,
@@ -724,7 +801,7 @@ TOOLS = {
     "clarify_search_scope": (
         "Clarification loop for broad queries: says whether a query is too broad (needs >= 2 of: 5+ meaningful words, "
         "boolean operators/quoted phrase, time constraint, method + outcome) and returns 3 domain-specific "
-        "multiple-choice questions. Ask the user, then call again with `answers` ({\"q1\": option label or 1-based "
+        'multiple-choice questions. Ask the user, then call again with `answers` ({"q1": option label or 1-based '
         "index, ...}) to get `refined_query` and `recommended_filters` (year_min, study_types, sources, sort) for "
         "search_papers. Skip it when the user already gave a precise query.",
         {"query": S, "answers": {"type": "object"}, "domain": _DOMAIN},
@@ -751,8 +828,11 @@ TOOLS = {
         "Kaggle, PyTorch Hub) and datasets (Zenodo, Figshare, OSF, Dataverse, HF datasets) linked from a paper, "
         "verify that the links are alive (HEAD, 5s timeout, max 20 URLs) and flag evasive 'available on request' "
         "statements. Set inspect_fulltext=true to also scan the open-access full text.",
-        {"id": S, "verify_http": {"type": "boolean", "default": True},
-         "inspect_fulltext": {"type": "boolean", "default": False}},
+        {
+            "id": S,
+            "verify_http": {"type": "boolean", "default": True},
+            "inspect_fulltext": {"type": "boolean", "default": False},
+        },
         ["id"],
         scan_paper_artifacts,
     ),
@@ -761,9 +841,12 @@ TOOLS = {
         "(`forward_citations`), with title, year, venue, citation_count and Semantic Scholar's `is_influential` flag "
         "(OpenAlex fallback: >= 50 citations). Every returned `paper_id` is cached, so you can chain get_paper, "
         "get_paper_references or download_papers on it.",
-        {"paper_id": S, "limit": {"type": "integer", "default": 10, "minimum": 1, "maximum": 50},
-         "direction": {"type": "string", "enum": ["both", "backward", "forward"], "default": "both"},
-         "sort_by": {"type": "string", "enum": ["influential", "citations", "year"], "default": "influential"}},
+        {
+            "paper_id": S,
+            "limit": {"type": "integer", "default": 10, "minimum": 1, "maximum": 50},
+            "direction": {"type": "string", "enum": ["both", "backward", "forward"], "default": "both"},
+            "sort_by": {"type": "string", "enum": ["influential", "citations", "year"], "default": "influential"},
+        },
         ["paper_id"],
         get_paper_references,
     ),
@@ -801,10 +884,15 @@ TOOLS = {
         "(inside the workspace; default ./obsidian): YAML frontmatter (title, paper_id, doi, year, authors, venue, "
         "domain, evidence_level, citations, open_access, has_code, has_weights, tags), TL;DR, key findings & "
         "methodology, open artifacts, [[wikilinks]] between the exported notes and a BibTeX block.",
-        {"paper_ids": {"type": "array", "items": S},
-         "vault_dir": {"type": "string", "description": "Vault folder inside the workspace (relative paths are "
-                       "workspace-relative). Default: ./obsidian."},
-         "include_related_wikilinks": {"type": "boolean", "default": True}},
+        {
+            "paper_ids": {"type": "array", "items": S},
+            "vault_dir": {
+                "type": "string",
+                "description": "Vault folder inside the workspace (relative paths are "
+                "workspace-relative). Default: ./obsidian.",
+            },
+            "include_related_wikilinks": {"type": "boolean", "default": True},
+        },
         ["paper_ids"],
         export_obsidian_notes,
     ),
@@ -834,10 +922,12 @@ TOOLS = {
         "A100 80GB GPUs', 'TPU v4-1024') and classifies the operational tier (edge_consumer_gpu <= 16 GB, "
         "workstation <= 48 GB, datacenter_cluster) from the INT4 footprint. Override sizes with total_params_b / "
         "active_params_b.",
-        {"paper_id": S,
-         "total_params_b": {"type": "number", "description": "Total parameters in billions (overrides detection)."},
-         "active_params_b": {"type": "number", "description": "Active parameters per token in billions (MoE)."},
-         "context_length": {"type": "integer", "default": 8192, "minimum": 1}},
+        {
+            "paper_id": S,
+            "total_params_b": {"type": "number", "description": "Total parameters in billions (overrides detection)."},
+            "active_params_b": {"type": "number", "description": "Active parameters per token in billions (MoE)."},
+            "context_length": {"type": "integer", "default": 8192, "minimum": 1},
+        },
         ["paper_id"],
         estimate_hardware_specs,
     ),
@@ -875,7 +965,7 @@ TOOLS = {
     "extract_prompts_and_decoding": (
         "Prompt & inference protocol extractor: finds prompt templates (after 'System Prompt:', 'User Prompt:', "
         "'Prompt Template:', 'Instruction:', in code fences/quotes, or text with {variable}, {{variable}}, <context>, "
-        "\"Let's think step by step\", \"You are an expert\") keeping placeholders verbatim and listing `variables`; "
+        '"Let\'s think step by step", "You are an expert") keeping placeholders verbatim and listing `variables`; '
         "extracts decoding hyperparameters (temperature, top_p, top_k, max_tokens, repetition_penalty, beam_size, "
         "seed, decoding_strategy) with literal evidence, and the JSON output schemas shown in the paper.",
         {"paper_id": S},
@@ -897,8 +987,11 @@ TOOLS = {
         "tracking title and authorship changes, metric and table number deltas (`metric_deltas`), claim attenuations or "
         "strengthenings (`claim_shifts`), newly added baselines or datasets (`new_baselines_or_datasets`) and a "
         "structured `markdown_diff` report.",
-        {"arxiv_id": S, "from_version": {"type": "string", "default": "v1"},
-         "to_version": {"type": "string", "default": "v2"}},
+        {
+            "arxiv_id": S,
+            "from_version": {"type": "string", "default": "v1"},
+            "to_version": {"type": "string", "default": "v2"},
+        },
         ["arxiv_id"],
         diff_arxiv_versions,
     ),
@@ -1034,7 +1127,11 @@ TOOLS = {
     "query_fulltexts": (
         "Query across multiple papers simultaneously for a specific question (uses full text when Open Access or abstract fallback). "
         "Ideal for conversing over a set of papers.",
-        {"ids": {"type": "array", "items": S}, "question": S, "max_chunks_per_paper": {"type": "integer", "default": 4}},
+        {
+            "ids": {"type": "array", "items": S},
+            "question": S,
+            "max_chunks_per_paper": {"type": "integer", "default": 4},
+        },
         ["ids", "question"],
         query_fulltexts,
     ),
@@ -1106,7 +1203,10 @@ TOOLS = {
                     "properties": {
                         "id": S,
                         "stance": {"type": "string", "description": "supportive | inconclusive | contrary"},
-                        "evidence": {"type": "string", "description": "Optional study design if the paper is not cached"},
+                        "evidence": {
+                            "type": "string",
+                            "description": "Optional study design if the paper is not cached",
+                        },
                     },
                     "required": ["stance"],
                 },

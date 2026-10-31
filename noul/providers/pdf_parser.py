@@ -2,13 +2,13 @@
 open-access full text, else title + abstract) and segment it into pages, table captions and sections.
 
 Stdlib only; `noul_core` is imported lazily so importing this module has no side effects."""
+
 import re
 
 PAGE_CHARS = 3000
 
 _PAGE_MARKER = re.compile(r"^[ \t]*(?:\[\s*Page\s+(\d+)\s*\]|-{2,}\s*Page\s+(\d+)\s*-{2,})[ \t]*$", re.I | re.M)
-_CAPTION = re.compile(
-    r"^[ \t>*_#]*(Table|Tabela|Tab\.)\s+(\d+|[IVX]+)\s*[:.\-—–]?\s*(.*)$", re.I | re.M)
+_CAPTION = re.compile(r"^[ \t>*_#]*(Table|Tabela|Tab\.)\s+(\d+|[IVX]+)\s*[:.\-—–]?\s*(.*)$", re.I | re.M)
 _LATEX_CAPTION = re.compile(r"\\caption\s*\{")
 _SECTION = re.compile(
     r"^[ \t]*(?:#{1,4}[ \t]+(?P<md>[^\n]{2,80})|\\(?:sub)*section\*?\{(?P<tex>[^}\n]{2,80})\}|"
@@ -16,7 +16,9 @@ _SECTION = re.compile(
     r"(?P<named>Abstract|Introduction|Related Work|Background|Methods?|Methodology|Experiments?|"
     r"Experimental Setup|Results?|Evaluation|Ablation(?: Study| Studies)?|Discussion|Limitations|"
     r"Error Analysis|Failure Cases|Threats to Validity|Broader Impacts?|Conclusions?|"
-    r"References|Appendix(?: [A-Z])?)[ \t]*:?)[ \t]*$", re.M)
+    r"References|Appendix(?: [A-Z])?)[ \t]*:?)[ \t]*$",
+    re.M,
+)
 
 
 def _core():
@@ -39,7 +41,7 @@ def balanced(text, start, open_ch="{", close_ch="}"):
         elif ch == close_ch and text[i - 1] != "\\":
             depth -= 1
             if depth == 0:
-                return text[start + 1:i], i + 1
+                return text[start + 1 : i], i + 1
     return None
 
 
@@ -57,13 +59,14 @@ def split_pages(text, page_chars=PAGE_CHARS):
     elif _PAGE_MARKER.search(text):
         markers = list(_PAGE_MARKER.finditer(text))
         first = markers[0]
-        if text[:first.start()].strip():
+        if text[: first.start()].strip():
             num = int(first.group(1) or first.group(2))
-            pages.append({"page": max(1, num - 1), "start": 0, "end": first.start(), "text": text[:first.start()]})
+            pages.append({"page": max(1, num - 1), "start": 0, "end": first.start(), "text": text[: first.start()]})
         for i, m in enumerate(markers):
             end = markers[i + 1].start() if i + 1 < len(markers) else len(text)
-            pages.append({"page": int(m.group(1) or m.group(2)), "start": m.end(), "end": end,
-                          "text": text[m.end():end]})
+            pages.append(
+                {"page": int(m.group(1) or m.group(2)), "start": m.end(), "end": end, "text": text[m.end() : end]}
+            )
     else:
         pos, n = 0, 1
         while pos < len(text):
@@ -88,13 +91,29 @@ def find_table_captions(text):
     """Table captions (`Table 1: ...`, `Tabela 2. ...`, `\\caption{...}`) with offsets, in document order."""
     out = []
     for m in _CAPTION.finditer(text or ""):
-        out.append({"label": f"Table {m.group(2)}", "number": m.group(2), "caption": m.group(3).strip(" *_"),
-                    "offset": m.start(), "end": m.end(), "kind": "text"})
+        out.append(
+            {
+                "label": f"Table {m.group(2)}",
+                "number": m.group(2),
+                "caption": m.group(3).strip(" *_"),
+                "offset": m.start(),
+                "end": m.end(),
+                "kind": "text",
+            }
+        )
     for m in _LATEX_CAPTION.finditer(text or ""):
         grp = balanced(text, m.end() - 1)
         if grp:
-            out.append({"label": None, "number": None, "caption": re.sub(r"\s+", " ", grp[0]).strip(),
-                        "offset": m.start(), "end": grp[1], "kind": "latex"})
+            out.append(
+                {
+                    "label": None,
+                    "number": None,
+                    "caption": re.sub(r"\s+", " ", grp[0]).strip(),
+                    "offset": m.start(),
+                    "end": grp[1],
+                    "kind": "latex",
+                }
+            )
     return sorted(out, key=lambda c: c["offset"])
 
 

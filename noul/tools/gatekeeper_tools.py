@@ -5,8 +5,8 @@ Executes a 4-stage deterministic audit:
 2. Venue-Specific Compliance Checklist (NeurIPS/ICML/ICLR/ACL/IEEE vs. Nature/Lancet/Elsevier);
 3. Overclaiming & Uncalibrated Superlative Scanner;
 4. Mandatory Section Verification & Readiness Score (0-100)."""
+
 import re
-from typing import List, Tuple
 
 from noul.schemas.authoring import GatekeeperCheckItem, SubmissionGatekeeperReport
 from noul.tools import authoring_tools
@@ -19,23 +19,25 @@ def _core():
 
 
 _DOUBLE_BLIND_VENUES = frozenset({"neurips", "icml", "iclr", "acl"})
-_SUPPORTED_GATEKEEPER_VENUES = frozenset({
-    "neurips", "icml", "iclr", "acl", "ieee", "nature", "lancet", "elsevier", "aer", "general"
-})
+_SUPPORTED_GATEKEEPER_VENUES = frozenset(
+    {"neurips", "icml", "iclr", "acl", "ieee", "nature", "lancet", "elsevier", "aer", "general"}
+)
 
 _REPO_URL_RE = re.compile(
     r"https?://(?:www\.)?(?P<host>github\.com|gitlab\.com|huggingface\.co|bitbucket\.org)/"
     r"(?P<owner>[A-Za-z0-9_.-]+)(?:/(?P<repo>[A-Za-z0-9_.-]+))?",
     re.I,
 )
-_ANON_OWNERS = frozenset({
-    "anonymous", "anon", "anonymous-author", "anonymous_authors", "double-blind", "blind-review", "anon-submission"
-})
+_ANON_OWNERS = frozenset(
+    {"anonymous", "anon", "anonymous-author", "anonymous_authors", "double-blind", "blind-review", "anon-submission"}
+)
 
 _LATEX_AUTHOR_RE = re.compile(r"\\author\s*\{(?P<body>[^{}]*(?:\{[^{}]*\}[^{}]*)*)\}", re.S)
 _MD_AUTHOR_RE = re.compile(r"^(?:author|authors)\s*:\s*(?P<body>.+)$", re.I | re.M)
 _PDF_META_RE = re.compile(r"\\hypersetup\s*\{[^}]*pdfauthor\s*=\s*\{(?P<author>[^}]+)\}", re.I | re.S)
-_THANKS_GRANT_RE = re.compile(r"\\thanks\s*\{(?P<body>[^}]*(?:grant|university|institute|Supported\s+by|@)[^}]*)\}", re.I)
+_THANKS_GRANT_RE = re.compile(
+    r"\\thanks\s*\{(?P<body>[^}]*(?:grant|university|institute|Supported\s+by|@)[^}]*)\}", re.I
+)
 _SELF_CITE_RE = re.compile(
     r"\b(?:"
     r"in\s+our\s+(?:previous|prior|earlier)\s+(?:work|paper|study)s?|"
@@ -93,7 +95,7 @@ def _extract_pdf_fallback_bytes(raw_bytes: bytes) -> str:
     return "\n".join(ascii_runs)
 
 
-def _load_manuscript_text(draft_path: str) -> Tuple[str, str]:
+def _load_manuscript_text(draft_path: str) -> tuple[str, str]:
     core = _core()
     if not isinstance(draft_path, str) or not draft_path.strip():
         raise core.HTTPError(400, "draft_path must be a non-empty file path or manuscript text.")
@@ -107,10 +109,10 @@ def _load_manuscript_text(draft_path: str) -> Tuple[str, str]:
     return draft_path, "inline_manuscript"
 
 
-def _audit_anonymity(text: str, is_double_blind: bool) -> List[GatekeeperCheckItem]:
+def _audit_anonymity(text: str, is_double_blind: bool) -> list[GatekeeperCheckItem]:
     if not is_double_blind:
         return []
-    violations: List[GatekeeperCheckItem] = []
+    violations: list[GatekeeperCheckItem] = []
 
     # 1. Non-anonymized repository URLs
     for m in _REPO_URL_RE.finditer(text or ""):
@@ -209,7 +211,7 @@ def _audit_anonymity(text: str, is_double_blind: bool) -> List[GatekeeperCheckIt
     return violations
 
 
-def _audit_venue_checklist(text: str, venue: str) -> List[GatekeeperCheckItem]:
+def _audit_venue_checklist(text: str, venue: str) -> list[GatekeeperCheckItem]:
     bio_or_journal = venue in ("nature", "lancet", "elsevier", "aer")
     if bio_or_journal:
         specs = [
@@ -217,7 +219,10 @@ def _audit_venue_checklist(text: str, venue: str) -> List[GatekeeperCheckItem]:
                 "chk_data_availability",
                 "high",
                 "Data & Code Availability Statement",
-                re.compile(r"\b(?:data\s+availability|code\s+availability|replication\s+package|data\s+are\s+available)\b", re.I),
+                re.compile(
+                    r"\b(?:data\s+availability|code\s+availability|replication\s+package|data\s+are\s+available)\b",
+                    re.I,
+                ),
                 "Include a dedicated 'Data Availability Statement' specifying repository accession numbers or access conditions.",
             ),
             (
@@ -231,21 +236,28 @@ def _audit_venue_checklist(text: str, venue: str) -> List[GatekeeperCheckItem]:
                 "chk_ethics_irb",
                 "high",
                 "Ethics Approval / IRB / Informed Consent Statement",
-                re.compile(r"\b(?:ethics\s+(?:approval|committee|statement)|institutional\s+review\s+board|\birb\b|informed\s+consent|declaration\s+of\s+helsinki)\b", re.I),
+                re.compile(
+                    r"\b(?:ethics\s+(?:approval|committee|statement)|institutional\s+review\s+board|\birb\b|informed\s+consent|declaration\s+of\s+helsinki)\b",
+                    re.I,
+                ),
                 "Document IRB/Ethics Committee approval protocol numbers and participant informed consent (or state exemption).",
             ),
             (
                 "chk_funding",
                 "medium",
                 "Funding & Role of the Funding Source Statement",
-                re.compile(r"\b(?:funding\s+(?:statement|source)|role\s+of\s+the\s+funding|supported\s+by\s+grant)\b", re.I),
+                re.compile(
+                    r"\b(?:funding\s+(?:statement|source)|role\s+of\s+the\s+funding|supported\s+by\s+grant)\b", re.I
+                ),
                 "State funding sources and clarify the funder's role in study design, data collection, and publication.",
             ),
             (
                 "chk_reporting_guideline",
                 "medium",
                 "Reporting Guideline / Trial or Registry Identifier (CONSORT/STROBE/PRISMA/AEA)",
-                re.compile(r"\b(?:consort|strobe|prisma|clinicaltrials\.gov|nct\d{6,}|aea\s+rct\s+registry|prospero)\b", re.I),
+                re.compile(
+                    r"\b(?:consort|strobe|prisma|clinicaltrials\.gov|nct\d{6,}|aea\s+rct\s+registry|prospero)\b", re.I
+                ),
                 "Reference compliance with CONSORT/STROBE/PRISMA guidelines and provide trial/registry IDs where applicable.",
             ),
         ]
@@ -255,7 +267,10 @@ def _audit_venue_checklist(text: str, venue: str) -> List[GatekeeperCheckItem]:
                 "chk_limitations",
                 "high",
                 "Explicit Limitations Declaration",
-                re.compile(r"(?:\\(?:sub)*section\*?\{[^}]*Limitations|\\paragraph\{Limitations|^#{1,4}\s+[^\n]*Limitations|\bLimitations\s*:)", re.I | re.M),
+                re.compile(
+                    r"(?:\\(?:sub)*section\*?\{[^}]*Limitations|\\paragraph\{Limitations|^#{1,4}\s+[^\n]*Limitations|\bLimitations\s*:)",
+                    re.I | re.M,
+                ),
                 "Add an explicit 'Limitations' section or subsection discussing failure modes, assumptions, and scope constraints.",
             ),
             (
@@ -269,14 +284,19 @@ def _audit_venue_checklist(text: str, venue: str) -> List[GatekeeperCheckItem]:
                 "chk_hyperparams_seeds",
                 "high",
                 "Hyperparameters & Random Seeds Specification",
-                re.compile(r"\b(?=.*(?:seed|random\s+seed))(?=.*(?:learning\s+rate|optimizer|adamw?|batch\s+size|hyperparameter)).*", re.I | re.S),
+                re.compile(
+                    r"\b(?=.*(?:seed|random\s+seed))(?=.*(?:learning\s+rate|optimizer|adamw?|batch\s+size|hyperparameter)).*",
+                    re.I | re.S,
+                ),
                 "Document both exact training hyperparameters (optimizer, lr, batch size) and the number of random seeds evaluated.",
             ),
             (
                 "chk_error_bars",
                 "high",
                 "Statistical Dispersion (Error Bars / ± Std / Confidence Intervals)",
-                re.compile(r"(?:\\pm|±|\b95%\s*CI\b|\bstandard\s+deviation\b|\berror\s+bars?\b|\bp\s*[<=>]\s*0\.\d+)", re.I),
+                re.compile(
+                    r"(?:\\pm|±|\b95%\s*CI\b|\bstandard\s+deviation\b|\berror\s+bars?\b|\bp\s*[<=>]\s*0\.\d+)", re.I
+                ),
                 "Include error bars, ± standard deviation across seeds, or 95% confidence intervals in primary benchmark tables.",
             ),
             (
@@ -288,7 +308,7 @@ def _audit_venue_checklist(text: str, venue: str) -> List[GatekeeperCheckItem]:
             ),
         ]
 
-    items: List[GatekeeperCheckItem] = []
+    items: list[GatekeeperCheckItem] = []
     for cid, sev, desc, rx, rem in specs:
         m = rx.search(text or "")
         passed = bool(m)
@@ -307,8 +327,8 @@ def _audit_venue_checklist(text: str, venue: str) -> List[GatekeeperCheckItem]:
     return items
 
 
-def _audit_overclaiming(text: str) -> List[GatekeeperCheckItem]:
-    flags: List[GatekeeperCheckItem] = []
+def _audit_overclaiming(text: str) -> list[GatekeeperCheckItem]:
+    flags: list[GatekeeperCheckItem] = []
     for cid, rx, sev, desc, rem in _OVERCLAIM_PATTERNS:
         for m in rx.finditer(text or ""):
             start = max(0, m.start() - 25)
@@ -328,23 +348,64 @@ def _audit_overclaiming(text: str) -> List[GatekeeperCheckItem]:
     return flags
 
 
-def _audit_mandatory_sections(text: str, venue: str) -> List[GatekeeperCheckItem]:
+def _audit_mandatory_sections(text: str, venue: str) -> list[GatekeeperCheckItem]:
     required_sections = [
-        ("sec_abstract", "Abstract", re.compile(r"(?:\\begin\{abstract\}|^#{1,3}\s*Abstract\b|\bAbstract\s*[:\n])", re.I | re.M)),
-        ("sec_intro", "Introduction", re.compile(r"(?:\\section\*?\{[^}]*Introduction|^#{1,3}\s*\d*\.?\s*Introduction\b)", re.I | re.M)),
-        ("sec_methods", "Methodology / Methods", re.compile(r"(?:\\section\*?\{[^}]*(?:Method|Approach|Formulation|Model|Identification)|^#{1,3}\s*\d*\.?\s*(?:Method|Approach|Formulation|Model))", re.I | re.M)),
-        ("sec_experiments", "Experiments / Results", re.compile(r"(?:\\section\*?\{[^}]*(?:Experiment|Result|Evaluation|Empirical)|^#{1,3}\s*\d*\.?\s*(?:Experiment|Result|Evaluation|Empirical))", re.I | re.M)),
-        ("sec_limitations", "Limitations", re.compile(r"(?:\\(?:sub)*section\*?\{[^}]*Limitations|\\paragraph\{Limitations|^#{1,4}\s*\d*\.?\s*Limitations\b|\bLimitations\s*:)", re.I | re.M)),
-        ("sec_references", "References / Bibliography", re.compile(r"(?:\\bibliography|\\begin\{thebibliography\}|\\section\*?\{References\}|^#{1,3}\s*References\b)", re.I | re.M)),
+        (
+            "sec_abstract",
+            "Abstract",
+            re.compile(r"(?:\\begin\{abstract\}|^#{1,3}\s*Abstract\b|\bAbstract\s*[:\n])", re.I | re.M),
+        ),
+        (
+            "sec_intro",
+            "Introduction",
+            re.compile(r"(?:\\section\*?\{[^}]*Introduction|^#{1,3}\s*\d*\.?\s*Introduction\b)", re.I | re.M),
+        ),
+        (
+            "sec_methods",
+            "Methodology / Methods",
+            re.compile(
+                r"(?:\\section\*?\{[^}]*(?:Method|Approach|Formulation|Model|Identification)|^#{1,3}\s*\d*\.?\s*(?:Method|Approach|Formulation|Model))",
+                re.I | re.M,
+            ),
+        ),
+        (
+            "sec_experiments",
+            "Experiments / Results",
+            re.compile(
+                r"(?:\\section\*?\{[^}]*(?:Experiment|Result|Evaluation|Empirical)|^#{1,3}\s*\d*\.?\s*(?:Experiment|Result|Evaluation|Empirical))",
+                re.I | re.M,
+            ),
+        ),
+        (
+            "sec_limitations",
+            "Limitations",
+            re.compile(
+                r"(?:\\(?:sub)*section\*?\{[^}]*Limitations|\\paragraph\{Limitations|^#{1,4}\s*\d*\.?\s*Limitations\b|\bLimitations\s*:)",
+                re.I | re.M,
+            ),
+        ),
+        (
+            "sec_references",
+            "References / Bibliography",
+            re.compile(
+                r"(?:\\bibliography|\\begin\{thebibliography\}|\\section\*?\{References\}|^#{1,3}\s*References\b)",
+                re.I | re.M,
+            ),
+        ),
     ]
     if venue in ("neurips", "icml", "iclr", "acl"):
-        required_sections.append((
-            "sec_impact_or_ethics",
-            "Broader Impact / Ethics / Reproducibility Statement",
-            re.compile(r"(?:\\(?:sub)*section\*?\{[^}]*(?:Broader\s+Impact|Impact\s+Statement|Ethics\s+Statement|Reproducibility|Paper\s+Checklist)|^#{1,4}\s*[^\n]*(?:Broader\s+Impact|Impact\s+Statement|Ethics\s+Statement|Reproducibility|Checklist))", re.I | re.M),
-        ))
+        required_sections.append(
+            (
+                "sec_impact_or_ethics",
+                "Broader Impact / Ethics / Reproducibility Statement",
+                re.compile(
+                    r"(?:\\(?:sub)*section\*?\{[^}]*(?:Broader\s+Impact|Impact\s+Statement|Ethics\s+Statement|Reproducibility|Paper\s+Checklist)|^#{1,4}\s*[^\n]*(?:Broader\s+Impact|Impact\s+Statement|Ethics\s+Statement|Reproducibility|Checklist))",
+                    re.I | re.M,
+                ),
+            )
+        )
 
-    out: List[GatekeeperCheckItem] = []
+    out: list[GatekeeperCheckItem] = []
     for cid, title, rx in required_sections:
         m = rx.search(text or "")
         passed = bool(m)
@@ -356,7 +417,9 @@ def _audit_mandatory_sections(text: str, venue: str) -> List[GatekeeperCheckItem
                 severity="high" if cid in ("sec_limitations", "sec_impact_or_ethics", "sec_experiments") else "medium",
                 description=f"Mandatory section: {title}",
                 evidence_or_location=m.group(0).strip()[:80] if m else "Section missing",
-                remediation="" if passed else f"Add an explicit '{title}' section to comply with {venue.upper()} submission guidelines.",
+                remediation=""
+                if passed
+                else f"Add an explicit '{title}' section to comply with {venue.upper()} submission guidelines.",
             )
         )
     return out
@@ -397,7 +460,7 @@ def audit_submission_readiness(draft_path: str, venue: str = "neurips") -> dict:
     else:
         risk = "low"
 
-    corrective_actions: List[str] = []
+    corrective_actions: list[str] = []
     for av in anon_violations:
         corrective_actions.append(f"[CRITICAL ANONYMITY] {av.description} -> {av.remediation}")
     for ms in missing_secs:
@@ -423,7 +486,9 @@ def audit_submission_readiness(draft_path: str, venue: str = "neurips") -> dict:
         md_lines.append(f"- `{v.upper()}` does not enforce strict double-blind code/author anonymization by default.")
     elif anon_violations:
         for av in anon_violations:
-            md_lines.append(f"- ❌ **[{av.severity.upper()}] {av.description}** (`{av.evidence_or_location}`)\n  - *Fix:* {av.remediation}")
+            md_lines.append(
+                f"- ❌ **[{av.severity.upper()}] {av.description}** (`{av.evidence_or_location}`)\n  - *Fix:* {av.remediation}"
+            )
     else:
         md_lines.append("- ✅ Zero double-blind anonymity violations detected.")
 
@@ -440,7 +505,9 @@ def audit_submission_readiness(draft_path: str, venue: str = "neurips") -> dict:
     md_lines.extend(["", "## 4. Overclaiming & Calibration Scanner"])
     if overclaiming_flags:
         for ov in overclaiming_flags:
-            md_lines.append(f"- ⚠️ **[{ov.severity.upper()}] {ov.description}** (`{ov.evidence_or_location}`)\n  - *Fix:* {ov.remediation}")
+            md_lines.append(
+                f"- ⚠️ **[{ov.severity.upper()}] {ov.description}** (`{ov.evidence_or_location}`)\n  - *Fix:* {ov.remediation}"
+            )
     else:
         md_lines.append("- ✅ Claims are well-calibrated; no unsubstantiated superlatives detected.")
 

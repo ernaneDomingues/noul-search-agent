@@ -1,11 +1,12 @@
 """Phase 4 (#15): arXiv temporal version fetcher and snapshot diff analyzer.
 
 Stdlib-only; all HTTP requests go through `noul_core._http_get` (respecting SSRF guard and byte caps)."""
+
 import difflib
+import json
 import re
 import urllib.parse
 import xml.etree.ElementTree as ET
-from typing import Optional, Tuple
 
 from noul.providers import pdf_parser
 from noul.schemas.technical import ArxivVersionDiffReport, VersionChangeItem
@@ -33,14 +34,56 @@ _METHOD_CHANGE_RE = re.compile(
 )
 
 _KNOWN_ENTITIES = (
-    "MMLU", "GSM8K", "HumanEval", "MBPP", "MATH", "HellaSwag", "ARC-Challenge", "TruthfulQA",
-    "Big-Bench", "BBH", "DROP", "SQuAD", "GLUE", "SuperGLUE", "ImageNet", "SWE-bench", "GPQA",
-    "LiveCodeBench", "MT-Bench", "AlpacaEval", "MedQA", "PubMedQA", "GPT-4o", "GPT-4", "GPT-3.5",
-    "Claude-3.5", "Claude-3", "Claude", "Llama-3.1", "Llama-3", "Llama-2", "Mistral", "Mixtral",
-    "Qwen-2.5", "Qwen-2", "Qwen", "Gemini", "DeepSeek-R1", "DeepSeek-V3", "DeepSeek", "Gemma",
-    "Phi-3", "RoBERTa", "DeBERTa", "BM25", "XGBoost",
+    "MMLU",
+    "GSM8K",
+    "HumanEval",
+    "MBPP",
+    "MATH",
+    "HellaSwag",
+    "ARC-Challenge",
+    "TruthfulQA",
+    "Big-Bench",
+    "BBH",
+    "DROP",
+    "SQuAD",
+    "GLUE",
+    "SuperGLUE",
+    "ImageNet",
+    "SWE-bench",
+    "GPQA",
+    "LiveCodeBench",
+    "MT-Bench",
+    "AlpacaEval",
+    "MedQA",
+    "PubMedQA",
+    "GPT-4o",
+    "GPT-4",
+    "GPT-3.5",
+    "Claude-3.5",
+    "Claude-3",
+    "Claude",
+    "Llama-3.1",
+    "Llama-3",
+    "Llama-2",
+    "Mistral",
+    "Mixtral",
+    "Qwen-2.5",
+    "Qwen-2",
+    "Qwen",
+    "Gemini",
+    "DeepSeek-R1",
+    "DeepSeek-V3",
+    "DeepSeek",
+    "Gemma",
+    "Phi-3",
+    "RoBERTa",
+    "DeBERTa",
+    "BM25",
+    "XGBoost",
 )
-_HYPHEN_ENTITY_RE = re.compile(r"\b(?:GPT|Llama|Claude|Qwen|DeepSeek|Mistral|Mixtral|Gemma|Phi|BERT|T5)-[A-Za-z0-9.-]+\b")
+_HYPHEN_ENTITY_RE = re.compile(
+    r"\b(?:GPT|Llama|Claude|Qwen|DeepSeek|Mistral|Mixtral|Gemma|Phi|BERT|T5)-[A-Za-z0-9.-]+\b"
+)
 
 _SENT_METRIC_PATTERNS = (
     re.compile(
@@ -73,7 +116,7 @@ def _clean_arxiv_token(raw: str) -> str:
     return s.strip().rstrip("/")
 
 
-def _norm_version(v: Optional[str], default: str) -> str:
+def _norm_version(v: str | None, default: str) -> str:
     if v is None or not str(v).strip():
         return default
     m = _VER_TOKEN_RE.match(str(v).strip())
@@ -87,9 +130,9 @@ def _norm_version(v: Optional[str], default: str) -> str:
 
 def parse_arxiv_version_args(
     arxiv_id: str,
-    from_version: Optional[str] = "v1",
-    to_version: Optional[str] = "v2",
-) -> Tuple[str, str, str]:
+    from_version: str | None = "v1",
+    to_version: str | None = "v2",
+) -> tuple[str, str, str]:
     """Normalize `(arxiv_id, from_version, to_version)` -> `(base_id, v_old, v_new)`."""
     core = _core()
     if not isinstance(arxiv_id, str) or not arxiv_id.strip():
@@ -139,7 +182,7 @@ def _parse_atom_entry(xml_txt: str, base_id: str, version: str) -> dict:
     try:
         root = ET.fromstring(xml_txt)
     except ET.ParseError as e:
-        raise core.HTTPError(502, f"Invalid XML from arXiv API: {e}")
+        raise core.HTTPError(502, f"Invalid XML from arXiv API: {e}") from e
     ns = {"a": "http://www.w3.org/2005/Atom", "arxiv": "http://arxiv.org/schemas/atom"}
     entry = root.find("a:entry", ns)
     if entry is None:
@@ -211,7 +254,7 @@ def fetch_version_snapshot(base_id: str, version: str) -> dict:
 
 def _extract_metrics_map(text: str) -> dict:
     """Extract `{metric_label: float_val}` from benchmark tables and inline metric mentions in `text`."""
-    found = {}
+    found: dict = {}
     tables = technical_tools.parse_benchmark_tables(text)
     for tb in tables:
         if tb.get("table_id") == "inline_metrics" or tb.get("format") == "inline":
@@ -223,8 +266,11 @@ def _extract_metrics_map(text: str) -> dict:
         norm = tb.get("normalized_metrics") or {}
         labels = list(norm.keys())
         ours_lbl = next(
-            (lbl for lbl in labels if technical_tools._OURS_ROW_RE.search(lbl)
-             and not technical_tools._ABL_VARIANT.search(lbl)),
+            (
+                lbl
+                for lbl in labels
+                if technical_tools._OURS_ROW_RE.search(lbl) and not technical_tools._ABL_VARIANT.search(lbl)
+            ),
             None,
         )
         # Record primary/Ours row directly under the metric name
@@ -277,12 +323,14 @@ def _compute_metric_deltas(text_old: str, text_new: str) -> list:
         d = round(v2 - v1, 4)
         v1_out = int(v1) if float(v1).is_integer() and "." not in str(v1) else v1
         v2_out = int(v2) if float(v2).is_integer() and "." not in str(v2) else v2
-        deltas.append({
-            "metric": key,
-            "from_value": v1_out,
-            "to_value": v2_out,
-            "delta": d,
-        })
+        deltas.append(
+            {
+                "metric": key,
+                "from_value": v1_out,
+                "to_value": v2_out,
+                "delta": d,
+            }
+        )
     return deltas
 
 
@@ -306,19 +354,23 @@ def _detect_claim_shifts(snap_old: dict, snap_new: dict, text_old: str, text_new
         new_strong = {m.group(0).lower() for m in _STRONG_CLAIM_RE.finditer(title_new)}
         new_mod = {m.group(0).lower() for m in _MODERATE_CLAIM_RE.finditer(title_new)}
         if (old_strong - new_strong) and (new_mod or len(new_strong) < len(old_strong)):
-            shifts.append(VersionChangeItem(
-                category="claim_attenuation",
-                summary=f"Title attenuated from '{title_old}' to '{title_new}'.",
-                before=title_old,
-                after=title_new,
-            ))
+            shifts.append(
+                VersionChangeItem(
+                    category="claim_attenuation",
+                    summary=f"Title attenuated from '{title_old}' to '{title_new}'.",
+                    before=title_old,
+                    after=title_new,
+                )
+            )
         else:
-            shifts.append(VersionChangeItem(
-                category="author_or_title_change",
-                summary=f"Title updated from '{title_old}' to '{title_new}'.",
-                before=title_old,
-                after=title_new,
-            ))
+            shifts.append(
+                VersionChangeItem(
+                    category="author_or_title_change",
+                    summary=f"Title updated from '{title_old}' to '{title_new}'.",
+                    before=title_old,
+                    after=title_new,
+                )
+            )
 
     sents_old = _split_clean_sentences(text_old)
     sents_new = _split_clean_sentences(text_new)
@@ -348,29 +400,35 @@ def _detect_claim_shifts(snap_old: dict, snap_new: dict, text_old: str, text_new
             used_new.add(best_idx)
             dropped = ", ".join(sorted(strong_old - strong_new))
             added_mod = ", ".join(sorted(mod_new - mod_old)) or "more moderate phrasing"
-            shifts.append(VersionChangeItem(
-                category="claim_attenuation",
-                summary=f"Strong claim ({dropped}) softened to {added_mod}.",
-                before=s_old,
-                after=s_new,
-            ))
+            shifts.append(
+                VersionChangeItem(
+                    category="claim_attenuation",
+                    summary=f"Strong claim ({dropped}) softened to {added_mod}.",
+                    before=s_old,
+                    after=s_new,
+                )
+            )
         elif (strong_new - strong_old) and ((mod_old - mod_new) or len(strong_new) > len(strong_old)):
             used_new.add(best_idx)
             gained = ", ".join(sorted(strong_new - strong_old))
-            shifts.append(VersionChangeItem(
-                category="claim_strengthening",
-                summary=f"Claim strengthened with {gained}.",
-                before=s_old,
-                after=s_new,
-            ))
+            shifts.append(
+                VersionChangeItem(
+                    category="claim_strengthening",
+                    summary=f"Claim strengthened with {gained}.",
+                    before=s_old,
+                    after=s_new,
+                )
+            )
         elif best_ratio >= 0.40 and (_METHOD_CHANGE_RE.search(s_old) or _METHOD_CHANGE_RE.search(s_new)):
             used_new.add(best_idx)
-            shifts.append(VersionChangeItem(
-                category="methodology_change",
-                summary="Methodology or experimental setup modified between versions.",
-                before=s_old,
-                after=s_new,
-            ))
+            shifts.append(
+                VersionChangeItem(
+                    category="methodology_change",
+                    summary="Methodology or experimental setup modified between versions.",
+                    before=s_old,
+                    after=s_new,
+                )
+            )
     return shifts
 
 
@@ -400,7 +458,7 @@ def _detect_new_baselines_or_datasets(text_old: str, text_new: str) -> list:
     for tb in tables_new:
         if tb.get("table_id") == "inline_metrics":
             continue
-        for lbl in (tb.get("normalized_metrics") or {}):
+        for lbl in tb.get("normalized_metrics") or {}:
             clean_lbl = lbl.strip()
             if (
                 clean_lbl
@@ -456,9 +514,9 @@ def _build_markdown_diff(
         for cs in claim_shifts:
             lines.append(f"- **[{cs.category}]** {cs.summary}")
             if cs.before:
-                lines.append(f"  - `{v_old}`: \"{cs.before}\"")
+                lines.append(f'  - `{v_old}`: "{cs.before}"')
             if cs.after:
-                lines.append(f"  - `{v_new}`: \"{cs.after}\"")
+                lines.append(f'  - `{v_new}`: "{cs.after}"')
     else:
         lines.append("- No significant claim shifts detected.")
 
@@ -556,7 +614,7 @@ def _norm_title_key(title: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", clean.lower())
 
 
-def extract_arxiv_id_from_entry(entry: dict) -> Optional[str]:
+def extract_arxiv_id_from_entry(entry: dict) -> str | None:
     """Extract canonical base arXiv ID (without `vN`) from a parsed BibTeX entry dict if present."""
     fields = entry.get("fields") or entry
     eprint = str(fields.get("eprint") or fields.get("arxiv_id") or "").strip()
@@ -618,7 +676,7 @@ def _is_formal_published_record(rec: dict) -> bool:
     return True
 
 
-def resolve_published_venue_for_preprint(entry: dict) -> Optional[dict]:
+def resolve_published_venue_for_preprint(entry: dict) -> dict | None:
     """Check cache and public scholarly APIs (S2 / Crossref / OpenAlex) for a formal peer-reviewed version
     of an arXiv preprint. Returns a dict with `{venue, entry_type, year, doi, authors, title, arxiv_id}` or None."""
     core = _core()
@@ -641,16 +699,18 @@ def resolve_published_venue_for_preprint(entry: dict) -> Optional[dict]:
             rows = conn.execute("SELECT v FROM kv WHERE k LIKE 'paper:%' OR k LIKE 'arxiv_pub:%'").fetchall()
         for (val_json,) in rows:
             try:
-                rec = json.loads(val_json) if "json" in globals() else __import__("json").loads(val_json)
+                rec = json.loads(val_json)
             except Exception:
                 continue
             if not _is_formal_published_record(rec):
                 continue
             rec_ax = _clean_arxiv_token(str(rec.get("arxiv_id") or ""))
-            rec_ax_base = _VER_SUFFIX_RE.match(rec_ax).group("base") if _VER_SUFFIX_RE.match(rec_ax) else rec_ax
+            rec_ax_base = m.group("base") if (m := _VER_SUFFIX_RE.match(rec_ax)) else rec_ax
             rec_norm_t = _norm_title_key(rec.get("title") or "")
             if (arxiv_id and rec_ax_base and rec_ax_base.lower() == arxiv_id.lower()) or (
-                norm_t and rec_norm_t and (norm_t == rec_norm_t or difflib.SequenceMatcher(None, norm_t, rec_norm_t).ratio() >= 0.90)
+                norm_t
+                and rec_norm_t
+                and (norm_t == rec_norm_t or difflib.SequenceMatcher(None, norm_t, rec_norm_t).ratio() >= 0.90)
             ):
                 candidates.append(rec)
     except Exception:
@@ -684,8 +744,10 @@ def resolve_published_venue_for_preprint(entry: dict) -> Optional[dict]:
                 if not _is_formal_published_record(r):
                     continue
                 r_norm = _norm_title_key(r.get("title") or "")
-                if norm_t and r_norm and (
-                    norm_t == r_norm or difflib.SequenceMatcher(None, norm_t, r_norm).ratio() >= 0.88
+                if (
+                    norm_t
+                    and r_norm
+                    and (norm_t == r_norm or difflib.SequenceMatcher(None, norm_t, r_norm).ratio() >= 0.88)
                 ):
                     candidates.append(r)
             if candidates:
@@ -709,4 +771,3 @@ def resolve_published_venue_for_preprint(entry: dict) -> Optional[dict]:
         "title": best.get("title") or raw_title,
         "arxiv_id": arxiv_id or best.get("arxiv_id"),
     }
-

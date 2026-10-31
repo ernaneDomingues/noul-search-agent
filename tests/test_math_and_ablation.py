@@ -1,4 +1,5 @@
 """Fase 3 / Etapa 5 (#11, #12): extract_paper_math (LaTeX / typed Python) and analyze_ablation_tables, plus CLI."""
+
 import ast
 import contextlib
 import io
@@ -142,9 +143,17 @@ class AblationTests(_Offline):
         self.assertEqual(out["reference"]["component"], "Full model (ours)")
         self.assertEqual(out["reference"]["baseline"]["component"], "Baseline")
         ranked = [(e["component"], e["metric"]) for e in out["ablations"]]
-        self.assertEqual(ranked, [("w/o retrieval", "GSM8K"), ("w/o retrieval", "MMLU"),
-                                  ("w/o curriculum", "GSM8K"), ("w/o curriculum", "MMLU"),
-                                  ("w/o KL loss", "MMLU"), ("w/o KL loss", "GSM8K")])
+        self.assertEqual(
+            ranked,
+            [
+                ("w/o retrieval", "GSM8K"),
+                ("w/o retrieval", "MMLU"),
+                ("w/o curriculum", "GSM8K"),
+                ("w/o curriculum", "MMLU"),
+                ("w/o KL loss", "MMLU"),
+                ("w/o KL loss", "GSM8K"),
+            ],
+        )
         top = out["ablations"][0]
         self.assertEqual((top["baseline_value"], top["variant_value"], top["delta"]), (55.0, 43.0, -12.0))
         self.assertEqual(top["delta_percent"], -21.82)
@@ -164,8 +173,12 @@ class AblationTests(_Offline):
         self.assertTrue(all("'w/o retrieval'" in a and "80%" in a for a in dominant))
 
     def test_text_list_ablation_uses_sum_of_deltas_for_dominance(self):
-        pid = _support.seed_fulltext_paper(c, "doi:10.1000/ablation-list", (
-            "Ablation results (accuracy):\nFull model: 75.3\nw/o adapter: 71.2\nno warmup: 75.1\n"), title="List")
+        pid = _support.seed_fulltext_paper(
+            c,
+            "doi:10.1000/ablation-list",
+            ("Ablation results (accuracy):\nFull model: 75.3\nw/o adapter: 71.2\nno warmup: 75.1\n"),
+            title="List",
+        )
         out = t.call("analyze_ablation_tables", {"paper_id": pid})
         self.assertEqual([e["component"] for e in out["ablations"]], ["w/o adapter", "no warmup"])
         self.assertEqual(out["ablations"][0]["delta_percent"], -5.44)

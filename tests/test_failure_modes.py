@@ -1,8 +1,8 @@
 """Fase 4 / Etapa 2 (#14): detect_failure_modes — failure mode categorization, critical assumptions,
 baseline superiority scenarios (text & benchmark table) and the `noul failures` CLI."""
+
 import contextlib
 import io
-import json
 import sys
 import unittest
 from pathlib import Path

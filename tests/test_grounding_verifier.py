@@ -1,4 +1,5 @@
 """Fase 3 / Etapa 4 (#10): verify_paper_claims — strict attribution, extrapolation alerts, auto claims, CLI."""
+
 import contextlib
 import io
 import json
@@ -46,20 +47,19 @@ class GroundingTests(unittest.TestCase):
             patcher = mock.patch.object(c, name, side_effect=_support.no_network)
             patcher.start()
             self.addCleanup(patcher.stop)
-        self.pid = _support.seed_fulltext_paper(c, "doi:10.1000/ground", FULLTEXT, title="Sparse-7B",
-                                                abstract=ABSTRACT)
+        self.pid = _support.seed_fulltext_paper(c, "doi:10.1000/ground", FULLTEXT, title="Sparse-7B", abstract=ABSTRACT)
 
     def _verify(self, *claims):
         return t.call("verify_paper_claims", {"paper_id": self.pid, "claims": list(claims)})
 
     def test_faithful_claims_are_verified_with_exact_citation(self):
-        out = self._verify("Sparse-7B scores 56.2 on GSM8K",
-                           "Sparse-7B outperforms Llama-2 7B by 33.1 points on MMLU")
+        out = self._verify("Sparse-7B scores 56.2 on GSM8K", "Sparse-7B outperforms Llama-2 7B by 33.1 points on MMLU")
         table, section = out["claims"]
         self.assertEqual(table["status"], "verified")
         self.assertEqual(table["citation_tag"], '[pág. 4, Tabela 2: "| Sparse-7B (ours) | 78.4% | 56.2 |"]')
-        self.assertEqual((table["page"], table["table_or_section"], table["numbers_checked"]),
-                         (4, "Tabela 2", ["56.2"]))
+        self.assertEqual(
+            (table["page"], table["table_or_section"], table["numbers_checked"]), (4, "Tabela 2", ["56.2"])
+        )
         self.assertEqual(section["status"], "verified")
         m = QUOTED.match(section["citation_tag"])
         self.assertEqual(m.groups()[:3], ("6", "Seção", "5 Discussion"))
@@ -68,13 +68,18 @@ class GroundingTests(unittest.TestCase):
         self.assertEqual(out["summary"], {"verified": 2, "partially_supported": 0, "extrapolated": 0})
 
     def test_invented_numbers_are_flagged(self):
-        out = self._verify("Sparse-7B reaches 91.7% on MMLU",
-                           "Sparse-7B reaches 78.4% on MMLU and 99.9 on GSM8K",
-                           "Sparse-7B will always beat Llama-2 7B by 33.1 points on MMLU")
+        out = self._verify(
+            "Sparse-7B reaches 91.7% on MMLU",
+            "Sparse-7B reaches 78.4% on MMLU and 99.9 on GSM8K",
+            "Sparse-7B will always beat Llama-2 7B by 33.1 points on MMLU",
+        )
         invented, partial, overreach = out["claims"]
         self.assertEqual(invented["status"], "extrapolated")
-        self.assertTrue(invented["citation_tag"].startswith(
-            "[EXTRAPOLAÇÃO NÃO LITERAL — sem correspondência exata no texto; trecho mais próximo na pág. "))
+        self.assertTrue(
+            invented["citation_tag"].startswith(
+                "[EXTRAPOLAÇÃO NÃO LITERAL — sem correspondência exata no texto; trecho mais próximo na pág. "
+            )
+        )
         self.assertEqual(invented["numbers_checked"], ["91.7%"])
         self.assertEqual(partial["status"], "partially_supported")
         self.assertTrue(partial["citation_tag"].startswith("[pág. 4, Tabela 2:"))

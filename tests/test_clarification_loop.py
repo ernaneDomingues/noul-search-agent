@@ -1,4 +1,5 @@
 """Etapa 4 (#01): clarification loop — broad-query heuristic, domain questions, refined query, MCP and CLI."""
+
 import contextlib
 import datetime
 import io
@@ -31,8 +32,11 @@ class FakeTTY(io.StringIO):
 
 def run_cli(*argv, stdin=None):
     out, err = io.StringIO(), io.StringIO()
-    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), \
-            mock.patch.object(cli.sys, "stdin", stdin if stdin is not None else io.StringIO("")):
+    with (
+        contextlib.redirect_stdout(out),
+        contextlib.redirect_stderr(err),
+        mock.patch.object(cli.sys, "stdin", stdin if stdin is not None else io.StringIO("")),
+    ):
         code = cli.main(list(argv))
     return code, out.getvalue(), err.getvalue()
 
@@ -42,17 +46,26 @@ class HeuristicTests(unittest.TestCase):
         for q in ("quantização de LLMs", "LLM reasoning", "creatina", "inflação no Brasil", "LLM quantization"):
             with self.subTest(q=q):
                 self.assertTrue(cl.needs_clarification(q)["needs_clarification"])
-        for q in ("QLoRA 4-bit quantization Llama-2 MMLU benchmark 2023",
-                  "creatine supplementation working memory healthy adults rct",
-                  "QLoRA 4-bit quantization Llama-3 MMLU latency",
-                  '"minimum wage" AND employment since 2015'):
+        for q in (
+            "QLoRA 4-bit quantization Llama-2 MMLU benchmark 2023",
+            "creatine supplementation working memory healthy adults rct",
+            "QLoRA 4-bit quantization Llama-3 MMLU latency",
+            '"minimum wage" AND employment since 2015',
+        ):
             with self.subTest(q=q):
                 self.assertFalse(cl.needs_clarification(q)["needs_clarification"])
 
     def test_criteria_detail(self):
         r = cl.needs_clarification("QLoRA 4-bit quantization Llama-2 MMLU benchmark 2023")
-        self.assertEqual(r["criteria"], {"significant_words": True, "boolean_or_phrase": False,
-                                         "temporal_constraint": True, "method_and_outcome": True})
+        self.assertEqual(
+            r["criteria"],
+            {
+                "significant_words": True,
+                "boolean_or_phrase": False,
+                "temporal_constraint": True,
+                "method_and_outcome": True,
+            },
+        )
         # One criterion alone is not enough.
         self.assertTrue(cl.needs_clarification("LLM papers since 2022")["needs_clarification"])
 
@@ -88,11 +101,13 @@ class RefinedQueryTests(unittest.TestCase):
         self.assertIn("pubmed", f["sources"])
 
     def test_cs_and_flexible_answers(self):
-        out = cl.build_refined_query("LLM quantization", {"focus": "eficiência", "q2": "1", "q3": "seminais",
-                                                          "extra": "ignored key"})
+        out = cl.build_refined_query(
+            "LLM quantization", {"focus": "eficiência", "q2": "1", "q3": "seminais", "extra": "ignored key"}
+        )
         self.assertEqual(out["refined_query"], "LLM quantization efficiency latency memory consumer GPU edge")
-        self.assertEqual((out["recommended_filters"]["sort"], out["recommended_filters"]["year_min"]),
-                         ("citations", None))
+        self.assertEqual(
+            (out["recommended_filters"]["sort"], out["recommended_filters"]["year_min"]), ("citations", None)
+        )
         out = cl.build_refined_query("LLM quantization", {"q1": "speculative decoding", "q2": 9})
         self.assertEqual(out["refined_query"], "LLM quantization speculative decoding")
         self.assertEqual(out["ignored_answers"], ["q2"])
@@ -120,8 +135,9 @@ class ToolAndCliTests(unittest.TestCase):
     def test_search_papers_clarify_flag(self):
         with mock.patch.object(t.c, "search", return_value=FAKE_SEARCH):
             broad = t.call("search_papers", {"query": "LLM quantization", "clarify": True})
-            specific = t.call("search_papers", {"query": "QLoRA 4-bit quantization Llama-2 MMLU benchmark 2023",
-                                                "clarify": True})
+            specific = t.call(
+                "search_papers", {"query": "QLoRA 4-bit quantization Llama-2 MMLU benchmark 2023", "clarify": True}
+            )
             default = t.call("search_papers", {"query": "LLM quantization"})
         self.assertEqual(len(broad["clarification_suggested"]["questions"]), 3)
         self.assertNotIn("clarification_suggested", specific)
@@ -145,8 +161,9 @@ class ToolAndCliTests(unittest.TestCase):
 
     def test_cli_interactive_tty_refines_search(self):
         with mock.patch.object(t.c, "search", return_value=FAKE_SEARCH) as s:
-            code, out, err = run_cli("search", "creatina", "--interactive", "--year-min", "2015",
-                                     stdin=FakeTTY("1\n2\n\n"))
+            code, out, err = run_cli(
+                "search", "creatina", "--interactive", "--year-min", "2015", stdin=FakeTTY("1\n2\n\n")
+            )
         self.assertEqual(code, 0)
         self.assertIn("1. Adultos saudáveis", err)
         res = json.loads(out)

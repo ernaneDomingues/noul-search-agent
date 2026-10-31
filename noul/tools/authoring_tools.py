@@ -2,10 +2,10 @@
 BibTeX Sanitizer, and Peer-Review Rebuttal Copilot.
 
 All functions are deterministic, stdlib-only, and strictly enforce workspace confinement and symlink rejection."""
+
 import os
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 from noul.providers import arxiv_client
 from noul.schemas.authoring import (
@@ -38,16 +38,97 @@ def _tools():
 
 _FILE_EXT_RE = re.compile(r"\.(?:md|markdown|tex|txt|bib|pdf)$", re.I)
 
-_STOPWORDS = frozenset({
-    "the", "and", "for", "with", "that", "this", "from", "into", "over", "under", "between", "among",
-    "have", "has", "had", "been", "were", "was", "are", "is", "be", "can", "could", "would", "should",
-    "may", "might", "must", "shall", "will", "while", "whereas", "however", "therefore", "thus", "hence",
-    "recent", "studies", "study", "show", "shown", "shows", "demonstrate", "demonstrates", "demonstrated",
-    "prior", "work", "works", "existing", "previous", "literature", "paper", "papers", "approach", "approaches",
-    "method", "methods", "results", "result", "indicate", "indicates", "known", "significantly", "achieves",
-    "outperforms", "reduces", "improves", "state", "art", "citation", "needed", "cite", "todo", "our", "we",
-    "their", "they", "these", "those", "such", "also", "more", "most", "other", "than", "very", "well",
-})
+_STOPWORDS = frozenset(
+    {
+        "the",
+        "and",
+        "for",
+        "with",
+        "that",
+        "this",
+        "from",
+        "into",
+        "over",
+        "under",
+        "between",
+        "among",
+        "have",
+        "has",
+        "had",
+        "been",
+        "were",
+        "was",
+        "are",
+        "is",
+        "be",
+        "can",
+        "could",
+        "would",
+        "should",
+        "may",
+        "might",
+        "must",
+        "shall",
+        "will",
+        "while",
+        "whereas",
+        "however",
+        "therefore",
+        "thus",
+        "hence",
+        "recent",
+        "studies",
+        "study",
+        "show",
+        "shown",
+        "shows",
+        "demonstrate",
+        "demonstrates",
+        "demonstrated",
+        "prior",
+        "work",
+        "works",
+        "existing",
+        "previous",
+        "literature",
+        "paper",
+        "papers",
+        "approach",
+        "approaches",
+        "method",
+        "methods",
+        "results",
+        "result",
+        "indicate",
+        "indicates",
+        "known",
+        "significantly",
+        "achieves",
+        "outperforms",
+        "reduces",
+        "improves",
+        "state",
+        "art",
+        "citation",
+        "needed",
+        "cite",
+        "todo",
+        "our",
+        "we",
+        "their",
+        "they",
+        "these",
+        "those",
+        "such",
+        "also",
+        "more",
+        "most",
+        "other",
+        "than",
+        "very",
+        "well",
+    }
+)
 
 _EXPLICIT_CITE_MARKER_RE = re.compile(
     r"(\[\s*(?:CITATION\s+NEEDED|citation\s+needed|CITE|TODO:\s*cite|\?)\s*\]|"
@@ -108,7 +189,7 @@ def _validate_workspace_path(raw_path: str, must_exist: bool = True) -> Path:
             raise core.HTTPError(
                 400,
                 f"Path '{resolved}' is outside the allowed workspace '{ws}'.",
-            )
+            ) from None
     if resolved.is_symlink():
         raise core.HTTPError(400, f"Refusing to access symbolic link '{resolved}'.")
     if must_exist and not resolved.is_file():
@@ -125,7 +206,7 @@ def _looks_like_filepath(raw_input: str) -> bool:
     if _FILE_EXT_RE.search(s) and len(s.split()) <= 4:
         return True
     ws = _workspace_root()
-    cand = (ws / s)
+    cand = ws / s
     try:
         if cand.exists() or cand.is_symlink():
             return True
@@ -134,7 +215,7 @@ def _looks_like_filepath(raw_input: str) -> bool:
     return False
 
 
-def _load_text_or_workspace_file(raw_input: str) -> Tuple[str, str, Optional[Path]]:
+def _load_text_or_workspace_file(raw_input: str) -> tuple[str, str, Path | None]:
     """Return `(content_text, source_label, resolved_path_or_None)`.
     Validates strict workspace confinement and rejects path traversal / symlinks."""
     core = _core()
@@ -147,7 +228,7 @@ def _load_text_or_workspace_file(raw_input: str) -> Tuple[str, str, Optional[Pat
     return raw_input, "inline_draft", None
 
 
-def _make_bibtex_key(paper: dict, used_keys: Optional[set] = None) -> str:
+def _make_bibtex_key(paper: dict, used_keys: set | None = None) -> str:
     authors = paper.get("authors") or ["anon"]
     first_author = str(authors[0] or "anon").strip()
     if "," in first_author:
@@ -157,9 +238,7 @@ def _make_bibtex_key(paper: dict, used_keys: Optional[set] = None) -> str:
     surname = re.sub(r"[^a-z0-9]", "", surname) or "anon"
     year = str(paper.get("year") or "nd")
     title_words = [
-        w.lower()
-        for w in re.findall(r"[A-Za-z0-9]{3,}", paper.get("title") or "")
-        if w.lower() not in _STOPWORDS
+        w.lower() for w in re.findall(r"[A-Za-z0-9]{3,}", paper.get("title") or "") if w.lower() not in _STOPWORDS
     ]
     word = re.sub(r"[^a-z0-9]", "", title_words[0]) if title_words else "paper"
     base_key = f"{surname}{year}{word}"
@@ -219,7 +298,7 @@ def _extract_search_query(sentence: str) -> str:
     return " ".join(words[:8]) or "scientific empirical study"
 
 
-def _search_cached_papers_for_claim(query: str, limit: int = 2) -> List[dict]:
+def _search_cached_papers_for_claim(query: str, limit: int = 2) -> list[dict]:
     core = _core()
     q_terms = set(re.findall(r"[a-z0-9]{3,}", (query or "").lower()))
     candidates = []
@@ -248,7 +327,7 @@ def _search_cached_papers_for_claim(query: str, limit: int = 2) -> List[dict]:
     return [c[2] for c in candidates[:limit]]
 
 
-def _retrieve_papers_for_claim(query: str, max_per_claim: int = 2) -> List[dict]:
+def _retrieve_papers_for_claim(query: str, max_per_claim: int = 2) -> list[dict]:
     t = _tools()
     papers = []
     try:
@@ -304,14 +383,14 @@ def recommend_citations(
 
     # Split into sentences while preserving exact spans for replacement
     sentence_Pattern = re.compile(r"[^.!?\n]+(?:[.!?]+|$)", re.M)
-    recommendations: List[CitationRecommendationItem] = []
-    bibtex_entries: Dict[str, str] = {}
-    key_by_paper_id: Dict[str, str] = {}
+    recommendations: list[CitationRecommendationItem] = []
+    bibtex_entries: dict[str, str] = {}
+    key_by_paper_id: dict[str, str] = {}
     used_keys: set = set()
-    warnings: List[str] = []
+    warnings: list[str] = []
 
     annotated = text
-    replacements: List[Tuple[str, str]] = []
+    replacements: list[tuple[str, str]] = []
 
     for m in sentence_Pattern.finditer(text):
         raw_sent = m.group(0)
@@ -326,7 +405,7 @@ def recommend_citations(
         if not marker_m and (not trigger_m or has_existing):
             continue
 
-        marker_or_trigger = marker_m.group(1) if marker_m else trigger_m.group(0)
+        marker_or_trigger = marker_m.group(1) if marker_m else (trigger_m.group(0) if trigger_m else "")
         query = _extract_search_query(sent)
         papers = _retrieve_papers_for_claim(query, max_per_claim=max_k)
 
@@ -348,20 +427,22 @@ def recommend_citations(
                 bibtex_entries[k] = _format_bibtex_entry_from_paper(p, k)
             c_keys.append(k)
             justifications.append(_build_justification(p))
-            slim_papers.append({
-                "id": p.get("id"),
-                "title": p.get("title"),
-                "authors": p.get("authors") or [],
-                "year": p.get("year"),
-                "journal": p.get("journal"),
-                "doi": p.get("doi"),
-                "citations": int(p.get("citations") or 0),
-                "citation_key": k,
-            })
+            slim_papers.append(
+                {
+                    "id": p.get("id"),
+                    "title": p.get("title"),
+                    "authors": p.get("authors") or [],
+                    "year": p.get("year"),
+                    "journal": p.get("journal"),
+                    "doi": p.get("doi"),
+                    "citations": int(p.get("citations") or 0),
+                    "citation_key": k,
+                }
+            )
 
         cite_tag = f"\\cite{{{', '.join(c_keys)}}}" if style == "latex" else f"[@{'; @'.join(c_keys)}]"
         if marker_m:
-            new_sent = _EXPLICIT_CITE_MARKER_RE.sub(lambda _: cite_tag, sent)
+            new_sent = _EXPLICIT_CITE_MARKER_RE.sub(cite_tag.replace("\\", "\\\\"), sent)
         else:
             if sent.endswith((".", "!", "?")):
                 new_sent = f"{sent[:-1]} {cite_tag}{sent[-1]}"
@@ -417,7 +498,7 @@ _EFF_FAMILY_RE = re.compile(
 )
 
 
-def _classify_approach_family(paper: dict) -> Tuple[str, str]:
+def _classify_approach_family(paper: dict) -> tuple[str, str]:
     title = paper.get("title") or ""
     body = f"{paper.get('abstract', '')} {paper.get('evidence', '')}"
     s_arch = len(_ARCH_FAMILY_RE.findall(title)) * 2 + len(_ARCH_FAMILY_RE.findall(body))
@@ -435,7 +516,12 @@ def _extract_core_contribution(paper: dict) -> str:
     if abs_txt:
         sents = [s.strip() for s in re.split(r"(?<=[.!?])\s+", abs_txt) if s.strip()]
         if sents:
-            first = re.sub(r"^(?:We|In\s+this\s+(?:paper|work|study),?\s+we|This\s+(?:paper|study))\s+\w+\s+", "", sents[0], flags=re.I)
+            first = re.sub(
+                r"^(?:We|In\s+this\s+(?:paper|work|study),?\s+we|This\s+(?:paper|study))\s+\w+\s+",
+                "",
+                sents[0],
+                flags=re.I,
+            )
             return first.rstrip(".")
     return (paper.get("title") or "a domain-specific methodology").rstrip(".")
 
@@ -443,8 +529,12 @@ def _extract_core_contribution(paper: dict) -> str:
 def _extract_limitation_clause(paper: dict) -> str:
     abs_txt = (paper.get("abstract") or "").strip()
     for s in re.split(r"(?<=[.!?])\s+", abs_txt):
-        if re.search(r"\b(?:however|limitation|struggles|degrades|overhead|constrained|trade[-\s]?off|cost|latency)\b", s, re.I):
-            cleaned = re.sub(r"^(?:However|Nevertheless|Nonetheless|A\s+limitation\s+is\s+that),?\s*", "", s.strip(), flags=re.I)
+        if re.search(
+            r"\b(?:however|limitation|struggles|degrades|overhead|constrained|trade[-\s]?off|cost|latency)\b", s, re.I
+        ):
+            cleaned = re.sub(
+                r"^(?:However|Nevertheless|Nonetheless|A\s+limitation\s+is\s+that),?\s*", "", s.strip(), flags=re.I
+            )
             return cleaned.rstrip(".")
     return "operates under specific structural or computational assumptions"
 
@@ -488,9 +578,9 @@ def synthesize_related_work(
             papers.append(p)
 
     used_keys: set = set()
-    key_map: Dict[str, str] = {}
-    num_map: Dict[str, int] = {}
-    bibtex_entries: List[str] = []
+    key_map: dict[str, str] = {}
+    num_map: dict[str, int] = {}
+    bibtex_entries: list[str] = []
 
     for idx, p in enumerate(papers, 1):
         pid = p.get("id") or str(idx)
@@ -512,12 +602,12 @@ def synthesize_related_work(
         ("Training, Optimization & Causal Identification", "training_and_identification"),
         ("Efficiency, Scaling & Empirical Evaluation", "efficiency_and_evaluation"),
     ]
-    grouped: Dict[str, List[dict]] = {name: [] for name, _ in family_order}
+    grouped: dict[str, list[dict]] = {name: [] for name, _ in family_order}
     for p in papers:
         t_name, _ = _classify_approach_family(p)
         grouped[t_name].append(p)
 
-    clusters: List[RelatedWorkThemeCluster] = []
+    clusters: list[RelatedWorkThemeCluster] = []
     for theme_name, family_slug in family_order:
         group = grouped[theme_name]
         if not group:
@@ -618,7 +708,7 @@ def generate_manuscript_blueprint(
     topic: str,
     venue: str = "neurips",
     hypothesis: str = "",
-    key_findings: Optional[List[str]] = None,
+    key_findings: list[str] | None = None,
     output_format: str = "markdown",
 ) -> dict:
     """Issue #23 (Mode 1): Generate a complete IMRaD structural blueprint tailored to `venue`
@@ -640,8 +730,12 @@ def generate_manuscript_blueprint(
     else:
         findings = []
 
-    hyp_str = (hypothesis or "").strip() or f"Our proposed method for {topic.strip()} improves efficiency and accuracy over SOTA baselines."
-    findings_preview = "; ".join(findings) if findings else "Quantified improvements (e.g., +X.X% over baseline with p < 0.01)"
+    hyp_str = (
+        hypothesis or ""
+    ).strip() or f"Our proposed method for {topic.strip()} improves efficiency and accuracy over SOTA baselines."
+    findings_preview = (
+        "; ".join(findings) if findings else "Quantified improvements (e.g., +X.X% over baseline with p < 0.01)"
+    )
 
     venue_mandatory_title = {
         "neurips": "7. Broader Impact & NeurIPS Paper Checklist",
@@ -665,7 +759,11 @@ def generate_manuscript_blueprint(
                 f"Sentence 3 (Core Hypothesis & Proposal): State the central hypothesis ({hyp_str}).",
                 f"Sentences 4-5 (Quantitative Findings): Summarize empirical gains ({findings_preview}) and release of open artifacts.",
             ],
-            recommended_elements=["150-250 words", "Zero undefined acronyms", "Headline metric delta with confidence interval"],
+            recommended_elements=[
+                "150-250 words",
+                "Zero undefined acronyms",
+                "Headline metric delta with confidence interval",
+            ],
         ),
         BlueprintSection(
             section_title="1. Introduction",
@@ -676,7 +774,11 @@ def generate_manuscript_blueprint(
                 f"Paragraph 3 (Central Hypothesis & Approach): Formulate the testable hypothesis: '{hyp_str}'.",
                 "Paragraph 4 (Bulleted Contributions): List 3-4 concrete, falsifiable contributions anchored to sections and tables.",
             ],
-            recommended_elements=["Figure 1 (Overview / Teaser diagram)", "Bulleted list of 3-4 contributions", "Explicit forward references to Sections 3-5"],
+            recommended_elements=[
+                "Figure 1 (Overview / Teaser diagram)",
+                "Bulleted list of 3-4 contributions",
+                "Explicit forward references to Sections 3-5",
+            ],
         ),
         BlueprintSection(
             section_title="2. Related Work",
@@ -686,7 +788,11 @@ def generate_manuscript_blueprint(
                 "Paragraph 2 (Optimization, Identification & Empirical Benchmarks): Compare methodological assumptions and evaluation regimes.",
                 "Paragraph 3 (Positioning & Gap): Explicitly state how your method resolves the collective limitation of prior work.",
             ],
-            recommended_elements=["3 thematic clusters", "Comparative connectors (While X..., Y..., whereas Z...)", "Explicit differentiation paragraph"],
+            recommended_elements=[
+                "3 thematic clusters",
+                "Comparative connectors (While X..., Y..., whereas Z...)",
+                "Explicit differentiation paragraph",
+            ],
         ),
         BlueprintSection(
             section_title="3. Methodology / Problem Formulation",
@@ -696,7 +802,11 @@ def generate_manuscript_blueprint(
                 "Paragraph 2 (Core Mechanism / Identification Strategy): Present numbered equations and algorithmic steps.",
                 "Paragraph 3 (Complexity / Theoretical Guarantees): Analyze computational complexity, memory footprint, or identification assumptions.",
             ],
-            recommended_elements=["Numbered Equations (Eq. 1-3)", "Algorithm 1 pseudocode box", "Explicit assumptions and boundary conditions"],
+            recommended_elements=[
+                "Numbered Equations (Eq. 1-3)",
+                "Algorithm 1 pseudocode box",
+                "Explicit assumptions and boundary conditions",
+            ],
         ),
         BlueprintSection(
             section_title="4. Experimental Setup & Empirical Results",
@@ -707,7 +817,11 @@ def generate_manuscript_blueprint(
                 f"Paragraph 3 (Main Results): Present primary quantitative evidence supporting: {findings_preview}.",
                 "Paragraph 4 (Ablation & Robustness Studies): Isolate the contribution of each component (w/o X) with error bars.",
             ],
-            recommended_elements=["Table 1 (Main benchmark comparison with ± std)", "Table 2 (Ablation study)", "Hyperparameter & hardware specification"],
+            recommended_elements=[
+                "Table 1 (Main benchmark comparison with ± std)",
+                "Table 2 (Ablation study)",
+                "Hyperparameter & hardware specification",
+            ],
         ),
         BlueprintSection(
             section_title="5. Discussion & Limitations",
@@ -716,7 +830,11 @@ def generate_manuscript_blueprint(
                 "Paragraph 1 (Interpretation of Findings): Explain why the proposed mechanism succeeds and where marginal gains saturate.",
                 "Paragraph 2 (Failure Modes & Threats to Validity): Transparently analyze boundary conditions, OOD degradation, and compute/clinical constraints.",
             ],
-            recommended_elements=["Dedicated Limitations subsection", "Failure case analysis", "Calibration of claims to empirical evidence"],
+            recommended_elements=[
+                "Dedicated Limitations subsection",
+                "Failure case analysis",
+                "Calibration of claims to empirical evidence",
+            ],
         ),
         BlueprintSection(
             section_title="6. Conclusion",
@@ -732,7 +850,10 @@ def generate_manuscript_blueprint(
             paragraph_prompts=[
                 f"Mandatory {v.upper()} declarations: address ethical implications, societal impact, data/code licensing, and reproducibility checklist items.",
             ],
-            recommended_elements=[f"Venue-specific ({v.upper()}) compliance block", "Anonymized artifact URLs for double-blind review"],
+            recommended_elements=[
+                f"Venue-specific ({v.upper()}) compliance block",
+                "Anonymized artifact URLs for double-blind review",
+            ],
         ),
     ]
 
@@ -796,7 +917,10 @@ _WEAK_CLAIM_PATTERNS = (
         "Replace absolute language with calibrated empirical hedging (e.g., 'Our experiments on Table 1 indicate that... \\cite{...}').",
     ),
     (
-        re.compile(r"\b(?:massive|huge|dramatic|unprecedented|vastly\s+superior)\s+(?:improvement|gain|speedup|performance)s?\b", re.I),
+        re.compile(
+            r"\b(?:massive|huge|dramatic|unprecedented|vastly\s+superior)\s+(?:improvement|gain|speedup|performance)s?\b",
+            re.I,
+        ),
         "high",
         "Vague qualitative superlative ('massive/dramatic improvement') lacking exact metric delta and baseline anchor.",
         "Specify the exact quantitative delta, metric, and baseline (e.g., 'improves accuracy by +4.2% (±0.3%) over Baseline X on Dataset Y').",
@@ -810,8 +934,8 @@ _WEAK_CLAIM_PATTERNS = (
 )
 
 
-def _detect_weak_claims(text: str) -> List[DraftAuditFinding]:
-    findings: List[DraftAuditFinding] = []
+def _detect_weak_claims(text: str) -> list[DraftAuditFinding]:
+    findings: list[DraftAuditFinding] = []
     for m in re.finditer(r"[^.!?\n]+(?:[.!?]+|$)", text or ""):
         sent = m.group(0).strip()
         if len(sent) < 12 or sent.startswith(("%", "#")):
@@ -837,8 +961,8 @@ def _detect_weak_claims(text: str) -> List[DraftAuditFinding]:
     return findings
 
 
-def _detect_notation_inconsistencies(text: str) -> List[DraftAuditFinding]:
-    findings: List[DraftAuditFinding] = []
+def _detect_notation_inconsistencies(text: str) -> list[DraftAuditFinding]:
+    findings: list[DraftAuditFinding] = []
     # 1. Mixed math symbol styling: e.g. L_total vs \mathcal{L}_{total} or L vs \mathcal{L}
     has_plain_loss = bool(re.search(r"\$L(?:_[a-zA-Z0-9{}]+)?\$|\bL_(?:total|loss|train)\b", text or ""))
     has_cal_loss = bool(re.search(r"\\mathcal\{L\}", text or ""))
@@ -866,7 +990,9 @@ def _detect_notation_inconsistencies(text: str) -> List[DraftAuditFinding]:
         )
 
     # 3. Terminology inconsistency (e.g., fine-tuning vs finetuning vs Fine Tuning)
-    ft_variants = set(re.findall(r"\b(?:fine-tun(?:ing|ed)|finetun(?:ing|ed)|fine\s+tun(?:ing|ed))\b", (text or "").lower()))
+    ft_variants = set(
+        re.findall(r"\b(?:fine-tun(?:ing|ed)|finetun(?:ing|ed)|fine\s+tun(?:ing|ed))\b", (text or "").lower())
+    )
     normalized_ft = {re.sub(r"\s+", " ", v) for v in ft_variants}
     if len(normalized_ft) > 1:
         findings.append(
@@ -883,7 +1009,7 @@ def _detect_notation_inconsistencies(text: str) -> List[DraftAuditFinding]:
     eq_matches = list(re.finditer(r"(?:\\begin\{equation\}|\$\$)(.*?)(?:\\end\{equation\}|\$\$)", text or "", re.S))
     for eq_m in eq_matches:
         eq_body = eq_m.group(1).strip()
-        after_window = (text or "")[eq_m.end(): eq_m.end() + 260]
+        after_window = (text or "")[eq_m.end() : eq_m.end() + 260]
         if not re.search(r"\b(?:where|denotes|represents|is\s+the|with)\b", after_window, re.I):
             findings.append(
                 DraftAuditFinding(
@@ -899,8 +1025,8 @@ def _detect_notation_inconsistencies(text: str) -> List[DraftAuditFinding]:
     return findings
 
 
-def _detect_reproducibility_omissions(text: str) -> List[DraftAuditFinding]:
-    findings: List[DraftAuditFinding] = []
+def _detect_reproducibility_omissions(text: str) -> list[DraftAuditFinding]:
+    findings: list[DraftAuditFinding] = []
     checks = [
         (
             re.compile(r"\b(?:random\s+seeds?|seeds?\s*=|\bseed\b|multi[-\s]seed)\b", re.I),
@@ -910,21 +1036,29 @@ def _detect_reproducibility_omissions(text: str) -> List[DraftAuditFinding]:
             "Add to Experimental Setup: 'All experiments are repeated across 5 random seeds (seeds {42, 100, 2024, 7, 99}) and we report mean ± standard deviation.'",
         ),
         (
-            re.compile(r"\b(?:learning\s+rate|optimizer|adamw?|sgd|batch\s+size|hyperparameter|dosage|mg/day|protocol)\b", re.I),
+            re.compile(
+                r"\b(?:learning\s+rate|optimizer|adamw?|sgd|batch\s+size|hyperparameter|dosage|mg/day|protocol)\b", re.I
+            ),
             "high",
             "Missing Hyperparameters / Protocol specification",
             "Draft omits optimizer, learning rate, batch size, or intervention protocol parameters.",
             "Add to Experimental Setup: 'We optimize using AdamW (lr = 2e-4, weight decay = 0.01, batch size = 64, cosine warmup over 500 steps).'",
         ),
         (
-            re.compile(r"\b(?:train(?:ing)?\s*/\s*(?:val|dev|test)|sample\s+size|\b[nN]\s*=\s*\d+|split|cohort\s+of\s+\d+)\b", re.I),
+            re.compile(
+                r"\b(?:train(?:ing)?\s*/\s*(?:val|dev|test)|sample\s+size|\b[nN]\s*=\s*\d+|split|cohort\s+of\s+\d+)\b",
+                re.I,
+            ),
             "high",
             "Missing Sample Size (N) or Train/Val/Test splits",
             "Draft does not specify dataset split sizes or cohort sample size (N).",
             "Add to Experimental Setup: 'The dataset comprises N = 10,000 examples partitioned into 80%/10%/10% train/validation/test splits without data overlap.'",
         ),
         (
-            re.compile(r"(?:\\pm|±|\b95%\s*CI\b|\bconfidence\s+interval|\bstd\b|\bstandard\s+deviation|\bp\s*[<=>]\s*0\.\d+|\berror\s+bars?\b)", re.I),
+            re.compile(
+                r"(?:\\pm|±|\b95%\s*CI\b|\bconfidence\s+interval|\bstd\b|\bstandard\s+deviation|\bp\s*[<=>]\s*0\.\d+|\berror\s+bars?\b)",
+                re.I,
+            ),
             "medium",
             "Missing Error Bars / Confidence Intervals / Statistical Significance",
             "Quantitative claims lack standard deviations (±), 95% confidence intervals, or p-values.",
@@ -984,14 +1118,44 @@ def audit_manuscript_draft(
             f"\\section*{{Manuscript Audit Report ({v.upper()}) — {source_label}}}",
             "\\subsection*{1. Weak or Unsubstantiated Claims}",
         ]
-        for f in weak or [DraftAuditFinding(category="weak_claim", severity="low", excerpt="None", issue_description="No weak claims detected.", suggested_rewrite="N/A")]:
-            lines.append(f"\\noindent\\textbf{{[{f.severity.upper()}]}} \\texttt{{{f.excerpt}}} --- {f.issue_description} \\emph{{Suggested fix:}} {f.suggested_rewrite}\\\\")
+        for f in weak or [
+            DraftAuditFinding(
+                category="weak_claim",
+                severity="low",
+                excerpt="None",
+                issue_description="No weak claims detected.",
+                suggested_rewrite="N/A",
+            )
+        ]:
+            lines.append(
+                f"\\noindent\\textbf{{[{f.severity.upper()}]}} \\texttt{{{f.excerpt}}} --- {f.issue_description} \\emph{{Suggested fix:}} {f.suggested_rewrite}\\\\"
+            )
         lines.append("\\subsection*{2. Notation & Terminology Inconsistencies}")
-        for f in notation or [DraftAuditFinding(category="notation_inconsistency", severity="low", excerpt="None", issue_description="No notation inconsistencies detected.", suggested_rewrite="N/A")]:
-            lines.append(f"\\noindent\\textbf{{[{f.severity.upper()}]}} \\texttt{{{f.excerpt}}} --- {f.issue_description} \\emph{{Suggested fix:}} {f.suggested_rewrite}\\\\")
+        for f in notation or [
+            DraftAuditFinding(
+                category="notation_inconsistency",
+                severity="low",
+                excerpt="None",
+                issue_description="No notation inconsistencies detected.",
+                suggested_rewrite="N/A",
+            )
+        ]:
+            lines.append(
+                f"\\noindent\\textbf{{[{f.severity.upper()}]}} \\texttt{{{f.excerpt}}} --- {f.issue_description} \\emph{{Suggested fix:}} {f.suggested_rewrite}\\\\"
+            )
         lines.append("\\subsection*{3. Reproducibility Omissions}")
-        for f in repro or [DraftAuditFinding(category="reproducibility_omission", severity="low", excerpt="None", issue_description="All reproducibility checks passed.", suggested_rewrite="N/A")]:
-            lines.append(f"\\noindent\\textbf{{[{f.severity.upper()}]}} \\texttt{{{f.excerpt}}} --- {f.issue_description} \\emph{{Suggested fix:}} {f.suggested_rewrite}\\\\")
+        for f in repro or [
+            DraftAuditFinding(
+                category="reproducibility_omission",
+                severity="low",
+                excerpt="None",
+                issue_description="All reproducibility checks passed.",
+                suggested_rewrite="N/A",
+            )
+        ]:
+            lines.append(
+                f"\\noindent\\textbf{{[{f.severity.upper()}]}} \\texttt{{{f.excerpt}}} --- {f.issue_description} \\emph{{Suggested fix:}} {f.suggested_rewrite}\\\\"
+            )
         rendered = "\n".join(lines)
     else:
         lines = [
@@ -1001,19 +1165,25 @@ def audit_manuscript_draft(
         ]
         if weak:
             for f in weak:
-                lines.append(f"- **[{f.severity.upper()}]** `{f.excerpt}`\n  - **Issue:** {f.issue_description}\n  - **Suggested Rewrite:** {f.suggested_rewrite}")
+                lines.append(
+                    f"- **[{f.severity.upper()}]** `{f.excerpt}`\n  - **Issue:** {f.issue_description}\n  - **Suggested Rewrite:** {f.suggested_rewrite}"
+                )
         else:
             lines.append("- None detected.")
         lines += ["", f"## 2. Notation & Terminology Inconsistencies ({len(notation)})"]
         if notation:
             for f in notation:
-                lines.append(f"- **[{f.severity.upper()}]** `{f.excerpt}`\n  - **Issue:** {f.issue_description}\n  - **Suggested Rewrite:** {f.suggested_rewrite}")
+                lines.append(
+                    f"- **[{f.severity.upper()}]** `{f.excerpt}`\n  - **Issue:** {f.issue_description}\n  - **Suggested Rewrite:** {f.suggested_rewrite}"
+                )
         else:
             lines.append("- None detected.")
         lines += ["", f"## 3. Reproducibility Omissions ({len(repro)})"]
         if repro:
             for f in repro:
-                lines.append(f"- **[{f.severity.upper()}]** `{f.excerpt}`\n  - **Issue:** {f.issue_description}\n  - **Suggested Rewrite:** {f.suggested_rewrite}")
+                lines.append(
+                    f"- **[{f.severity.upper()}]** `{f.excerpt}`\n  - **Issue:** {f.issue_description}\n  - **Suggested Rewrite:** {f.suggested_rewrite}"
+                )
         else:
             lines.append("- None detected.")
         lines += ["", "## 4. Pre-Submission Checklist"] + [f"- {item}" for item in checklist]
@@ -1038,14 +1208,29 @@ def audit_manuscript_draft(
 
 _BIB_ENTRY_START_RE = re.compile(r"@([a-zA-Z]+)\s*\{\s*([^,\s]+)\s*,", re.M)
 _PROTECTED_ACRONYMS = (
-    "LLMs", "LLM", "GPUs", "GPU", "RLHF", "Transformer", "BERT", "GPT-4", "GPT",
-    "CONSORT", "STROBE", "PRISMA", "DNA", "RNA", "COVID-19", "MMLU", "GSM8K",
+    "LLMs",
+    "LLM",
+    "GPUs",
+    "GPU",
+    "RLHF",
+    "Transformer",
+    "BERT",
+    "GPT-4",
+    "GPT",
+    "CONSORT",
+    "STROBE",
+    "PRISMA",
+    "DNA",
+    "RNA",
+    "COVID-19",
+    "MMLU",
+    "GSM8K",
 )
 
 
-def parse_bibtex_entries(raw_bib: str) -> List[dict]:
+def parse_bibtex_entries(raw_bib: str) -> list[dict]:
     """Parse `.bib` text into a list of dicts: `{'entry_type': str, 'key': str, 'fields': OrderedDict}`."""
-    entries: List[dict] = []
+    entries: list[dict] = []
     text = raw_bib or ""
     pos = 0
     while pos < len(text):
@@ -1065,12 +1250,12 @@ def parse_bibtex_entries(raw_bib: str) -> List[dict]:
                 if depth == 0:
                     end_idx = i
                     break
-        body = text[m.end(): end_idx]
+        body = text[m.end() : end_idx]
         pos = end_idx + 1
         if etype in ("comment", "preamble", "string"):
             continue
 
-        fields: Dict[str, str] = {}
+        fields: dict[str, str] = {}
         f_pos = 0
         while f_pos < len(body):
             fm = re.search(r"([a-zA-Z0-9_:-]+)\s*=\s*", body[f_pos:])
@@ -1094,7 +1279,7 @@ def parse_bibtex_entries(raw_bib: str) -> List[dict]:
                         if d == 0:
                             v_end = j
                             break
-                fval = body[val_start + 1: v_end].strip()
+                fval = body[val_start + 1 : v_end].strip()
                 f_pos = v_end + 1
             elif ch == '"':
                 v_end = val_start + 1
@@ -1102,7 +1287,7 @@ def parse_bibtex_entries(raw_bib: str) -> List[dict]:
                     if body[v_end] == '"' and body[v_end - 1] != "\\":
                         break
                     v_end += 1
-                fval = body[val_start + 1: v_end].strip()
+                fval = body[val_start + 1 : v_end].strip()
                 f_pos = v_end + 1
             else:
                 comma = body.find(",", val_start)
@@ -1124,7 +1309,7 @@ def _normalize_authors_field(raw_author: str) -> str:
     return " and ".join(parts)
 
 
-def _escape_latex_outside_math(value: str, protect_acronyms: bool = False) -> Tuple[str, int]:
+def _escape_latex_outside_math(value: str, protect_acronyms: bool = False) -> tuple[str, int]:
     if not value:
         return "", 0
     fixes = 0
@@ -1160,10 +1345,11 @@ def _entry_completeness_score(entry: dict) -> int:
     return score
 
 
-def _choose_canonical_bib_key(keys: List[str], fields: dict, used_keys: set) -> str:
+def _choose_canonical_bib_key(keys: list[str], fields: dict, used_keys: set) -> str:
     # Prefer a clean human-readable key like 'vaswani2017attention' over 'vaswani2017_dup' or 'arxiv2305'
     clean_candidates = [
-        k for k in keys
+        k
+        for k in keys
         if re.match(r"^[a-z]+[0-9]{4}[a-z0-9]+$", k, re.I)
         and not k.lower().startswith("arxiv")
         and not re.search(r"_(?:dup|copy|old|\d+)$", k, re.I)
@@ -1173,11 +1359,16 @@ def _choose_canonical_bib_key(keys: List[str], fields: dict, used_keys: set) -> 
     else:
         authors_raw = fields.get("author") or "anon"
         first_author = authors_raw.split(" and ")[0].strip()
-        surname = first_author.split(",")[0].strip().lower() if "," in first_author else (first_author.split()[-1].lower() if first_author.split() else "anon")
+        surname = (
+            first_author.split(",")[0].strip().lower()
+            if "," in first_author
+            else (first_author.split()[-1].lower() if first_author.split() else "anon")
+        )
         surname = re.sub(r"[^a-z0-9]", "", surname) or "anon"
         year = re.sub(r"[^0-9]", "", str(fields.get("year") or ""))[:4] or "nd"
         t_words = [
-            w.lower() for w in re.findall(r"[A-Za-z0-9]{3,}", re.sub(r"[{}]", "", fields.get("title") or ""))
+            w.lower()
+            for w in re.findall(r"[A-Za-z0-9]{3,}", re.sub(r"[{}]", "", fields.get("title") or ""))
             if w.lower() not in _STOPWORDS
         ]
         word = re.sub(r"[^a-z0-9]", "", t_words[0]) if t_words else "paper"
@@ -1195,7 +1386,7 @@ def _choose_canonical_bib_key(keys: List[str], fields: dict, used_keys: set) -> 
 def sanitize_bibtex(
     bibtex_input: str,
     update_preprints: bool = True,
-    output_path: Optional[str] = None,
+    output_path: str | None = None,
 ) -> dict:
     """Issue #25: Parse and sanitize a `.bib` file or BibTeX string:
     - Upgrade arXiv/CoRR preprints (`@misc` / `arXiv`) to their peer-reviewed conference (`@inproceedings`)
@@ -1208,13 +1399,13 @@ def sanitize_bibtex(
     if not parsed:
         raise core.HTTPError(400, "No valid BibTeX entries found in input.")
 
-    out_file: Optional[Path] = None
+    out_file: Path | None = None
     if output_path is not None and str(output_path).strip():
         out_file = _validate_workspace_path(str(output_path).strip(), must_exist=False)
 
     # Group duplicates by (norm_doi | arxiv_id | norm_title)
-    groups: List[List[dict]] = []
-    group_index_by_sig: Dict[str, int] = {}
+    groups: list[list[dict]] = []
+    group_index_by_sig: dict[str, int] = {}
 
     for entry in parsed:
         f = entry["fields"]
@@ -1245,10 +1436,10 @@ def sanitize_bibtex(
     preprints_upgraded = 0
     dois_completed = 0
     latex_escapes_fixed = 0
-    updates: List[BibtexEntryUpdate] = []
-    sanitized_blocks: List[str] = []
+    updates: list[BibtexEntryUpdate] = []
+    sanitized_blocks: list[str] = []
     used_keys: set = set()
-    warnings: List[str] = []
+    warnings: list[str] = []
 
     for grp in groups:
         grp_sorted = sorted(grp, key=_entry_completeness_score, reverse=True)
@@ -1263,7 +1454,7 @@ def sanitize_bibtex(
                 if fv and not merged_fields.get(fk):
                     merged_fields[fk] = fv
 
-        notes: List[str] = []
+        notes: list[str] = []
         old_venue = merged_fields.get("booktitle") or merged_fields.get("journal") or etype
         had_doi_before = bool(
             merged_fields.get("doi") and not str(merged_fields["doi"]).lower().startswith("10.48550/arxiv")
@@ -1330,7 +1521,21 @@ def sanitize_bibtex(
 
         # Format clean BibTeX block
         ordered_keys = [
-            k for k in ("title", "author", "year", "booktitle", "journal", "volume", "number", "pages", "publisher", "doi", "eprint", "url")
+            k
+            for k in (
+                "title",
+                "author",
+                "year",
+                "booktitle",
+                "journal",
+                "volume",
+                "number",
+                "pages",
+                "publisher",
+                "doi",
+                "eprint",
+                "url",
+            )
             if merged_fields.get(k)
         ]
         for k in merged_fields:
@@ -1412,7 +1617,7 @@ _CLARITY_RE = re.compile(
 )
 
 
-def _classify_rebuttal_comment(comment: str) -> Tuple[str, str, bool]:
+def _classify_rebuttal_comment(comment: str) -> tuple[str, str, bool]:
     low = comment or ""
     if _NEW_EXP_RE.search(low):
         return "new_experiment_request", "high", True
@@ -1426,9 +1631,9 @@ def _classify_rebuttal_comment(comment: str) -> Tuple[str, str, bool]:
     return "clarity_question", "medium", False
 
 
-def _segment_reviewer_blocks(raw_text: str) -> List[Tuple[str, List[str]]]:
+def _segment_reviewer_blocks(raw_text: str) -> list[tuple[str, list[str]]]:
     matches = list(_REVIEWER_HEADER_RE.finditer(raw_text or ""))
-    blocks: List[Tuple[str, str]] = []
+    blocks: list[tuple[str, str]] = []
     if not matches:
         blocks.append(("Reviewer 1", (raw_text or "").strip()))
     else:
@@ -1443,11 +1648,13 @@ def _segment_reviewer_blocks(raw_text: str) -> List[Tuple[str, List[str]]]:
             end = matches[i + 1].start() if i + 1 < len(matches) else len(raw_text)
             blocks.append((rev_id, raw_text[start:end].strip()))
 
-    out: List[Tuple[str, List[str]]] = []
+    out: list[tuple[str, list[str]]] = []
     for rev_id, body in blocks:
-        points: List[str] = []
+        points: list[str] = []
         for raw_line in re.split(r"\n\s*\n|\n(?=\s*(?:[-*•]|\d+[.)]|\[?[WQ]\d+\]?)\s+)", body):
-            cleaned = re.sub(r"^\s*(?:Weaknesses|Questions|Comments|Major|Minor)\s*:?\s*", "", raw_line.strip(), flags=re.I)
+            cleaned = re.sub(
+                r"^\s*(?:Weaknesses|Questions|Comments|Major|Minor)\s*:?\s*", "", raw_line.strip(), flags=re.I
+            )
             cleaned = re.sub(r"^\s*(?:[-*•]|\d+[.)]|\[?[WQ]\d+\]?:?)\s*", "", cleaned).strip()
             cleaned = re.sub(r"\s+", " ", cleaned)
             if len(cleaned) >= 15:
@@ -1461,8 +1668,8 @@ def _segment_reviewer_blocks(raw_text: str) -> List[Tuple[str, List[str]]]:
 
 def parse_and_draft_rebuttal(
     reviews_input: str,
-    paper_id: Optional[str] = None,
-    draft_input: Optional[str] = None,
+    paper_id: str | None = None,
+    draft_input: str | None = None,
     output_format: str = "markdown",
 ) -> dict:
     """Issue #26: Parse raw peer-review comments by reviewer and objection, classify each point,
@@ -1491,7 +1698,7 @@ def parse_and_draft_rebuttal(
 
     segmented = _segment_reviewer_blocks(reviews_text)
     reviewers_detected = [rev for rev, _ in segmented]
-    points: List[RebuttalPoint] = []
+    points: list[RebuttalPoint] = []
 
     for rev_idx, (rev_id, comments) in enumerate(segmented, 1):
         short_rev = f"R{rev_idx}"
@@ -1569,24 +1776,28 @@ def parse_and_draft_rebuttal(
             tex_lines.extend([f"\\subsection*{{Response to {current_rev}}}", ""])
 
         exp_badge = " `[NEW EXPERIMENT REQUIRED]`" if pt.requires_new_experiment else ""
-        md_lines.extend([
-            f"### [{pt.point_id}] Category: `{pt.category}` (Severity: `{pt.severity}`){exp_badge}",
-            f"> **Reviewer Comment:** {pt.original_comment}",
-            "",
-            f"**Author Response:** {pt.draft_response}",
-            "",
-            f"**{pt.manuscript_action_plan}**",
-            "",
-        ])
-        tex_lines.extend([
-            "\\begin{quote}",
-            f"\\textbf{{Reviewer Comment [{pt.point_id} — {pt.category}]:}} \\textit{{{pt.original_comment}}}",
-            "\\end{quote}",
-            f"\\noindent\\textbf{{Response:}} {pt.draft_response}\\\\",
-            f"\\noindent\\textcolor{{blue}}{{\\textbf{{{pt.manuscript_action_plan}}}}}",
-            "\\medskip",
-            "",
-        ])
+        md_lines.extend(
+            [
+                f"### [{pt.point_id}] Category: `{pt.category}` (Severity: `{pt.severity}`){exp_badge}",
+                f"> **Reviewer Comment:** {pt.original_comment}",
+                "",
+                f"**Author Response:** {pt.draft_response}",
+                "",
+                f"**{pt.manuscript_action_plan}**",
+                "",
+            ]
+        )
+        tex_lines.extend(
+            [
+                "\\begin{quote}",
+                f"\\textbf{{Reviewer Comment [{pt.point_id} — {pt.category}]:}} \\textit{{{pt.original_comment}}}",
+                "\\end{quote}",
+                f"\\noindent\\textbf{{Response:}} {pt.draft_response}\\\\",
+                f"\\noindent\\textcolor{{blue}}{{\\textbf{{{pt.manuscript_action_plan}}}}}",
+                "\\medskip",
+                "",
+            ]
+        )
 
     report = RebuttalReport(
         reviewers_detected=reviewers_detected,
