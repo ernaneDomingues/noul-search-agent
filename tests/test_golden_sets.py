@@ -42,6 +42,8 @@ def _predict_domain(case):
 SETS = {
     "evidence_design": ("evidence_design.jsonl", _predict_design),
     "domain": ("domain.jsonl", _predict_domain),
+    # Written before Phase 1c tuned the domain classifier and never used to tune it: an honest generalisation check.
+    "domain_holdout": ("domain_holdout.jsonl", _predict_domain),
 }
 
 
@@ -101,6 +103,7 @@ class GoldenSetRegressionTests(unittest.TestCase):
         allowed = {
             "evidence_design": set(noul_core.EV_W),
             "domain": {d.value for d in ScientificDomain},
+            "domain_holdout": {d.value for d in ScientificDomain},
         }
         for name, (filename, _) in SETS.items():
             for case in _load(filename):

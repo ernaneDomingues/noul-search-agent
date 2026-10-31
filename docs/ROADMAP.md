@@ -22,7 +22,7 @@
 > | 14 — Europe PMC fora das fontes | Resolvido |
 >
 > Novo achado do golden set: o classificador de domínio acerta 0,62 (recall biomédico 0,44 e de economia 0,32;
-> a maioria dos erros cai em `general_stem`). Proposta: corrigir na Fase 1 do refactor, com o golden set como gate.
+> a maioria dos erros cai em `general_stem`). Corrigido na Fase 1c: 1,00 no conjunto de desenvolvimento e 0,975 no holdout de 40 casos escrito antes do ajuste.
 
 Plano de melhorias, implementações e disponibilização ao público. Baseado na análise do código em 27/10/2026.
 

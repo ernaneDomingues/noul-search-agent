@@ -6,7 +6,12 @@
   },
   "domain": {
     "n": 100,
-    "accuracy": 0.62,
-    "macro_f1": 0.6222
+    "accuracy": 1.0,
+    "macro_f1": 1.0
+  },
+  "domain_holdout": {
+    "n": 40,
+    "accuracy": 0.975,
+    "macro_f1": 0.9749
   }
 }

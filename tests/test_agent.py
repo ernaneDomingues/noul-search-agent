@@ -412,6 +412,11 @@ class AgentTestSuite(unittest.TestCase):
         blocked = network.start()
         self.addCleanup(network.stop)
         self.addCleanup(blocked.assert_not_called)
+        httpx_network = mock.patch(
+            "httpx.HTTPTransport.handle_request", side_effect=AssertionError("Unexpected network I/O")
+        )
+        httpx_network.start()
+        self.addCleanup(httpx_network.stop)
 
     def test_p0_5_config_email_and_database_precedence(self):
         with (
@@ -511,14 +516,19 @@ class AgentTestSuite(unittest.TestCase):
         self.assertTrue(any("openalex: TimeoutError" in w for w in result["warnings"]))
 
     def test_p0_10_http_byte_cap_and_html_fulltext(self):
-        response = mock.MagicMock()
-        response.__enter__.return_value = response
-        response.headers = {}
-        response.read.side_effect = [b"1234", b"5678", b""]
-        with mock.patch("urllib.request.urlopen", return_value=response):
-            assert_http_error(413, c._http_get, "https://example.org/paper.pdf", max_bytes=6)
-        self.assertEqual(response.read.call_args_list, [mock.call(65536), mock.call(65536)])
-        response.__exit__.assert_called_once()
+        import httpx
+
+        from noul.net import http as nhttp
+
+        nhttp._reset_client(httpx.MockTransport(lambda request: httpx.Response(200, content=b"12345678")))
+        self.addCleanup(nhttp._reset_client)
+        assert_http_error(413, c._http_get, "https://example.org/paper.pdf", max_bytes=6)
+        nhttp._reset_client(
+            httpx.MockTransport(
+                lambda request: httpx.Response(200, headers={"Content-Length": "99"}, content=b"x" * 99)
+            )
+        )
+        assert_http_error(413, c._http_get, "https://example.org/paper.pdf", max_bytes=6)
 
         paper = {"id": "test:html-cleaning", "title": "HTML study", "pdf_url": "https://example.org/article"}
         boilerplate = "".join(
