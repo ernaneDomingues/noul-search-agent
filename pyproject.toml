@@ -96,3 +96,5 @@ branch = true
 
 [tool.coverage.report]
 skip_empty = true
+# Baseline measured at the start of the v2 refactor (Phase 0): 79% line+branch. Never lower this number.
+fail_under = 78
