@@ -1,7 +1,5 @@
 """Markdown (`--pretty`) renderers for CLI results."""
 
-_STATUS_ICON = {"verified": "✅", "partially_supported": "⚠️", "extrapolated": "❌"}
-
 
 def _format_pretty_search(res):
     lines = [f"# Search: {res.get('query')} ({len(res.get('papers') or [])} shown of {res.get('total_found', 0)})"]
@@ -106,20 +104,7 @@ def _format_pretty_hardware(res):
 
 
 def _format_pretty_ground(res):
-    s = res["summary"]
-    lines = [
-        f"# Claim grounding: {res.get('title') or res['paper_id']}",
-        f"Verified: {s['verified']} | Partially supported: {s['partially_supported']} | "
-        f"Extrapolated: {s['extrapolated']}",
-        "",
-    ]
-    for cl in res["claims"]:
-        lines += [
-            f"- {_STATUS_ICON.get(cl['status'], '')} **{cl['status']}** — {cl['claim']}",
-            f"  {cl['citation_tag']}",
-        ]
-    lines += [f"> {w}" for w in res.get("warnings", [])]
-    return "\n".join(lines)
+    return res["rendered_markdown"]
 
 
 def _format_pretty_math(res):
@@ -177,31 +162,4 @@ def _format_pretty_prompts(res):
 
 
 def _format_pretty_failures(res):
-    lines = [
-        f"# Failure modes & critical assumptions: {res.get('title') or res['paper_id']}",
-        f"Domain: `{res.get('domain', 'general_stem')}`",
-        "",
-        "## Failure Modes",
-    ]
-    for fm in res.get("failure_modes") or []:
-        lines.append(
-            f"- **[{fm['category']}]** (severity: `{fm['severity']}`) — {fm['description']}"
-            + (f" _(trigger: {fm['trigger_condition']})_" if fm.get("trigger_condition") else "")
-        )
-    if not res.get("failure_modes"):
-        lines.append("- None detected.")
-    lines += ["", "## Critical Assumptions"]
-    for a in res.get("critical_assumptions") or []:
-        lines.append(f"- {a}")
-    if not res.get("critical_assumptions"):
-        lines.append("- None detected.")
-    lines += ["", "## Baseline Superiority Scenarios"]
-    for b in res.get("baseline_superiority_scenarios") or []:
-        lines.append(f"- {b}")
-    if not res.get("baseline_superiority_scenarios"):
-        lines.append("- None detected.")
-    if res.get("operational_limits"):
-        lines += ["", "## Operational Limits"]
-        for k, v in res["operational_limits"].items():
-            lines.append(f"- `{k}`: {v}")
-    return "\n".join(lines)
+    return res["rendered_markdown"]

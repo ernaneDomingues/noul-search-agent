@@ -161,8 +161,11 @@ def get_paper_corpus(paper_id):
     p = _engine.resolve_paper(paper_id)
     pid = p["id"]
     warnings = []
-    text = (_cache.cache_get("ft:" + pid) or {}).get("text") or ""
-    if not text and p.get("open_access"):
+    entry = _cache.cache_get("ft:" + pid) or {}
+    text = entry.get("text") or ""
+    # Go through fulltext() when nothing is cached, and also when the cached text predates the current extraction
+    # layout (it may have lost pages); fulltext() refreshes it, or keeps the old text if the download fails.
+    if (not text and p.get("open_access")) or (text and _ft.is_stale(entry)):
         try:
             if _ft.fulltext(pid).get("available"):
                 text = (_cache.cache_get("ft:" + pid) or {}).get("text") or ""

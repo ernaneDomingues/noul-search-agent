@@ -69,9 +69,38 @@ def _with_public_bounds(tool):
     return {**tool, "inputSchema": schema}
 
 
+def _hoist_defs(schema, components, prefix):
+    """Move a JSON Schema's local `$defs` into OpenAPI `components/schemas` and point its `#/$defs/X` refs there
+    (inside an OpenAPI document refs resolve against the document root, where `$defs` does not exist). A name
+    already used by a different definition gets the tool name as prefix."""
+    schema = copy.deepcopy(schema)
+    renames = {}
+    for name, definition in (schema.pop("$defs", None) or {}).items():
+        target = name if components.get(name, definition) == definition else f"{prefix}_{name}"
+        renames[name] = target
+        components[target] = definition
+
+    def fix(node):
+        if isinstance(node, dict):
+            ref = node.get("$ref")
+            if isinstance(ref, str) and ref.startswith("#/$defs/"):
+                node["$ref"] = "#/components/schemas/" + renames.get(ref[8:], ref[8:])
+            for v in node.values():
+                fix(v)
+        elif isinstance(node, list):
+            for v in node:
+                fix(v)
+
+    fix(schema)
+    for name in renames.values():
+        fix(components[name])
+    return schema
+
+
 def openapi_spec(host=f"http://localhost:{DEFAULT_PORT}", exclude=(), profile=None, allow_write=True, public=False):
     """OpenAPI 3.1 document for the REST tool endpoints (`POST /tools/<name>`), e.g. for ChatGPT Actions."""
     paths = {}
+    components = {}
     for item in visible_tools(profile, allow_write, public):
         name = item["name"]
         if name in exclude:
@@ -82,13 +111,18 @@ def openapi_spec(host=f"http://localhost:{DEFAULT_PORT}", exclude=(), profile=No
                 "operationId": name,
                 "summary": desc[:120],
                 "description": desc,
-                "requestBody": {"required": True, "content": {"application/json": {"schema": item["inputSchema"]}}},
+                "requestBody": {
+                    "required": True,
+                    "content": {"application/json": {"schema": _hoist_defs(item["inputSchema"], components, name)}},
+                },
                 "responses": {
                     "200": {"description": "Tool response"}
                     if not item["outputSchema"]
                     else {
                         "description": "Tool response",
-                        "content": {"application/json": {"schema": item["outputSchema"]}},
+                        "content": {
+                            "application/json": {"schema": _hoist_defs(item["outputSchema"], components, name)}
+                        },
                     }
                 },
             }
@@ -102,6 +136,7 @@ def openapi_spec(host=f"http://localhost:{DEFAULT_PORT}", exclude=(), profile=No
         },
         "servers": [{"url": host}],
         "paths": paths,
+        **({"components": {"schemas": components}} if components else {}),
     }
 
 

@@ -7,6 +7,8 @@ title + abstract). The host agent's LLM interprets the results; these tools only
 import re
 
 from noul import errors as _errors
+from noul.evidence import contract as _contract
+from noul.evidence import untrusted as _untrusted
 from noul.providers import pdf_parser
 from noul.schemas.technical import BenchmarkTable, GroundedClaim
 from noul.search import engine as _engine
@@ -511,7 +513,7 @@ def _passages(corpus):
             continue
         section = pdf_parser.section_at(sections, m.start())
         if section:
-            label = f"Seção {section}"
+            label = f"Seção {_untrusted.label(section)}"
         else:
             label = "Seção Resumo" if corpus["source"] == "abstract" else "Seção Texto"
         out.append({"page": pdf_parser.page_at(pages, m.start()), "label": label, "quote": quote, "scoring": quote})
@@ -574,84 +576,115 @@ def _validate_claims(claims):
     return claims
 
 
-def ground_claim(claim, passages):
-    """Classify one claim against indexed passages -> GroundedClaim dict."""
+def _rank_passages(claim, passages):
     numbers = _claim_numbers(claim)
     values = [v for v in (_num_value(n) for n in numbers) if v is not None]
     kws = _keywords(claim)
-    best, best_key = None, None
-    for p in passages:
+    scored = []
+    for i, p in enumerate(passages):
         matched = sum(1 for v in values if v in p["values"])
         lex = len(kws & p["keywords"]) / len(kws) if kws else 0.0
         key = (matched / len(values) if values else 0.0) * 2 + lex
-        if best_key is None or key > best_key:
-            best, best_key = p, key
-    if best is None:
+        scored.append((key, -i, p))
+    scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    return numbers, kws, [p for key, _, p in scored if key > 0] or [p for _, _, p in scored[:1]]
+
+
+def _passage_excerpt(p, paper_id, numbers=()):
+    return _untrusted.excerpt(
+        _clip_quote(p["quote"], numbers), paper_id=paper_id, section=p["label"], page=p["page"], limit=None
+    )
+
+
+def ground_claim(claim, passages, paper_id=None, claim_untrusted=False):
+    """Locate one claim in the indexed passages -> GroundedClaim dict (lexical facts + candidate excerpts; the
+    client's model judges whether they support the claim)."""
+    numbers, kws, ranked = _rank_passages(claim, passages)
+    if not ranked:
         return GroundedClaim(
-            claim=claim,
-            status="extrapolated",
+            claim=_untrusted.neutralize(claim),
+            claim_untrusted=claim_untrusted,
             numbers_checked=numbers,
-            citation_tag="[EXTRAPOLAÇÃO NÃO LITERAL — sem correspondência exata no texto; "
-            "documento sem texto analisável]",
-        ).model_dump()
-    matched = sum(1 for v in values if v in best["values"])
+            numbers_missing=numbers,
+            citation_tag="[no analysable text]",
+        ).model_dump(mode="json")
+    best = ranked[0]
+    found = [n for n in numbers if _num_value(n) is not None and _num_value(n) in best["values"]]
     shared = kws & best["keywords"]
-    lex = len(shared) / len(kws) if kws else 1.0
-    if values:
-        if matched == len(values):
-            status = "verified" if (shared or not kws) else "partially_supported"
-        else:
-            status = "partially_supported" if matched else "extrapolated"
-    else:
-        status = "verified" if lex >= 0.75 else "partially_supported" if lex >= 0.4 else "extrapolated"
-    cues = {c.lower() for c in _EXTRAPOLATION_CUES.findall(claim)} - {
-        c.lower() for c in _EXTRAPOLATION_CUES.findall(best["quote"])
-    }
-    if cues and status == "verified":
-        status = "partially_supported"
-    quote = _clip_quote(best["quote"], numbers)
-    if status == "extrapolated":
-        tag = (
-            f"[EXTRAPOLAÇÃO NÃO LITERAL — sem correspondência exata no texto; trecho mais próximo na "
-            f'pág. {best["page"]}: "{quote}"]'
-        )
-    else:
-        tag = f'[pág. {best["page"]}, {best["label"]}: "{quote}"]'
+    cues = sorted(
+        {c.lower() for c in _EXTRAPOLATION_CUES.findall(claim)}
+        - {c.lower() for c in _EXTRAPOLATION_CUES.findall(best["quote"])}
+    )
     return GroundedClaim(
-        claim=claim,
-        status=status,
-        citation_tag=tag,
-        page=best["page"],
-        table_or_section=best["label"],
-        verbatim_quote=quote,
+        claim=_untrusted.neutralize(claim),
+        claim_untrusted=claim_untrusted,
         numbers_checked=numbers,
-    ).model_dump()
+        numbers_found=found,
+        numbers_missing=[n for n in numbers if n not in found],
+        keyword_overlap=round(len(shared) / len(kws), 2) if kws else 0.0,
+        hedging_cues_missing_in_text=cues,
+        citation_tag=f"[p. {best['page']}, {best['label']}]",
+        best_match=_passage_excerpt(best, paper_id, numbers),
+        other_matches=[_passage_excerpt(p, paper_id, numbers) for p in ranked[1:3]],
+    ).model_dump(mode="json")
+
+
+_CLAIMS_RUBRIC = (
+    ("literal_support", "Does the best-matching excerpt state the claim literally (same numbers, same comparison)?"),
+    (
+        "scope",
+        "Does the claim generalise beyond what the excerpt supports (other datasets, settings, populations)?",
+        "Look at hedging_cues_missing_in_text: words like 'always' or 'any' in the claim but not in the paper.",
+    ),
+    ("numbers", "Are the claim's numbers present and attached to the same metric/condition in the excerpt?"),
+)
 
 
 def verify_paper_claims(paper_id, claims=None):
-    """Audit claims (given, or auto-extracted numeric/comparative sentences) against the paper's literal text."""
+    """Locate claims (given, or auto-extracted numeric/comparative sentences) in the paper's literal text and
+    return the candidate passages for the client's model to judge."""
+    from noul.schemas.evidence import AnalysisSubject
+    from noul.schemas.technical import ClaimsGroundingReport
+
     claims = _validate_claims(claims)
     corpus = pdf_parser.get_paper_corpus(_paper_id(paper_id))
     auto = not claims
     passages = _passages(corpus)
     if auto:
         claims = _auto_claims(corpus, passages)
-    results = [ground_claim(cl, passages) for cl in claims]
-    summary = {k: sum(r["status"] == k for r in results) for k in ("verified", "partially_supported", "extrapolated")}
-    warnings = list(corpus["warnings"])
+    pid = corpus["paper_id"]
+    results = [ground_claim(cl, passages, paper_id=pid, claim_untrusted=auto) for cl in claims]
+    limitations = _contract.corpus_limitations(corpus)
     if auto and not claims:
-        warnings.append("No numeric or comparative claims found to audit.")
-    if summary["extrapolated"]:
-        warnings.append(f"{summary['extrapolated']} claim(s) are NOT literally supported by the paper text.")
-    return {
-        "paper_id": corpus["paper_id"],
-        "title": corpus["title"],
-        "source": corpus["source"],
-        "auto_extracted_claims": auto,
-        "claims": results,
-        "summary": summary,
-        "warnings": warnings,
-    }
+        limitations.insert(0, "No numeric or comparative claims found to check.")
+    report = ClaimsGroundingReport(
+        tool="verify_paper_claims",
+        subject=AnalysisSubject(paper_id=pid, title=corpus["title"] or "", source=corpus["source"]),
+        rubric=_contract.rubric("Claim grounding", _CLAIMS_RUBRIC),
+        extraction_confidence=_contract.extraction_confidence(corpus["source"], corpus["sections"]),
+        limitations=limitations,
+        untrusted_fields=["subject.title", "claims[].citation_tag"],
+        auto_extracted_claims=auto,
+        claims=results,
+    )
+    extra = ["", "## Claims and where they appear"]
+    for i, c in enumerate(report.claims, 1):
+        extra += [
+            "",
+            f"### Claim {i}",
+            _untrusted.wrap(c.claim, pid or "paper") if auto else f"> {_untrusted.neutralize(c.claim)}",
+            f"- Location: {_untrusted.neutralize(c.citation_tag)}; numbers found: {', '.join(c.numbers_found) or '—'}; "
+            f"missing: {', '.join(c.numbers_missing) or '—'}; keyword overlap: {c.keyword_overlap:.2f}"
+            + (
+                f"; claim words absent from the text: {', '.join(c.hedging_cues_missing_in_text)}"
+                if c.hedging_cues_missing_in_text
+                else ""
+            ),
+        ]
+        if c.best_match:
+            extra += ["", _untrusted.render(c.best_match)]
+    report.rendered_markdown = _contract.render_markdown(report, "Claim grounding", extra)
+    return report.model_dump(mode="json")
 
 
 # --------------------------------------------------------------------------- #11 math & pseudocode
@@ -1818,12 +1851,6 @@ _SEVERITY_HIGH = re.compile(
 )
 _SEVERITY_LOW = re.compile(r"\b(?:minor|slight(?:ly)?|marginal(?:ly)?|negligible|modest(?:ly)?)\b", re.I)
 
-_TRIGGER_CLAUSE = re.compile(
-    r"(?:\b(?:when|if|under|beyond|above|over|for\s+inputs?|for\s+sequences?|in\s+the\s+presence\s+of|"
-    r"on\s+unseen|with\s+noisy|at\s+sequence\s+lengths?)\s+[^.;,\n]{3,90}|"
-    r">\s*\d+\s*[kKmM]?(?:\s*tokens?)?|\bO\(\s*[nNlL]\s*(?:\^\s*2|²)\s*\))",
-    re.I,
-)
 
 _ASSUMPTION_RE = re.compile(
     r"\b(?:assum(?:e|es|ed|ing|ption|ptions)|requires?\s+that|under\s+the\s+(?:condition|assumption)|"
@@ -1866,19 +1893,31 @@ def _prose_sentences(text, sections, table_spans=()):
     return items
 
 
+_FAILURE_LABELS = {
+    "long_context": "Possible degradation with long inputs or context",
+    "noise_sensitivity": "Possible sensitivity to noise or perturbations",
+    "out_of_distribution": "Possible out-of-distribution / generalisation limit",
+    "latency_or_compute": "Possible latency or compute-cost limitation",
+    "sample_or_population_bias": "Possible sample or population bias",
+    "general_limitation": "Limitation stated by the authors",
+}
+_FAILURE_RUBRIC = (
+    (
+        "about_method",
+        "Does each excerpt describe a limitation of the proposed method (not of a baseline or prior work)?",
+    ),
+    ("conditions", "Under which conditions (input size, data shift, hardware, population) does it apply?"),
+    ("mitigated", "Is it mitigated or quantified elsewhere in the paper?"),
+    ("impact", "How much does it limit the paper's main claims or your use case?"),
+)
+
+
 def _severity_for(sentence):
     if _SEVERITY_HIGH.search(sentence):
         return "high"
     if _SEVERITY_LOW.search(sentence):
         return "low"
     return "medium"
-
-
-def _trigger_for(sentence, match_text):
-    m = _TRIGGER_CLAUSE.search(sentence)
-    if m:
-        return re.sub(r"\s+", " ", m.group(0)).strip(" ,;.")
-    return re.sub(r"\s+", " ", match_text).strip()
 
 
 def _extract_operational_limits(text):
@@ -1994,7 +2033,8 @@ def _table_baseline_superiority(paper_id, corpus, inspect_fulltext=True):
 
 def detect_failure_modes(paper_id: str, inspect_fulltext: bool = True) -> dict:
     """Detect categorized failure modes, critical assumptions, baseline superiority scenarios and operational limits."""
-    from noul.schemas.technical import FailureModeEntry, FailureModesReport
+    from noul.schemas.evidence import AnalysisSubject, Signal
+    from noul.schemas.technical import FailureModesReport
 
     pid = _paper_id(paper_id)
     if inspect_fulltext:
@@ -2020,70 +2060,84 @@ def detect_failure_modes(paper_id: str, inspect_fulltext: bool = True) -> dict:
             domain = "general_stem"
 
     text = corpus["text"]
-    raw_tables = parse_benchmark_tables(text, corpus["pages"], corpus["captions"])
+    pages = corpus["pages"]
+    out_id = corpus["paper_id"] or p.get("id") or pid
+    raw_tables = parse_benchmark_tables(text, pages, corpus["captions"])
     table_spans = [tb["_span"] for tb in raw_tables if tb.get("_span") and tb.get("format") != "inline"]
     sentences = _prose_sentences(text, corpus["sections"], table_spans=table_spans)
 
-    failure_modes = []
-    seen_cat_quote = set()
-    assumptions = []
-    baseline_scenarios = []
+    def quote(sent, start, sec):
+        return _untrusted.excerpt(sent, paper_id=out_id, section=sec, page=pdf_parser.page_at(pages, start))
 
-    for _, _, _sec, sent in sentences:
+    signals: list[Signal] = []
+    seen_cat_quote = set()
+    assumptions: list = []
+    baseline_scenarios: list = []
+    seen_assumptions, seen_baselines = set(), set()
+
+    def add(category, sent, start, sec):
+        key = (category, sent)
+        if key in seen_cat_quote:
+            return
+        seen_cat_quote.add(key)
+        signals.append(
+            Signal(
+                id=f"fm{len(signals) + 1}",
+                category=category,
+                kind="concern",
+                description=_FAILURE_LABELS.get(category, "Limitation stated in the text"),
+                priority_hint=_severity_for(sent),
+                excerpts=[quote(sent, start, sec)],
+            )
+        )
+
+    for _, start, sec, sent in sentences:
         matched_specific = False
         for category, rx in _FAILURE_CATEGORIES:
-            m = rx.search(sent)
-            if m:
+            if rx.search(sent):
                 matched_specific = True
-                key = (category, sent)
-                if key not in seen_cat_quote:
-                    seen_cat_quote.add(key)
-                    failure_modes.append(
-                        FailureModeEntry(
-                            category=category,
-                            severity=_severity_for(sent),
-                            description=sent,
-                            trigger_condition=_trigger_for(sent, m.group(0)),
-                            evidence_quote=sent,
-                        )
-                    )
-        if not matched_specific:
-            m_gen = _GENERAL_LIMITATION.search(sent)
-            if m_gen:
-                key = ("general_limitation", sent)
-                if key not in seen_cat_quote:
-                    seen_cat_quote.add(key)
-                    failure_modes.append(
-                        FailureModeEntry(
-                            category="general_limitation",
-                            severity=_severity_for(sent),
-                            description=sent,
-                            trigger_condition=_trigger_for(sent, m_gen.group(0)),
-                            evidence_quote=sent,
-                        )
-                    )
-
-        if _ASSUMPTION_RE.search(sent) and sent not in assumptions:
-            assumptions.append(sent)
-
-        if _BASELINE_SUPERIORITY_RE.search(sent) and sent not in baseline_scenarios:
-            baseline_scenarios.append(sent)
+                add(category, sent, start, sec)
+        if not matched_specific and _GENERAL_LIMITATION.search(sent):
+            add("general_limitation", sent, start, sec)
+        if _ASSUMPTION_RE.search(sent) and sent not in seen_assumptions:
+            seen_assumptions.add(sent)
+            assumptions.append(quote(sent, start, sec))
+        if _BASELINE_SUPERIORITY_RE.search(sent) and sent not in seen_baselines:
+            seen_baselines.add(sent)
+            baseline_scenarios.append(quote(sent, start, sec))
 
     for tbl_scenario in _table_baseline_superiority(pid, corpus, inspect_fulltext=inspect_fulltext):
-        if tbl_scenario not in baseline_scenarios:
-            baseline_scenarios.append(tbl_scenario)
-
-    op_limits = _extract_operational_limits(text)
+        if tbl_scenario not in seen_baselines:
+            seen_baselines.add(tbl_scenario)
+            baseline_scenarios.append(_untrusted.excerpt(tbl_scenario, paper_id=out_id, section="benchmark table"))
 
     report = FailureModesReport(
-        paper_id=corpus["paper_id"] or p.get("id") or pid,
-        title=corpus["title"] or p.get("title") or "",
-        domain=domain or "general_stem",
-        failure_modes=failure_modes,
+        tool="detect_failure_modes",
+        subject=AnalysisSubject(
+            paper_id=out_id,
+            title=corpus["title"] or p.get("title") or "",
+            domain=domain or "general_stem",
+            source=corpus["source"],
+        ),
+        signals=signals,
+        rubric=_contract.rubric("Failure-mode triage", _FAILURE_RUBRIC),
+        extraction_confidence=_contract.extraction_confidence(corpus["source"], corpus["sections"]),
+        limitations=_contract.corpus_limitations(corpus),
+        untrusted_fields=["subject.title"],
         critical_assumptions=assumptions,
         baseline_superiority_scenarios=baseline_scenarios,
-        operational_limits=op_limits,
+        operational_limits=_extract_operational_limits(text),
     )
+    extra = []
+    if assumptions:
+        extra += ["", "## Assumptions stated in the text"] + [_untrusted.render(x) for x in assumptions]
+    if baseline_scenarios:
+        extra += ["", "## Where a baseline may do better"] + [_untrusted.render(x) for x in baseline_scenarios]
+    if report.operational_limits:
+        extra += ["", "## Operational limits found"] + [
+            f"- `{k}`: {_untrusted.neutralize(v)}" for k, v in report.operational_limits.items()
+        ]
+    report.rendered_markdown = _contract.render_markdown(report, "Candidate failure modes", extra)
     return report.model_dump(mode="json")
 
 

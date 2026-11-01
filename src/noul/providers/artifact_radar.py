@@ -132,7 +132,9 @@ def classify_url(url):
 def extract_artifact_urls(text):
     """Find code/weights/dataset links in free text: [{"url", "kind"}] (deduplicated, in order)."""
     found, seen = [], set()
-    for m in _URL_RX.finditer(text or ""):
+    # PDF line breaks split long URLs ("https://github.com/\ntensorflow/repo"): rejoin a URL cut after "/" or "-".
+    text = re.sub(r"(https?://\S*[/-])\n(?=[\w.~-])", r"\1", text or "")
+    for m in _URL_RX.finditer(text):
         kind, url = classify_url(_clean(m.group(0)))
         if kind and url.lower() not in seen:
             seen.add(url.lower())

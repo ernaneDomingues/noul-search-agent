@@ -169,6 +169,7 @@ def check_dossier_download_and_multi_paper_workflow():
             "text": "Methods: Subjects ingested 5 grams per day of creatine monohydrate or placebo for 42 days. No adverse renal effects.",
             "url": p1["pdf_url"],
             "source": "openalex",
+            "format": 2,
         },
     )
     with mock.patch(_support.core_target("_http_get"), return_value=b"Full text unavailable") as fetch:

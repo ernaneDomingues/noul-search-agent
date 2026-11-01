@@ -9,8 +9,11 @@ Executes a 4-stage deterministic audit:
 import re
 
 from noul import errors as _errors
+from noul.evidence import contract as _contract
+from noul.evidence import untrusted as _untrusted
 from noul.library import fulltext as _ft
 from noul.schemas.authoring import GatekeeperCheckItem, SubmissionGatekeeperReport
+from noul.schemas.evidence import AnalysisSubject, ChecklistItem, Signal
 from noul.tools import authoring_tools
 
 _DOUBLE_BLIND_VENUES = frozenset({"neurips", "icml", "iclr", "acl"})
@@ -71,6 +74,17 @@ _OVERCLAIM_PATTERNS = (
         "Promotional hyperbole ('revolutionary' / 'flawless') likely to trigger reviewer skepticism.",
         "Use objective, metric-grounded terminology describing the specific technical trade-off.",
     ),
+)
+
+
+_READINESS_RUBRIC = (
+    (
+        "anonymity",
+        "Does anything in the manuscript reveal the authors' identity (names, repositories, self-citations)?",
+    ),
+    ("venue_requirements", "Are the venue's mandatory statements and sections present and adequate?"),
+    ("calibration", "Are the claims calibrated to the evidence (no unsupported superlatives)?"),
+    ("readiness", "Overall: is it ready to submit, and what must be fixed first?"),
 )
 
 
@@ -435,88 +449,68 @@ def audit_submission_readiness(draft_path: str, venue: str = "neurips") -> dict:
     overclaiming_flags = _audit_overclaiming(text)
     mandatory_secs = _audit_mandatory_sections(text, v)
 
-    # Compute deterministic readiness_score (0-100)
-    score = 100
-    score -= 30 * len(anon_violations)
-    missing_secs = [s for s in mandatory_secs if not s.passed]
-    failed_chk = [c for c in checklist_items if not c.passed]
-    score -= 12 * len(missing_secs)
-    score -= 8 * len(failed_chk)
-    score -= 6 * len(overclaiming_flags)
-    score = max(0, min(100, score))
+    signals: list[Signal] = []
+    actions: list[str] = []
+    for item in [*anon_violations, *overclaiming_flags]:
+        signals.append(
+            Signal(
+                id=f"g{len(signals) + 1}",
+                category=item.check_id,  # anon_repo_url, anon_author_block, ..., overclaim_*
+                kind="concern",
+                description=item.description,
+                priority_hint=_contract.priority(item.severity),
+                detail=f"Suggested action: {item.remediation}" if item.remediation else "",
+                excerpts=[_untrusted.excerpt(item.evidence_or_location, origin="draft")]
+                if item.evidence_or_location
+                else [],
+            )
+        )
+        actions.append(f"[{item.category}] {item.remediation}")  # anonymity | overclaiming
+    checklist: list[ChecklistItem] = []
+    for item in [*checklist_items, *mandatory_secs]:
+        found = item.passed
+        checklist.append(
+            ChecklistItem(
+                id=item.check_id,
+                category="mandatory_section" if item.category == "mandatory_section" else "venue_checklist",
+                question=f"Present in the manuscript: {item.description.removeprefix('Mandatory section: ')}?",
+                detected="yes" if found else "no",
+                location=_untrusted.neutralize(item.evidence_or_location) if found else "",
+                remediation="" if found else item.remediation,
+                priority_hint=_contract.priority(item.severity),
+            )
+        )
+        if not found and item.remediation:
+            actions.append(f"[{item.category}] {item.remediation}")  # anonymity | overclaiming
 
-    if anon_violations or score < 50:
-        risk = "critical"
-    elif score < 80 or missing_secs:
-        risk = "medium"
-    else:
-        risk = "low"
-
-    corrective_actions: list[str] = []
-    for av in anon_violations:
-        corrective_actions.append(f"[CRITICAL ANONYMITY] {av.description} -> {av.remediation}")
-    for ms in missing_secs:
-        corrective_actions.append(f"[MANDATORY SECTION] {ms.description} -> {ms.remediation}")
-    for fc in failed_chk:
-        corrective_actions.append(f"[VENUE CHECKLIST] {fc.description} -> {fc.remediation}")
-    for ov in overclaiming_flags:
-        corrective_actions.append(f"[OVERCLAIMING] {ov.description} ({ov.evidence_or_location}) -> {ov.remediation}")
-
-    md_lines = [
-        f"# Pre-Submission Gatekeeper Audit (`{source_label}` — Venue: `{v.upper()}`)",
-        "",
-        f"- **Readiness Score:** `{score}/100`",
-        f"- **Desk-Reject Risk:** `{risk.upper()}`",
-        f"- **Double-Blind Anonymity Violations:** `{len(anon_violations)}`",
-        f"- **Checklist Items Passed:** `{sum(1 for c in checklist_items if c.passed)}/{len(checklist_items)}`",
-        f"- **Mandatory Sections Present:** `{sum(1 for s in mandatory_secs if s.passed)}/{len(mandatory_secs)}`",
-        f"- **Overclaiming Flags:** `{len(overclaiming_flags)}`",
-        "",
-        "## 1. Double-Blind Anonymity Audit",
+    limitations = [
+        "Pattern-based checks: a section or statement worded differently can be missed, and a match is not proof "
+        "of compliance with the venue's full guidelines.",
     ]
     if not is_double_blind:
-        md_lines.append(f"- `{v.upper()}` does not enforce strict double-blind code/author anonymization by default.")
-    elif anon_violations:
-        for av in anon_violations:
-            md_lines.append(
-                f"- ❌ **[{av.severity.upper()}] {av.description}** (`{av.evidence_or_location}`)\n  - *Fix:* {av.remediation}"
-            )
-    else:
-        md_lines.append("- ✅ Zero double-blind anonymity violations detected.")
-
-    md_lines.extend(["", f"## 2. {v.upper()} Compliance Checklist"])
-    for c in checklist_items:
-        icon = "✅" if c.passed else "❌"
-        md_lines.append(f"- {icon} **{c.description}**" + (f" — *{c.remediation}*" if not c.passed else ""))
-
-    md_lines.extend(["", "## 3. Mandatory Sections Verification"])
-    for s in mandatory_secs:
-        icon = "✅" if s.passed else "❌"
-        md_lines.append(f"- {icon} **{s.description}**" + (f" — *{s.remediation}*" if not s.passed else ""))
-
-    md_lines.extend(["", "## 4. Overclaiming & Calibration Scanner"])
-    if overclaiming_flags:
-        for ov in overclaiming_flags:
-            md_lines.append(
-                f"- ⚠️ **[{ov.severity.upper()}] {ov.description}** (`{ov.evidence_or_location}`)\n  - *Fix:* {ov.remediation}"
-            )
-    else:
-        md_lines.append("- ✅ Claims are well-calibrated; no unsubstantiated superlatives detected.")
-
-    if corrective_actions:
-        md_lines.extend(["", "## 5. Mandatory Corrective Actions Before Submission"])
-        for idx, act in enumerate(corrective_actions, 1):
-            md_lines.append(f"{idx}. {act}")
-
+        limitations.append(f"`{v}` is not treated as double-blind: no anonymity checks were run.")
     report = SubmissionGatekeeperReport(
+        tool="audit_submission_readiness",
+        subject=AnalysisSubject(title=source_label, source="draft"),
+        signals=signals,
+        checklist=checklist,
+        rubric=_contract.rubric(
+            f"{v.upper()} pre-submission readiness",
+            _READINESS_RUBRIC,
+            "These are pattern-based findings, not a readiness score. Decide yourself whether the manuscript is "
+            "ready: confirm each finding against the cited text, and say which items need a human check.",
+        ),
+        extraction_confidence=_contract.extraction_confidence("draft", length=len(text)),
+        limitations=limitations,
         venue=v,
-        readiness_score=score,
-        desk_reject_risk=risk,
-        anonymity_violations=anon_violations,
-        venue_checklist=checklist_items,
-        overclaiming_flags=overclaiming_flags,
-        mandatory_sections=mandatory_secs,
-        mandatory_corrective_actions=corrective_actions,
-        summary_markdown="\n".join(md_lines),
+        double_blind=is_double_blind,
+        suggested_actions=list(dict.fromkeys(actions)),
     )
-    return report.model_dump()
+    report.rendered_markdown = _contract.render_markdown(
+        report,
+        f"Pre-submission audit ({source_label}, venue {v.upper()})",
+        ["", "## Suggested actions"] + [f"{i}. {a}" for i, a in enumerate(report.suggested_actions, 1)]
+        if report.suggested_actions
+        else [],
+    )
+    return report.model_dump(mode="json")

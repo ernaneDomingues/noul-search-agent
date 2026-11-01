@@ -23,7 +23,21 @@ class ContractTests(unittest.TestCase):
         actual = {t["name"]: t for t in legacy.tools_list()}
         self.assertEqual(sorted(actual), sorted(expected))
         # Intentional description changes since v1, each with the phase that made it.
-        changed_descriptions = {"detect_paper_domain": "2a: venue signal and `method` values"}
+        changed_descriptions = {
+            "detect_paper_domain": "2a: venue signal and `method` values",
+            **dict.fromkeys(
+                (
+                    "review_paper",
+                    "review_paper_scientific",
+                    "verify_paper_claims",
+                    "detect_failure_modes",
+                    "audit_manuscript_draft",
+                    "parse_and_draft_rebuttal",
+                    "audit_submission_readiness",
+                ),
+                "3a: evidence, not a verdict (AnalysisResult)",
+            ),
+        }
         for name in expected:
             with self.subTest(tool=name):
                 if name not in changed_descriptions:
@@ -141,7 +155,7 @@ class ContractTests(unittest.TestCase):
         from noul import registry
 
         with_schema = {t["name"] for t in registry.catalog() if t["outputSchema"]}
-        self.assertEqual(len(with_schema), 10)
+        self.assertEqual(len(with_schema), 13)
         sample = registry.call(
             "generate_manuscript_blueprint", {"topic": "Sparse attention", "hypothesis": "It is faster"}
         )

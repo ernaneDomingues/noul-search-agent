@@ -1,5 +1,7 @@
 # Noul Search Agent: Arquitetura Técnica e Especificação de Implementação
 
+> **Documento histórico (v1).** Desde a Fase 3a da v2, as ferramentas analíticas não dão mais veredito nem nota (`verdict`, `overall_score`, `readiness_score`, `desk_reject_risk`, `status` das afirmações): devolvem evidências no contrato `AnalysisResult` (`src/noul/schemas/evidence.py`), e o modelo do cliente julga com a rubrica.
+
 > **Documento Canônico de Engenharia e Especificação de Backlog**  
 > **Status:** Pronto para Implementação via Antigravity / GitHub Copilot / Sprint Plan  
 > **Versão:** 2.0.0-PRO (Stack Oficial MCP: `uvx` + `FastMCP` + `Pydantic v2` + `httpx` + `Typer`/`Rich`)

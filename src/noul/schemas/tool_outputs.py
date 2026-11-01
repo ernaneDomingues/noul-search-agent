@@ -1,7 +1,7 @@
 """Result models of the tools whose output is a dump of a Pydantic model (advertised as MCP `outputSchema`).
 
-The other tools return plain dicts for now; they get output models with the evidence-vs-judgement contract
-(v2 Phase 3)."""
+The analytic tools (review, claims, failure modes, draft audit, rebuttal, submission readiness) follow the
+evidence-vs-judgement contract: subclasses of `noul.schemas.evidence.AnalysisResult`."""
 
 from noul.schemas.authoring import (
     BibtexSanitizeReport,
@@ -13,16 +13,21 @@ from noul.schemas.authoring import (
     SubmissionGatekeeperReport,
 )
 from noul.schemas.code import CodeScaffold
-from noul.schemas.technical import ArxivVersionDiffReport, FailureModesReport
+from noul.schemas.evidence import AnalysisResult
+from noul.schemas.review import PeerReviewReport
+from noul.schemas.technical import ArxivVersionDiffReport, ClaimsGroundingReport, FailureModesReport
 
 __all__ = [
+    "AnalysisResult",
     "ArxivVersionDiffReport",
     "BibtexSanitizeReport",
     "CitationInfillerReport",
+    "ClaimsGroundingReport",
     "CodeScaffold",
     "DraftAuditReport",
     "FailureModesReport",
     "ManuscriptBlueprint",
+    "PeerReviewReport",
     "RebuttalReport",
     "RelatedWorkSynthesis",
     "SubmissionGatekeeperReport",

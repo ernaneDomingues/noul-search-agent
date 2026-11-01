@@ -61,7 +61,7 @@ class FailureModesTests(unittest.TestCase):
 
     def test_categorizes_all_failure_modes_and_severities(self):
         out = t.call("detect_failure_modes", {"paper_id": self.pid})
-        categories = {fm["category"] for fm in out["failure_modes"]}
+        categories = {fm["category"] for fm in out["signals"]}
         for expected in (
             "long_context",
             "noise_sensitivity",
@@ -72,17 +72,21 @@ class FailureModesTests(unittest.TestCase):
             self.assertIn(expected, categories)
 
         by_cat = {}
-        for fm in out["failure_modes"]:
+        for fm in out["signals"]:
             by_cat.setdefault(fm["category"], []).append(fm)
 
-        self.assertEqual(by_cat["long_context"][0]["severity"], "high")
-        self.assertTrue(by_cat["long_context"][0]["trigger_condition"])
-        self.assertEqual(by_cat["latency_or_compute"][0]["severity"], "high")
-        self.assertEqual(by_cat["sample_or_population_bias"][0]["severity"], "high")
+        self.assertEqual(by_cat["long_context"][0]["priority_hint"], "high")
+        self.assertEqual(by_cat["long_context"][0]["kind"], "concern")
+        quote = by_cat["long_context"][0]["excerpts"][0]
+        self.assertTrue(quote["untrusted"])
+        self.assertTrue(quote["page"])
+        self.assertEqual(by_cat["latency_or_compute"][0]["priority_hint"], "high")
+        self.assertEqual(by_cat["sample_or_population_bias"][0]["priority_hint"], "high")
+        self.assertNotIn("severity", by_cat["long_context"][0])
 
     def test_extracts_critical_assumptions_and_operational_limits(self):
         out = t.call("detect_failure_modes", {"paper_id": self.pid})
-        assumptions_blob = " ".join(out["critical_assumptions"]).lower()
+        assumptions_blob = " ".join(x["text"] for x in out["critical_assumptions"]).lower()
         self.assertIn("i.i.d.", assumptions_blob)
         self.assertIn("clean labels", assumptions_blob)
         self.assertIn("parallel trends", assumptions_blob)
@@ -96,7 +100,7 @@ class FailureModesTests(unittest.TestCase):
 
     def test_detects_baseline_superiority_from_text_and_benchmark_tables(self):
         out = t.call("detect_failure_modes", {"paper_id": self.pid})
-        scenarios = out["baseline_superiority_scenarios"]
+        scenarios = [x["text"] for x in out["baseline_superiority_scenarios"]]
         blob = "\n".join(scenarios)
         # From text
         self.assertTrue(any("outperformed by a simple baseline" in s for s in scenarios))
@@ -106,17 +110,20 @@ class FailureModesTests(unittest.TestCase):
 
     def test_no_fulltext_flag_and_cli_pretty(self):
         out_abs = t.call("detect_failure_modes", {"paper_id": self.pid, "inspect_fulltext": False})
-        cats_abs = {fm["category"] for fm in out_abs["failure_modes"]}
+        cats_abs = {fm["category"] for fm in out_abs["signals"]}
+        self.assertEqual(out_abs["extraction_confidence"], "low")
         self.assertIn("noise_sensitivity", cats_abs)
 
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             self.assertEqual(cli.main(["failures", self.pid, "--pretty"]), 0)
         pretty = buf.getvalue()
-        self.assertIn("# Failure modes & critical assumptions:", pretty)
-        self.assertIn("[long_context]", pretty)
-        self.assertIn("## Critical Assumptions", pretty)
-        self.assertIn("## Baseline Superiority Scenarios", pretty)
+        self.assertIn("# Candidate failure modes", pretty)
+        self.assertIn("category: long_context", pretty)
+        self.assertIn("## Assumptions stated in the text", pretty)
+        self.assertIn("## Where a baseline may do better", pretty)
+        self.assertIn("<untrusted_source", pretty)
+        self.assertIn("## Rubric: Failure-mode triage", pretty)
 
 
 if __name__ == "__main__":

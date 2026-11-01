@@ -586,7 +586,7 @@ def main(argv=None):
         elif a.cmd == "review":
             out = _run("review_paper", a.id, domain=a.domain, inspect_fulltext=not a.no_fulltext)
             if a.pretty:
-                print(out["markdown_report"])
+                print(out["rendered_markdown"])
                 return 0
         elif a.cmd == "scaffold":
             out = _run("scaffold_implementation", a.id, target=a.target, domain=a.domain)
@@ -684,7 +684,7 @@ def main(argv=None):
             if a.gatekeeper_cmd == "audit":
                 out = _run("audit_submission_readiness", a.draft_path, venue=a.venue)
                 if a.pretty:
-                    print(out["summary_markdown"])
+                    print(out["rendered_markdown"])
                     return 0
         elif a.cmd == "artifacts":
             out = _run("scan_paper_artifacts", a.id, verify_http=not a.no_verify, inspect_fulltext=a.fulltext)
