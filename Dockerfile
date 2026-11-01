@@ -1,5 +1,7 @@
 # Noul Search HTTP server (MCP at /mcp, OpenAPI at /openapi.json) for Google Cloud Run or any container host.
-# Security: set NOUL_HTTP_TOKEN (Bearer auth) and NOUL_CORS_ORIGINS; write tools stay disabled unless
+# Public read-only connector: NOUL_PUBLIC=1 (no token, writes off, rate/concurrency limits, request caps;
+# behind Cloud Run also NOUL_TRUSTED_PROXY=1) - see docs/deploy/cloud-run.md.
+# Private server: set NOUL_HTTP_TOKEN (Bearer auth) and NOUL_CORS_ORIGINS; write tools stay disabled unless
 # NOUL_HTTP_ALLOW_WRITE=1 *and* a token are set. /healthz is unauthenticated.
 FROM python:3.12-slim
 
@@ -13,6 +15,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /src
 COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
+# Templates installed as data-files by the wheel (used by noul-install).
 COPY skills ./skills
 COPY agents ./agents
 COPY commands ./commands

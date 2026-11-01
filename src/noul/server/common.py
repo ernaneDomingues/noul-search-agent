@@ -99,3 +99,32 @@ def resolve_profile(cli_value, default):
     if profile not in _registry.PROFILES:
         raise SystemExit(f"noul-mcp: unknown tool profile {profile!r} (use one of: {', '.join(_registry.PROFILES)})")
     return profile
+
+
+# Per-call caps on the public connector (cost/abuse control): integers are lowered, lists are truncated.
+PUBLIC_ARG_CAPS: dict[str, dict[str, int]] = {
+    "search_papers": {"limit": 25, "exclude_ids": 200},
+    "related_papers": {"limit": 25},
+    "get_paper_references": {"limit": 25},
+    "query_fulltexts": {"ids": 5},
+    "export_papers": {"ids": 25},
+    "suggest_boolean_queries": {"paper_ids": 10},
+    "evidence_meter": {"items": 100},
+}
+
+
+def apply_public_caps(name, args):
+    """Copy of `args` with the public connector's caps applied (values the registry would reject pass through)."""
+    caps = PUBLIC_ARG_CAPS.get(name)
+    if not caps or not isinstance(args, dict):
+        return args
+    capped = dict(args)
+    for key, cap in caps.items():
+        value = capped.get(key)
+        if isinstance(value, list):
+            capped[key] = value[:cap]
+        elif isinstance(value, int) and not isinstance(value, bool):
+            capped[key] = min(value, cap)
+        elif isinstance(value, str) and value.strip().isdigit():
+            capped[key] = min(int(value), cap)
+    return capped

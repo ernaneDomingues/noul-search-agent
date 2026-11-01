@@ -167,12 +167,15 @@ noul-mcp --http 8765          # ou: uv run noul-mcp --http 8765
 ```
 Segurança: escuta em `127.0.0.1` por padrão e valida o cabeçalho `Host` (anti DNS rebinding); CORS apenas para `NOUL_CORS_ORIGINS`; autenticação `Authorization: Bearer` com `NOUL_HTTP_TOKEN` (exceto `/healthz`); ferramentas que gravam em disco (`download_papers`, `save_research_dossier`, `configure_noul`) ficam ocultas e bloqueadas via HTTP, a menos que `NOUL_HTTP_ALLOW_WRITE=1` **e** um token estejam definidos. Outras variáveis: `NOUL_HTTP_HOST`, `PORT`, `NOUL_HTTP_LOG=1`.
 
-### 7. Contêiner / Google Cloud Run
+### 7. Conector público (Claude.ai, ChatGPT) e Google Cloud Run
+O mesmo servidor roda como **conector público só de leitura**: sem login, perfil `research` sem ferramentas de escrita, limite por IP (60 req/min), concorrência limitada e tetos por chamada. Qualquer pessoa usa colando `https://<serviço>/mcp` em Claude.ai/Claude Desktop (Conectores) ou ChatGPT (modo desenvolvedor).
 ```bash
-docker build -t noul-search-agent .
-docker run -p 8080:8080 -e NOUL_HTTP_TOKEN=troque-me -e NOUL_CORS_ORIGINS=https://chatgpt.com noul-search-agent
-gcloud run deploy noul-search --source . --set-secrets NOUL_HTTP_TOKEN=noul-token:latest
+NOUL_PUBLIC=1 noul-mcp --http 8765                          # local; ou: noul-mcp --http --public
+docker build -t noul-search-agent . && docker run -p 8080:8080 -e NOUL_PUBLIC=1 noul-search-agent
 ```
+Deploy no Cloud Run (escala a zero, sem chaves de serviço, via GitHub Actions): [`docs/deploy/cloud-run.md`](docs/deploy/cloud-run.md).
+
+Servidor privado (com escrita, para você): `NOUL_HTTP_TOKEN=troque-me NOUL_HTTP_ALLOW_WRITE=1 noul-mcp --http 8765`.
 
 ## Desenvolvimento
 Ambiente: `uv venv .venv && uv pip install -e ".[dev]"`. Qualidade: `ruff check .`, `ruff format --check .`, `mypy` e `python -m pytest --cov` (testes offline, com piso de cobertura). Golden sets dos classificadores: `python tests/test_golden_sets.py --report`. Pacotes: `uv build` (wheel/sdist) e `npm pack`. Orientações para agentes de código: [`CLAUDE.md`](CLAUDE.md); plano da v2.0: [`docs/REFACTOR_PLAN.md`](docs/REFACTOR_PLAN.md).

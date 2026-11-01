@@ -21,6 +21,7 @@ from starlette.routing import Route
 from noul import __version__
 from noul import registry as _registry
 from noul.server import common as _common
+from noul.server import limits as _limits
 from noul.server import mcp as _mcp
 
 _PREFLIGHT_HEADERS = {
@@ -45,12 +46,20 @@ class Guard:
     """ASGI middleware applying Host / Origin / Bearer / body-size checks to every HTTP route."""
 
     def __init__(
-        self, app: Any, token: str | None, cors_origins: tuple[str, ...], allowed_hosts: frozenset[str] | None
+        self,
+        app: Any,
+        token: str | None,
+        cors_origins: tuple[str, ...],
+        allowed_hosts: frozenset[str] | None,
+        rate_limiter: _limits.RateLimiter | None = None,
+        trusted_proxy_hops: int = 0,
     ):
         self.app = app
         self.token = token or None
         self.cors_origins = frozenset(o.rstrip("/") for o in cors_origins)
         self.allowed_hosts = allowed_hosts  # None: not bound to loopback (e.g. Cloud Run behind a proxy)
+        self.rate_limiter = rate_limiter
+        self.trusted_proxy_hops = trusted_proxy_hops
 
     async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
         if scope["type"] == "lifespan":
@@ -78,6 +87,11 @@ class Guard:
             await send({"type": "http.response.start", "status": 204, "headers": hdrs})
             await send({"type": "http.response.body", "body": b""})
             return
+        if self.rate_limiter is not None and path != "/healthz":
+            wait = self.rate_limiter.check(_limits.client_ip(scope, headers, self.trusted_proxy_hops))
+            if wait > 0:
+                retry = str(max(1, int(wait + 0.999)))
+                return await reply(429, {"error": "Too many requests; slow down."}, {"Retry-After": retry})
         if self.token and path != "/healthz":
             scheme, _, supplied = headers.get("authorization", "").partition(" ")
             if scheme.lower() != "bearer" or not hmac.compare_digest(
@@ -128,10 +142,18 @@ def build_app(
     cors_origins: tuple[str, ...] = (),
     allow_write: bool = False,
     allowed_hosts: frozenset[str] | None = None,
+    public: bool = False,
+    rate_limiter: _limits.RateLimiter | None = None,
+    trusted_proxy_hops: int = 0,
+    max_concurrency: int | None = None,
 ) -> Any:
-    """Starlette app (wrapped in Guard). Writes are only possible with a token *and* allow_write."""
-    allow_write = bool(allow_write and token)
-    server = _mcp.build_server(profile=profile, allow_write=allow_write, elicit_email=False)
+    """Starlette app (wrapped in Guard). Writes are only possible with a token *and* allow_write, never in `public`
+    mode (the hosted read-only connector: no token, request-size caps, no server dossiers)."""
+    allow_write = bool(allow_write and token) and not public
+    server = _mcp.build_server(
+        profile=profile, allow_write=allow_write, elicit_email=False, public=public, max_concurrency=max_concurrency
+    )
+    rest_in_flight = [0]
 
     async def healthz(request: Request) -> Response:
         return JSONResponse({"status": "ok", "version": __version__})
@@ -165,12 +187,23 @@ def build_app(
                 },
                 status_code=403,
             )
+        if public:
+            body = _common.apply_public_caps(name, body)
+        if max_concurrency is not None and rest_in_flight[0] >= max_concurrency:
+            return JSONResponse(
+                {"error": "Busy: too many requests in progress; retry shortly."},
+                status_code=503,
+                headers={"Retry-After": "5"},
+            )
+        rest_in_flight[0] += 1
         try:
             result = await run_in_threadpool(_registry.call, name, body)
         except Exception as e:
             code = getattr(e, "code", None)
             status = code if isinstance(code, int) and 400 <= code < 600 else 500
             return JSONResponse({"error": f"{type(e).__name__}: {e}"}, status_code=status)
+        finally:
+            rest_in_flight[0] -= 1
         payload = result if isinstance(result, dict) else {"result": result}
         return Response(json.dumps(payload, ensure_ascii=False, default=str), media_type="application/json")
 
@@ -188,14 +221,17 @@ def build_app(
         custom_starlette_routes=routes,
         max_request_body_size=_common.MAX_BODY_BYTES,
     )
-    return Guard(app, token, cors_origins, allowed_hosts)
+    # The public connector is open by design: a configured token would only lock its intended users out.
+    return Guard(app, None if public else token, cors_origins, allowed_hosts, rate_limiter, trusted_proxy_hops)
 
 
 def loopback_hosts(port: int) -> frozenset[str]:
     return frozenset({f"127.0.0.1:{port}", f"localhost:{port}", f"[::1]:{port}"})
 
 
-def serve(port: int = _common.DEFAULT_PORT, host: str = "127.0.0.1", profile: str = "research") -> None:
+def serve(
+    port: int = _common.DEFAULT_PORT, host: str = "127.0.0.1", profile: str = "research", public: bool = False
+) -> None:
     import uvicorn
 
     token = os.environ.get("NOUL_HTTP_TOKEN") or None
@@ -207,13 +243,24 @@ def serve(port: int = _common.DEFAULT_PORT, host: str = "127.0.0.1", profile: st
         cors_origins=_common.env_list("NOUL_CORS_ORIGINS"),
         allow_write=want_write,
         allowed_hosts=loopback_hosts(port) if loopback else None,
+        public=public,
+        rate_limiter=_limits.env_rate_limiter(public),
+        trusted_proxy_hops=_limits.env_trusted_proxy_hops(),
+        max_concurrency=_limits.env_max_concurrency(public),
     )
     shown = f"[{host}]" if ":" in host else host
     print(
         f"Noul HTTP server on http://{shown}:{port} (MCP: /mcp, OpenAPI: /openapi.json, profile: {profile})",
         file=sys.stderr,
     )
-    if not loopback and not token:
+    if public:
+        print(
+            "Public read-only connector: no token required, writes disabled, rate limits and request caps on.",
+            file=sys.stderr,
+        )
+        if want_write:
+            print("WARNING: NOUL_HTTP_ALLOW_WRITE=1 ignored in public mode.", file=sys.stderr)
+    elif not loopback and not token:
         print(
             "WARNING: bound to a non-loopback address without NOUL_HTTP_TOKEN; anyone who can reach this port "
             "can use the server.",

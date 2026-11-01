@@ -34,6 +34,13 @@ INSTRUCTIONS = (
     "noul-review and noul-write give the full workflows."
 )
 
+PUBLIC_INSTRUCTIONS = (
+    " This is the public, read-only Noul connector: it searches and reads literature but cannot download PDFs or "
+    "save dossiers, and large requests are capped (e.g. at most 25 results per search, 5 full texts per question). "
+    "For downloads, dossiers and the review/writing tools, the user can install Noul locally "
+    "(https://ernanedomingues.github.io/noul-search-agent/)."
+)
+
 EMAIL_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -199,9 +206,21 @@ class _EmailPrompt:
             _log.logger.info("elicited e-mail rejected: %s", type(e).__name__)
 
 
-def build_server(profile: str = "all", allow_write: bool = True, elicit_email: bool = False) -> Server:
-    """MCP server exposing the tools of `profile`; write tools are hidden and refused unless `allow_write`."""
+def build_server(
+    profile: str = "all",
+    allow_write: bool = True,
+    elicit_email: bool = False,
+    public: bool = False,
+    max_concurrency: int | None = None,
+) -> Server:
+    """MCP server exposing the tools of `profile`; write tools are hidden and refused unless `allow_write`.
+
+    `public` (the hosted connector) forces read-only, hides the server's dossiers and caps request sizes;
+    `max_concurrency` bounds tool calls running at once (extra calls get a "busy" error to retry)."""
+    if public:
+        allow_write, elicit_email = False, False
     email_prompt = _EmailPrompt(elicit_email and allow_write)
+    in_flight = [0]
 
     def visible() -> dict[str, dict[str, Any]]:
         return {t["name"]: t for t in _common.visible_tools(profile, allow_write)}
@@ -264,6 +283,13 @@ def build_server(profile: str = "all", allow_write: bool = True, elicit_email: b
                     }
                 )
 
+        if public:
+            args = _common.apply_public_caps(name, args)
+        if max_concurrency is not None and in_flight[0] >= max_concurrency:
+            return _text_result(
+                "Busy: the server is handling too many requests right now; retry in a few seconds.", is_error=True
+            )
+
         token = anyio.lowlevel.current_token()
         finished = threading.Event()
 
@@ -279,13 +305,18 @@ def build_server(profile: str = "all", allow_write: bool = True, elicit_email: b
             finally:
                 finished.set()
 
+        in_flight[0] += 1
         try:
             result = await anyio.to_thread.run_sync(contextvars.copy_context().run, run)
         except Exception as e:
             return _text_result(_error_text(e), is_error=True)
+        finally:
+            in_flight[0] -= 1
         return _text_result(result, output=_registry.REGISTRY[name].output)
 
     async def list_resources(ctx: Any, params: Any) -> types.ListResourcesResult:
+        if public:  # the hosted connector never exposes dossiers saved on the server
+            return types.ListResourcesResult(resources=[])
         items = await anyio.to_thread.run_sync(_common.resources_list)
         return types.ListResourcesResult(
             resources=[
@@ -295,6 +326,8 @@ def build_server(profile: str = "all", allow_write: bool = True, elicit_email: b
         )
 
     async def read_resource(ctx: Any, params: types.ReadResourceRequestParams) -> types.ReadResourceResult:
+        if public:
+            raise ValueError(f"Unknown resource URI: {params.uri}")
         contents = await anyio.to_thread.run_sync(_common.resources_read, str(params.uri))
         return types.ReadResourceResult(
             contents=[
@@ -331,7 +364,7 @@ def build_server(profile: str = "all", allow_write: bool = True, elicit_email: b
         "noul",
         version=__version__,
         title="Noul Search",
-        instructions=INSTRUCTIONS,
+        instructions=INSTRUCTIONS + (PUBLIC_INSTRUCTIONS if public else ""),
         on_list_tools=list_tools,
         on_call_tool=call_tool,
         on_list_resources=list_resources,
@@ -363,6 +396,11 @@ def main(argv: list[str] | None = None) -> int:
         choices=_registry.PROFILES,
         help="Tool profile (default: $NOUL_TOOL_PROFILE, else 'all' for stdio and 'research' for HTTP)",
     )
+    ap.add_argument(
+        "--public",
+        action="store_true",
+        help="With --http: public read-only connector (no token, writes off, rate limits); also NOUL_PUBLIC=1",
+    )
     ap.add_argument("--legacy", action="store_true", help="Run the v1 hand-written server (removed in 2.0.0)")
     ap.add_argument("--version", action="version", version=f"noul-mcp {__version__}")
     a = ap.parse_args(argv)
@@ -379,7 +417,14 @@ def main(argv: list[str] | None = None) -> int:
         from noul.server import http as http_server
 
         host = a.host or os.environ.get("NOUL_HTTP_HOST") or ("0.0.0.0" if os.environ.get("K_SERVICE") else "127.0.0.1")
-        http_server.serve(port=a.http, host=host, profile=_common.resolve_profile(a.profile, "research"))
+        public = a.public or os.environ.get("NOUL_PUBLIC") == "1"
+        profile = _common.resolve_profile(a.profile, "research")
+        if public and profile != "research":
+            print(
+                f"noul-mcp: the public connector serves the 'research' profile (ignoring '{profile}').", file=sys.stderr
+            )
+            profile = "research"
+        http_server.serve(port=a.http, host=host, profile=profile, public=public)
         return 0
     anyio.run(run_stdio, _common.resolve_profile(a.profile, "all"))
     return 0

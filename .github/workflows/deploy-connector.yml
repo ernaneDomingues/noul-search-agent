@@ -1,0 +1,98 @@
+name: Deploy public connector (Cloud Run)
+
+# Builds the Docker image and deploys the public, read-only MCP connector to Cloud Run.
+# One-time GCP setup and the repository variables it needs: docs/deploy/cloud-run.md.
+# Skipped (with a notice) until the GCP_PROJECT_ID repository variable exists.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write # Workload Identity Federation (no service-account keys)
+
+concurrency:
+  group: deploy-connector
+  cancel-in-progress: false
+
+env:
+  SERVICE: ${{ vars.GCP_SERVICE_NAME || 'noul-connector' }}
+  REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+  REPOSITORY: ${{ vars.GCP_ARTIFACT_REPO || 'noul' }}
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Check configuration
+        id: config
+        run: |
+          if [ -z "${{ vars.GCP_PROJECT_ID }}" ]; then
+            echo "::notice::GCP is not configured (see docs/deploy/cloud-run.md); skipping the deploy."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v5
+        if: steps.config.outputs.enabled == 'true'
+
+      - uses: google-github-actions/auth@v3
+        if: steps.config.outputs.enabled == 'true'
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+        if: steps.config.outputs.enabled == 'true'
+
+      - name: Build and push the image
+        if: steps.config.outputs.enabled == 'true'
+        run: |
+          IMAGE="${REGION}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${REPOSITORY}/${SERVICE}:${GITHUB_SHA::12}"
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Deploy to Cloud Run
+        if: steps.config.outputs.enabled == 'true'
+        run: |
+          SECRETS_FLAG=()
+          if [ -n "${{ vars.GCP_RUN_SECRETS }}" ]; then
+            SECRETS_FLAG=(--set-secrets "${{ vars.GCP_RUN_SECRETS }}")
+          fi
+          gcloud run deploy "$SERVICE" \
+            --project "${{ vars.GCP_PROJECT_ID }}" \
+            --region "$REGION" \
+            --image "$IMAGE" \
+            --service-account "${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}" \
+            --allow-unauthenticated \
+            --min-instances 0 \
+            --max-instances "${{ vars.GCP_MAX_INSTANCES || '3' }}" \
+            --concurrency 20 \
+            --cpu 1 \
+            --memory 1Gi \
+            --timeout 120 \
+            --set-env-vars "NOUL_PUBLIC=1,NOUL_TRUSTED_PROXY=1" \
+            "${SECRETS_FLAG[@]}" \
+            --quiet
+          URL=$(gcloud run services describe "$SERVICE" --project "${{ vars.GCP_PROJECT_ID }}" --region "$REGION" --format 'value(status.url)')
+          echo "URL=$URL" >> "$GITHUB_ENV"
+
+      - name: Smoke test the deployed connector
+        if: steps.config.outputs.enabled == 'true'
+        run: |
+          curl -fsS "$URL/healthz"
+          curl -fsS -o /dev/null -w 'tools: %{http_code}\n' "$URL/tools"
+          curl -fsS -D headers.txt -o body.txt \
+            -H 'Accept: application/json, text/event-stream' -H 'Content-Type: application/json' \
+            -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
+            "$URL/mcp"
+          grep -q '"serverInfo"' body.txt
+          echo "### Public connector deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "MCP URL: \`$URL/mcp\`" >> "$GITHUB_STEP_SUMMARY"
