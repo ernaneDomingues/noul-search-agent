@@ -140,6 +140,23 @@ def _run(name, *args, **kwargs):
     return registry.call(name, dict(bound.arguments))
 
 
+def _double_click_install():
+    """The executable opened with no arguments (double-click): run the install wizard, then keep the console
+    window open so the result can be read."""
+    from noul import install
+
+    print(f"Noul {__version__} - instalador / installer\n")
+    try:
+        code = install.main([])
+    except KeyboardInterrupt:
+        code = 1
+    try:
+        input("\nPressione Enter para fechar / Press Enter to close...")
+    except (EOFError, KeyboardInterrupt):
+        pass
+    return code
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
     if argv and argv[0] == "mcp":
@@ -150,6 +167,8 @@ def main(argv=None):
         from noul import install
 
         return install.main(argv[1:])
+    if not argv and getattr(sys, "frozen", False):
+        return _double_click_install()
 
     ap = argparse.ArgumentParser(
         prog="noul", description="Noul Search: scientific literature search for humans and agents."

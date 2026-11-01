@@ -32,7 +32,7 @@
           <article class="card install-card" id="claude-desktop">
             <span class="card-tag">Claude Desktop • completo</span>
             <h3>Extensão para o Claude Desktop</h3>
-            <p>Inclui downloads de PDFs, dossiês, revisão e escrita. Baixe e dê <strong>dois cliques</strong>; o Claude Desktop pede só o seu e-mail (opcional) e a pasta do Noul.</p>
+            <p>Inclui downloads de PDFs, dossiês, revisão e escrita. Baixe e dê <strong>dois cliques</strong>; o Claude Desktop pede só o seu e-mail (opcional) e a pasta do Noul. É o caminho recomendado no macOS.</p>
             <a class="btn btn-primary" href="https://github.com/ernaneDomingues/noul-search-agent/releases/latest/download/noul.mcpb">Baixar noul.mcpb</a>
             <p class="install-note">Se o Claude Desktop recusar o arquivo acima, use a versão para o seu sistema:</p>
             <ul class="download-list">
@@ -45,20 +45,22 @@
             <span class="card-tag">VS Code • Cursor</span>
             <h3>No seu editor</h3>
           <p class="connector-pending">Os botões de um clique aparecem aqui quando o conector público estiver no ar.</p>
-            <p class="install-note">Versão completa no editor: baixe o executável abaixo e rode <code>noul install</code>, que detecta os seus aplicativos.</p>
+            <p class="install-note">Versão completa no editor: baixe o programa abaixo e abra-o; um assistente detecta os seus aplicativos e pergunta onde instalar.</p>
           </article>
           <article class="card install-card" id="executables">
             <span class="card-tag">Executável • sem Python</span>
             <h3>Programa único</h3>
-            <p>Para usar no terminal ou instalar em vários aplicativos de uma vez (<code>noul install</code>).</p>
+            <p>Abra o programa (no Windows, dois cliques): um assistente pergunta em quais aplicativos instalar o Noul e copia-o para uma pasta fixa do seu usuário.
+              No macOS e no Linux, extraia o <code>.tar.gz</code> e rode <code>./noul</code> no terminal.</p>
             <ul class="download-list">
             <li data-os-target="windows"><a href="https://github.com/ernaneDomingues/noul-search-agent/releases/latest/download/noul-windows-x64.exe">Windows (x64)</a></li>
-            <li data-os-target="macos"><a href="https://github.com/ernaneDomingues/noul-search-agent/releases/latest/download/noul-macos-arm64">macOS (Apple Silicon)</a></li>
-            <li data-os-target="linux"><a href="https://github.com/ernaneDomingues/noul-search-agent/releases/latest/download/noul-linux-x64">Linux (x64)</a></li>
+            <li data-os-target="macos"><a href="https://github.com/ernaneDomingues/noul-search-agent/releases/latest/download/noul-macos-arm64.tar.gz">macOS (Apple Silicon)</a></li>
+            <li data-os-target="linux"><a href="https://github.com/ernaneDomingues/noul-search-agent/releases/latest/download/noul-linux-x64.tar.gz">Linux (x64)</a></li>
             </ul>
             <p class="install-note"><strong>Windows:</strong> se aparecer "O Windows protegeu o computador", clique em <em>Mais informações → Executar assim mesmo</em>.
-              <strong>macOS:</strong> clique com o botão direito → <em>Abrir</em> (ou Ajustes → Privacidade e Segurança → <em>Abrir Mesmo Assim</em>).
-              Os arquivos ainda não são assinados digitalmente; confira-os com o <a href="https://github.com/ernaneDomingues/noul-search-agent/releases/latest/download/SHA256SUMS">SHA256SUMS</a>.</p>
+              <strong>macOS:</strong> na primeira vez, vá em Ajustes do Sistema → Privacidade e Segurança → <em>Abrir Mesmo Assim</em>.
+              Os arquivos ainda não são assinados digitalmente. O <a href="https://github.com/ernaneDomingues/noul-search-agent/releases/latest/download/SHA256SUMS">SHA256SUMS</a> só detecta downloads corrompidos;
+              para confirmar que um arquivo foi gerado por este repositório, use <code>gh attestation verify &lt;arquivo&gt; --repo ernaneDomingues/noul-search-agent</code>.</p>
           </article>
           <article class="card install-card" id="developers">
             <span class="card-tag">Desenvolvedores</span>

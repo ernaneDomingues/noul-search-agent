@@ -137,12 +137,25 @@ def deeplinks(connector_url):
     }
 
 
+def _https(value: str, key: str, optional: bool = False) -> str:
+    """site/config.json URLs must be plain https:// URLs (they become links and one-click install deeplinks)."""
+    import urllib.parse
+
+    value = value.strip()
+    if optional and not value:
+        return ""
+    parts = urllib.parse.urlsplit(value)
+    if parts.scheme != "https" or not parts.netloc or any(c in value for c in "\"'<> \t\r\n"):
+        raise ValueError(f"site/config.json: {key} must be an https:// URL, got {value!r}")
+    return value
+
+
 def render_install_html(cfg: dict) -> str:
     """The "Instalar" page: zero-install connector first, then Claude Desktop, VS Code/Cursor, executables, devs."""
     esc = html.escape
-    url = (cfg.get("connector_url") or "").strip()
-    rel = cfg["release_base"].rstrip("/")
-    repo = cfg["repository"].rstrip("/")
+    url = _https(cfg.get("connector_url") or "", "connector_url", optional=True)
+    rel = esc(_https(cfg["release_base"], "release_base").rstrip("/"))
+    repo = _https(cfg["repository"], "repository").rstrip("/")
     if url:
         links = deeplinks(url)
         connector = f"""
@@ -150,8 +163,10 @@ def render_install_html(cfg: dict) -> str:
             <button class="copy-btn" type="button" data-copy-target="connector-url">Copiar</button></div>
             <pre id="connector-url" class="mono">{esc(url)}</pre></div>
           <ol>
-            <li><strong>Claude.ai ou Claude Desktop:</strong> Configurações → Conectores → <em>Adicionar conector personalizado</em> → cole a URL → Adicionar.</li>
-            <li><strong>ChatGPT:</strong> Settings → Apps &amp; Connectors → Advanced settings → ative o <em>Developer mode</em> → Create → cole a URL → <em>No authentication</em>.</li>
+            <li><strong>Claude.ai ou Claude Desktop:</strong> Configurações → Conectores → <em>Adicionar conector personalizado</em> → cole a URL → Adicionar.
+              <span class="install-note">No plano gratuito há limite de conectores personalizados; em Team/Enterprise, quem adiciona é um administrador.</span></li>
+            <li><strong>ChatGPT:</strong> Settings → Apps &amp; Connectors → Advanced settings → ative o <em>Developer mode</em> → Create → cole a URL → <em>No authentication</em>.
+              <span class="install-note">O modo desenvolvedor depende do plano (pagos).</span></li>
             <li>Pergunte, por exemplo: <em>"O que a literatura diz sobre creatina e memória?"</em></li>
           </ol>"""
         editors = f"""
@@ -165,8 +180,8 @@ def render_install_html(cfg: dict) -> str:
           <p class="connector-pending">Os botões de um clique aparecem aqui quando o conector público estiver no ar.</p>"""
     downloads = [
         ("windows", "Windows (x64)", "noul-windows-x64.exe"),
-        ("macos", "macOS (Apple Silicon)", "noul-macos-arm64"),
-        ("linux", "Linux (x64)", "noul-linux-x64"),
+        ("macos", "macOS (Apple Silicon)", "noul-macos-arm64.tar.gz"),
+        ("linux", "Linux (x64)", "noul-linux-x64.tar.gz"),
     ]
     exe_items = "\n".join(
         f'            <li data-os-target="{o}"><a href="{rel}/{f}">{label}</a></li>' for o, label, f in downloads
@@ -208,7 +223,7 @@ def render_install_html(cfg: dict) -> str:
           <article class="card install-card" id="claude-desktop">
             <span class="card-tag">Claude Desktop • completo</span>
             <h3>Extensão para o Claude Desktop</h3>
-            <p>Inclui downloads de PDFs, dossiês, revisão e escrita. Baixe e dê <strong>dois cliques</strong>; o Claude Desktop pede só o seu e-mail (opcional) e a pasta do Noul.</p>
+            <p>Inclui downloads de PDFs, dossiês, revisão e escrita. Baixe e dê <strong>dois cliques</strong>; o Claude Desktop pede só o seu e-mail (opcional) e a pasta do Noul. É o caminho recomendado no macOS.</p>
             <a class="btn btn-primary" href="{rel}/noul.mcpb">Baixar noul.mcpb</a>
             <p class="install-note">Se o Claude Desktop recusar o arquivo acima, use a versão para o seu sistema:</p>
             <ul class="download-list">
@@ -218,18 +233,20 @@ def render_install_html(cfg: dict) -> str:
           <article class="card install-card" id="editors">
             <span class="card-tag">VS Code • Cursor</span>
             <h3>No seu editor</h3>{editors}
-            <p class="install-note">Versão completa no editor: baixe o executável abaixo e rode <code>noul install</code>, que detecta os seus aplicativos.</p>
+            <p class="install-note">Versão completa no editor: baixe o programa abaixo e abra-o; um assistente detecta os seus aplicativos e pergunta onde instalar.</p>
           </article>
           <article class="card install-card" id="executables">
             <span class="card-tag">Executável • sem Python</span>
             <h3>Programa único</h3>
-            <p>Para usar no terminal ou instalar em vários aplicativos de uma vez (<code>noul install</code>).</p>
+            <p>Abra o programa (no Windows, dois cliques): um assistente pergunta em quais aplicativos instalar o Noul e copia-o para uma pasta fixa do seu usuário.
+              No macOS e no Linux, extraia o <code>.tar.gz</code> e rode <code>./noul</code> no terminal.</p>
             <ul class="download-list">
 {exe_items}
             </ul>
             <p class="install-note"><strong>Windows:</strong> se aparecer "O Windows protegeu o computador", clique em <em>Mais informações → Executar assim mesmo</em>.
-              <strong>macOS:</strong> clique com o botão direito → <em>Abrir</em> (ou Ajustes → Privacidade e Segurança → <em>Abrir Mesmo Assim</em>).
-              Os arquivos ainda não são assinados digitalmente; confira-os com o <a href="{rel}/SHA256SUMS">SHA256SUMS</a>.</p>
+              <strong>macOS:</strong> na primeira vez, vá em Ajustes do Sistema → Privacidade e Segurança → <em>Abrir Mesmo Assim</em>.
+              Os arquivos ainda não são assinados digitalmente. O <a href="{rel}/SHA256SUMS">SHA256SUMS</a> só detecta downloads corrompidos;
+              para confirmar que um arquivo foi gerado por este repositório, use <code>gh attestation verify &lt;arquivo&gt; --repo {esc(repo.removeprefix("https://github.com/"))}</code>.</p>
           </article>
           <article class="card install-card" id="developers">
             <span class="card-tag">Desenvolvedores</span>

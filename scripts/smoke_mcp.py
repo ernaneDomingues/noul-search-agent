@@ -20,7 +20,15 @@ def main(argv=None):
     command = a.command[1:] if a.command[:1] == ["--"] else a.command
     if not command:
         ap.error("missing server command")
-    proc = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    proc = subprocess.Popen(
+        command,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
     stderr: list[str] = []
     threading.Thread(target=lambda: stderr.extend(proc.stderr), daemon=True).start()
     timer = threading.Timer(a.timeout, proc.kill)

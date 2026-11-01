@@ -13,7 +13,9 @@ Usage:
   python scripts/build_mcpb.py manifest --variant uv                 # print the manifest
   python scripts/build_mcpb.py build --variant uv --out dist/noul.mcpb
   python scripts/build_mcpb.py build --variant binary --exe dist/noul --platform linux --out dist/noul-linux-x64.mcpb
-Packing needs Node (npx @anthropic-ai/mcpb pack); `--no-pack` only stages the directory.
+Packing needs Node and the pinned packer (`npm ci --prefix packaging/mcpb`, from package-lock.json); without it
+the script falls back to `npx` with the same pinned version. `--no-pack` only stages and validates.
+The uv bundle only contains files tracked by git (allow-list), never local caches, .env files or build output.
 """
 
 import argparse
@@ -38,10 +40,30 @@ MCPB_CLI = "@anthropic-ai/mcpb@2.1.2"
 PLATFORMS = ("darwin", "linux", "win32")
 UV_FILES = ("pyproject.toml", "uv.lock", "README.md", "LICENSE")
 UV_DIRS = ("src", "skills", "agents", "commands")  # skills/agents/commands are wheel data-files
+# Root-level launcher for hosts that run `uv run --directory <bundle> <entry_point>` themselves. Running
+# src/noul/server/mcp.py directly would put src/noul/server/ first on sys.path, where mcp.py shadows the `mcp` SDK
+# and http.py the stdlib `http`.
+UV_ENTRY = "noul_server.py"
+UV_ENTRY_SOURCE = '"""Noul MCP server launcher (Claude Desktop extension)."""\n\nimport sys\n\nfrom noul.server.mcp import main\n\nsys.exit(main())\n'
+# The scholarly APIs Noul sends queries (and, when set, the contact e-mail) to.
+PRIVACY_POLICIES = (
+    "https://openalex.org/privacy-policy",
+    "https://www.crossref.org/operations-and-sustainability/privacy/",
+    "https://www.nlm.nih.gov/web_policies.html",
+    "https://www.ebi.ac.uk/data-protection/privacy-notice/europe-pmc-website",
+    "https://www.semanticscholar.org/about/privacy",
+    "https://info.arxiv.org/help/policies/privacy_policy.html",
+    "https://unpaywall.org/legal/privacy",
+)
 
 
 def _first_sentence(text):
     return re.split(r"(?<=[.!?])\s", text, maxsplit=1)[0]
+
+
+def _mcpb_template(text):
+    """Python `{name}` placeholders -> MCPB `${arguments.name}`."""
+    return re.sub(r"(?<!\$)\{([A-Za-z_][A-Za-z0-9_]*)\}", r"${arguments.\1}", text)
 
 
 def manifest(variant, platform=None):
@@ -54,7 +76,7 @@ def manifest(variant, platform=None):
     if variant == "uv":
         server = {
             "type": "uv",
-            "entry_point": "src/noul/server/mcp.py",
+            "entry_point": UV_ENTRY,
             # Used by hosts that run mcp_config instead of managing uv themselves (needs uv on PATH).
             "mcp_config": {
                 "command": "uv",
@@ -102,7 +124,7 @@ def manifest(variant, platform=None):
                 "name": name,
                 "description": spec["description"],
                 "arguments": [a for a, _, _ in spec["arguments"]],
-                "text": spec["template"],
+                "text": _mcpb_template(spec["template"]),
             }
             for name, spec in mcp_server.PROMPTS.items()
         ],
@@ -125,24 +147,38 @@ def manifest(variant, platform=None):
             "profile": {
                 "type": "string",
                 "title": "Tool profile",
-                "description": "all (every tool), research (search and reading), review or write.",
+                "description": "Which tools Claude sees: all (default, every tool), research (search and "
+                "reading), review or write. An unknown value falls back to all. The extension's tool list always "
+                "shows every tool.",
                 "required": False,
                 "default": "all",
             },
         },
         "compatibility": compatibility,
-        "privacy_policies": [],
+        "privacy_policies": list(PRIVACY_POLICIES),
     }
+
+
+def tracked_files():
+    """Files of the uv bundle: UV_FILES plus everything git tracks under UV_DIRS (an allow-list, so untracked
+    secrets, caches or build output in a working copy never end up in the extension)."""
+    out = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files", "-z", "--", *UV_DIRS],
+        check=True,
+        capture_output=True,
+    ).stdout.decode("utf-8")
+    names = [n for n in out.split("\0") if n and (ROOT / n).is_file()]
+    return list(UV_FILES) + sorted(names)
 
 
 def stage(variant, target, exe=None, platform=None):
     target = Path(target)
     if variant == "uv":
-        for name in UV_FILES:
-            shutil.copy2(ROOT / name, target / name)
-        ignore = shutil.ignore_patterns("__pycache__", "*.pyc", "*.egg-info")
-        for name in UV_DIRS:
-            shutil.copytree(ROOT / name, target / name, ignore=ignore)
+        for name in tracked_files():
+            dest = target / name
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / name, dest)
+        (target / UV_ENTRY).write_text(UV_ENTRY_SOURCE, encoding="utf-8")
     else:
         server = target / "server"
         server.mkdir()
@@ -156,8 +192,12 @@ def stage(variant, target, exe=None, platform=None):
     return target
 
 
-def _npx():
-    return shutil.which("npx.cmd" if os.name == "nt" else "npx") or "npx"
+def _mcpb():
+    """The packer pinned by packaging/mcpb/package-lock.json when installed (npm ci), else npx with MCPB_CLI."""
+    local = ROOT / "packaging/mcpb/node_modules/.bin" / ("mcpb.cmd" if os.name == "nt" else "mcpb")
+    if local.is_file():
+        return [str(local)]
+    return [shutil.which("npx.cmd" if os.name == "nt" else "npx") or "npx", "-y", MCPB_CLI]
 
 
 def build(variant, out, exe=None, platform=None, pack=True):
@@ -165,13 +205,13 @@ def build(variant, out, exe=None, platform=None, pack=True):
     out.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=f"noul-mcpb-{variant}-") as tmp:
         staged = stage(variant, tmp, exe=exe, platform=platform)
-        subprocess.run([_npx(), "-y", MCPB_CLI, "validate", str(staged / "manifest.json")], check=True)
+        subprocess.run([*_mcpb(), "validate", str(staged / "manifest.json")], check=True)
         if not pack:
             keep = out.with_suffix("")
             shutil.rmtree(keep, ignore_errors=True)
             shutil.copytree(staged, keep)
             return keep
-        subprocess.run([_npx(), "-y", MCPB_CLI, "pack", str(staged), str(out)], check=True)
+        subprocess.run([*_mcpb(), "pack", str(staged), str(out)], check=True)
     return out
 
 

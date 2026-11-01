@@ -13,6 +13,7 @@ import re
 import shutil
 import sys
 import sysconfig
+import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -37,7 +38,11 @@ DRY = False
 UNINSTALL = False
 RUNNER = "python"
 ASSETS = REPO
+# Folder written into rendered templates (`__NOUL_DIR__`); differs from ASSETS for the frozen executable, whose
+# bundle folder (sys._MEIPASS) is a temporary directory deleted when the process exits.
+INSTALL_ROOT: Path | None = None
 ERRORS: list[str] = []
+APP_FILES = ("skills", "agents", "commands")
 
 
 def log(msg):
@@ -88,7 +93,7 @@ def mcp_command():
             return "cmd", ["/c", "npx", "-y", PKG, "mcp"]
         return "npx", ["-y", PKG, "mcp"]
     if FROZEN:
-        return str(Path(sys.executable).resolve()), ["mcp"]
+        return str(frozen_target()), ["mcp"]
     script = _console_script("noul-mcp")
     if script:
         return str(script), []
@@ -101,7 +106,7 @@ def cli_command():
     if RUNNER == "npx":
         return f"npx -y {PKG}"
     if FROZEN:
-        return _q(Path(sys.executable).resolve())
+        return _q(frozen_target())
     script = _console_script("noul")
     if script:
         return _q(script)
@@ -128,6 +133,53 @@ def _console_script(name):
     return None
 
 
+def app_dir():
+    """Stable per-user folder for the frozen executable and its templates (never Downloads or a temp folder)."""
+    if os.name == "nt":
+        base = Path(os.environ.get("LOCALAPPDATA") or HOME / "AppData/Local") / "Programs"
+        return base / "Noul"
+    if sys.platform == "darwin":
+        return HOME / "Library/Application Support/Noul"
+    return Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local/share") / "noul"
+
+
+def frozen_target():
+    """Where agents run the frozen executable from: a copy in app_dir(), so moving or deleting the downloaded file
+    (often in Downloads) does not break every agent configuration."""
+    return app_dir() / ("noul.exe" if os.name == "nt" else "noul")
+
+
+def deploy_frozen():
+    """Copy the running executable and its templates to app_dir(); returns that folder (also in dry-run)."""
+    root, target = app_dir(), frozen_target()
+    source = Path(sys.executable).resolve()
+    if source != target.resolve():
+        log(f"copy {source} -> {target}")
+        if not DRY:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            _atomic_copy(source, target)
+            target.chmod(0o755)
+    for name in APP_FILES:
+        src = ASSETS / name
+        if src.is_dir() and src.resolve() != (root / name).resolve():
+            log(f"copy {src.name}/ -> {root / name}")
+            if not DRY:
+                shutil.rmtree(root / name, ignore_errors=True)
+                shutil.copytree(src, root / name)
+    return root
+
+
+def _atomic_copy(src, dst):
+    fd, tmp = tempfile.mkstemp(prefix=f".{dst.name}.", dir=dst.parent)
+    os.close(fd)
+    try:
+        shutil.copy2(src, tmp)
+        os.replace(tmp, dst)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
 def render(path, skill_path=None):
     text = path.read_text(encoding="utf-8")
     if skill_path:
@@ -135,7 +187,7 @@ def render(path, skill_path=None):
             text = text.replace(ref, str(skill_path))
     for ref in CLI_REFS:
         text = text.replace(ref, cli_command())
-    root = str(ASSETS)
+    root = str(INSTALL_ROOT or ASSETS)
     return text.replace("__NOUL_DIR__", root).replace("${CLAUDE_PLUGIN_ROOT}", root)
 
 
@@ -155,7 +207,22 @@ def write(dst, text, keep_backup=False):
     log(f"write {dst}")
     if not DRY:
         dst.parent.mkdir(parents=True, exist_ok=True)
-        dst.write_text(text, encoding="utf-8")
+        _atomic_write(dst, text)
+
+
+def _atomic_write(dst, text):
+    """Write via a temp file in the same folder + os.replace: an interrupted install never leaves a half-written
+    agent configuration. Keeps the existing file's permissions."""
+    fd, tmp = tempfile.mkstemp(prefix=f".{dst.name}.", suffix=".tmp", dir=dst.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
+            fh.write(text)
+        if dst.exists():
+            shutil.copymode(dst, tmp)
+        os.replace(tmp, dst)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
 
 
 def remove(p):
@@ -340,31 +407,47 @@ def detect_targets():
     return found
 
 
-def choose_targets(ask=input):
-    """Interactive picker: lists detected apps and returns the chosen target names ([] = cancel)."""
+def choose_targets(ask=input, attempts=3):
+    """Interactive picker: lists the apps (marking detected ones) and returns the chosen target names ([] = cancel).
+    Enter picks the detected apps; with none detected, or after an invalid answer, it asks again."""
     detected = detect_targets()
     names = list(TARGETS)
     print("Onde instalar o Noul? / Where should Noul be installed?\n")
     for i, name in enumerate(names, 1):
         mark = "  (detectado / detected)" if name in detected else ""
         print(f"  {i}. {LABELS[name]}{mark}")
-    default = ",".join(str(names.index(n) + 1) for n in detected) or "all"
-    answer = ask(f"\nNúmeros separados por vírgula, 'all' ou Enter para [{default}]: ").strip() or default
-    if answer.lower() in ("q", "quit", "sair", "n", "no", "nao", "não"):
-        return []
-    if answer.lower() in ("all", "todos", "a"):
-        return names
-    chosen = []
-    for part in answer.replace(" ", "").split(","):
-        if part.isdigit() and 1 <= int(part) <= len(names):
-            chosen.append(names[int(part) - 1])
-        elif part in TARGETS:
-            chosen.append(part)
-    return list(dict.fromkeys(chosen))
+    default = ",".join(str(names.index(n) + 1) for n in detected)
+    hint = f"Enter para [{default}]" if default else "'q' para sair"
+    for _ in range(attempts):
+        answer = ask(f"\nNúmeros separados por vírgula, 'all' ou {hint}: ").strip() or default
+        if answer.lower() in ("q", "quit", "sair", "n", "no", "nao", "não"):
+            return []
+        if answer.lower() in ("all", "todos", "a"):
+            chosen = names
+        else:
+            chosen, bad = [], []
+            for part in answer.replace(" ", "").split(","):
+                if part.isdigit() and 1 <= int(part) <= len(names):
+                    chosen.append(names[int(part) - 1])
+                elif part in TARGETS:
+                    chosen.append(part)
+                elif part:
+                    bad.append(part)
+            if bad or not chosen:
+                print(f"Opção inválida / invalid choice: {', '.join(bad) or '(vazio / empty)'}")
+                continue
+        chosen = list(dict.fromkeys(chosen))
+        if "claude-desktop" in chosen:
+            print(
+                "Nota: se você já instalou a extensão noul.mcpb no Claude Desktop, não precisa desta opção "
+                "(ficariam dois servidores 'noul'). / If the noul.mcpb extension is installed, skip this one."
+            )
+        return chosen
+    return []
 
 
 def main(argv=None):
-    global DRY, UNINSTALL, RUNNER, ASSETS
+    global DRY, UNINSTALL, RUNNER, ASSETS, INSTALL_ROOT
     ap = argparse.ArgumentParser(prog="noul-install", description="Install Noul Search into coding & desktop agents.")
     ap.add_argument(
         "targets",
@@ -396,10 +479,18 @@ def main(argv=None):
             file=sys.stderr,
         )
         return 1
+    INSTALL_ROOT = None
+    if FROZEN and RUNNER == "python" and not UNINSTALL:
+        try:
+            INSTALL_ROOT = deploy_frozen()
+        except OSError as e:
+            print(f"ERROR: could not copy Noul to {app_dir()}: {e}", file=sys.stderr)
+            return 1
 
     if not UNINSTALL:
         cmd, args = mcp_command()
-        print(f"MCP server command ({RUNNER}): {' '.join(_q(x) for x in [cmd, *args])}")
+        how = "executable" if FROZEN and RUNNER == "python" else RUNNER
+        print(f"MCP server command ({how}): {' '.join(_q(x) for x in [cmd, *args])}")
     if a.all:
         targets = list(TARGETS)
     elif a.targets:
@@ -417,6 +508,12 @@ def main(argv=None):
             TARGETS[name]()
         except OSError as e:
             fail(f"{name}: {e}")
+    if FROZEN and UNINSTALL and a.all and not ERRORS:
+        # Everything was unregistered: also remove the stable copy (not the file being run).
+        for name in APP_FILES:
+            remove(app_dir() / name)
+        if Path(sys.executable).resolve() != frozen_target().resolve():
+            remove(frozen_target())
 
     if ERRORS:
         print(f"\nFinished with {len(ERRORS)} error(s); the affected files were not modified.", file=sys.stderr)

@@ -7,6 +7,7 @@ import sys
 
 from noul import __version__
 from noul import api as _api
+from noul import log as _log
 from noul import registry as _registry
 
 DEFAULT_PORT = 8765
@@ -118,10 +119,23 @@ def env_list(name):
 
 
 def resolve_profile(cli_value, default):
-    """Tool profile from --profile, then NOUL_TOOL_PROFILE, then the transport default; validated."""
-    profile = (cli_value or os.environ.get("NOUL_TOOL_PROFILE") or default).strip().lower()
+    """Tool profile from --profile, then NOUL_TOOL_PROFILE, then the transport default.
+
+    An unknown --profile is an error. An unknown NOUL_TOOL_PROFILE (often typed into an app's settings form, e.g.
+    the Claude Desktop extension) only logs a warning and uses `default`: refusing to start would just show
+    "server disconnected" with no way to see why."""
+    choices = ", ".join(_registry.PROFILES)
+    if cli_value:
+        profile = cli_value.strip().lower()
+        if profile not in _registry.PROFILES:
+            raise SystemExit(f"noul-mcp: unknown tool profile {profile!r} (use one of: {choices})")
+        return profile
+    profile = (os.environ.get("NOUL_TOOL_PROFILE") or "").strip().lower()
+    if not profile:
+        return default
     if profile not in _registry.PROFILES:
-        raise SystemExit(f"noul-mcp: unknown tool profile {profile!r} (use one of: {', '.join(_registry.PROFILES)})")
+        _log.logger.warning("unknown NOUL_TOOL_PROFILE %r (use one of: %s); using %r", profile, choices, default)
+        return default
     return profile
 
 
