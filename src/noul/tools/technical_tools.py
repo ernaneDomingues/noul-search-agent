@@ -57,7 +57,7 @@ def clean_cell(value):
 
 
 _NUM_CELL = re.compile(
-    r"^[~≈<>]?\s*(?P<num>[-+−–]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|[-+−–]?\.\d+)\s*"
+    r"^[~≈<>]?\s*(?P<num>[-+−–]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|[-+−–]?\.\d+)(?P<exp>[eE][-+]?\d{1,3})?\s*"
     r"(?P<unit>%|ms|s|x|×|pp|pts?)?\s*(?:(?:±|\+/-|\+-)\s*\d+(?:\.\d+)?\s*%?)?\s*(?:\([^)]*\))?\s*[*†‡]*$",
     re.I,
 )
@@ -75,7 +75,17 @@ def parse_number(value):
     if not m:
         return s
     num = m.group("num").replace(",", "").replace("−", "-").replace("–", "-")
+    if m.group("exp"):  # scientific notation (FLOPs): never K/M/B suffixes, which collide with "7B"-style names
+        return float(num + m.group("exp"))
     return float(num) if "." in num else int(num)
+
+
+_SCI = re.compile(r"(\d+(?:\.\d+)?)\s*[·×x]\s*10\s*\^?\s*([-+]?\d{1,3})\b")
+
+
+def _sci_to_e(line):
+    """`2.3 · 10^19` / `2.3·1019`-style cells (PDF superscripts lost) -> `2.3e19`, one token."""
+    return _SCI.sub(lambda m: f"{m.group(1)}e{m.group(2)}", line)
 
 
 def _is_number(v):
@@ -104,8 +114,13 @@ METRIC_SYNONYMS = {
     "ppl": "Perplexity",
     "latency": "Latency_ms",
     "throughput": "Throughput",
+    "flops": "FLOPs",
+    "trainingcost": "Training_Cost",
+    "trainingcostflops": "Training_Cost",
+    "params": "Params",
+    "parameters": "Params",
 }
-LOWER_IS_BETTER = {"Perplexity", "Latency_ms"}
+LOWER_IS_BETTER = {"Perplexity", "Latency_ms", "FLOPs", "Training_Cost", "Params"}
 
 
 def normalize_metric_name(name):
@@ -201,11 +216,14 @@ _HDR_SPLIT = re.compile(r"\t+|\s{2,}|\s*\|\s*")
 
 def _trailing_numbers(line):
     """'Llama-2 7B  45.3  14.6' -> ('Llama-2 7B', ['45.3', '14.6'])."""
-    tokens = re.sub(r"\s*(±|\+/-)\s*", r"\1", line.strip()).split()
+    tokens = re.sub(r"\s*(±|\+/-)\s*", r"\1", _sci_to_e(line.strip())).split()
     n = 0
     while n < len(tokens) and _is_number(parse_number(tokens[-1 - n])):
         n += 1
     return " ".join(tokens[: len(tokens) - n]), tokens[len(tokens) - n :]
+
+
+_GROUP_MARK = re.compile(r"^\s*\(?[A-H]\)\s*$")
 
 
 def _plain_tables(text, captions, taken):
@@ -217,7 +235,7 @@ def _plain_tables(text, captions, taken):
         for line in text[pos : pos + 4000].split("\n"):
             lines.append((pos, line))
             pos += len(line) + 1
-        header, rows, start, end, blanks = None, [], None, None, 0
+        header, rows, start, end, blanks, pre, group = None, [], None, None, 0, 0, None
         for off, line in lines:
             if not line.strip():
                 if rows:
@@ -229,15 +247,26 @@ def _plain_tables(text, captions, taken):
             if any(s <= off < e for s, e in taken) or line.strip().startswith(("|", "\\")):
                 break
             label, nums = _trailing_numbers(line)
-            if len(nums) >= 2 and label:
+            if rows and not nums and _GROUP_MARK.match(line):
+                group = line.strip()  # "(A)" alone on a line: the rows below belong to this variant group
+                continue
+            if not label and nums and rows:
+                # Continuation row, e.g. "4 128 128 5.00" under "(A)" or under "(A) 1 512 512 5.29".
+                prev = group or rows[-1][0].removesuffix(" (cont.)")
+                label = (
+                    prev if prev != rows[-1][0] and group and not rows[-1][0].startswith(group) else f"{prev} (cont.)"
+                )
+            # One-number rows ("Parser ... discriminative 88.3") need a header above and a label that is not prose.
+            short = len(label.split()) <= 12 and not re.search(r"[.;:!?]\s*$", label)
+            if label and (len(nums) >= 2 or (len(nums) == 1 and header is not None and short)):
                 rows.append((label, nums))
                 start = off if start is None else start
                 end = off + len(line)
-            elif header is None and not rows and len(line.split()) >= 2:
+            elif not rows and line.split() and pre < 3:
+                # Caption continuation or a (multi-line) header: keep the last such line as the header.
                 header = line.strip()
-                start = off
-            elif rows:
-                break
+                start = off if start is None else start
+                pre += 1
             else:
                 break
         if not rows:
@@ -499,7 +528,7 @@ def _passages(corpus):
                 out.append(
                     {
                         "page": pdf_parser.page_at(pages, pos),
-                        "label": f"Tabela {number}",
+                        "label": f"Table {number}",
                         "quote": quote,
                         "scoring": f"{context} {clean_cell(quote)}",
                     }
@@ -513,9 +542,9 @@ def _passages(corpus):
             continue
         section = pdf_parser.section_at(sections, m.start())
         if section:
-            label = f"Seção {_untrusted.label(section)}"
+            label = f"Section {_untrusted.label(section)}"
         else:
-            label = "Seção Resumo" if corpus["source"] == "abstract" else "Seção Texto"
+            label = "Abstract" if corpus["source"] == "abstract" else "Body text"
         out.append({"page": pdf_parser.page_at(pages, m.start()), "label": label, "quote": quote, "scoring": quote})
     for p in out:
         p["values"] = {_num_value(x) for x in _claim_numbers(p["scoring"])} - {None}
@@ -545,7 +574,7 @@ def _auto_claims(corpus, passages):
         re.I,
     )
     abstract = [re.sub(r"\s+", " ", m.group(0)).strip() for m in _SENTENCE.finditer(corpus["abstract"] or "")]
-    body = [p["quote"] for p in passages if not p["label"].startswith("Tabela")]
+    body = [p["quote"] for p in passages if not p["label"].startswith("Table ")]
     claims = []
     for group in (abstract, body):
         for s in group:
@@ -654,6 +683,20 @@ def verify_paper_claims(paper_id, claims=None):
         claims = _auto_claims(corpus, passages)
     pid = corpus["paper_id"]
     results = [ground_claim(cl, passages, paper_id=pid, claim_untrusted=auto) for cl in claims]
+    # Alternative evidence: the paragraphs (BM25 over section/page chunks) most related to each claim, besides
+    # the passage that contains `best_match`.
+    from noul.library import retrieval as _retrieval
+
+    chunks = _retrieval.chunk_corpus(corpus)
+    for r in results:
+        best = (r.get("best_match") or {}).get("text") or ""
+        others = [
+            _retrieval.to_excerpt(ch, pid, rel, limit=600).model_dump(mode="json")
+            for rel, ch in _retrieval.rank(chunks, r["claim"])
+            if not (best and best[:60] in ch["text"])
+        ][:2]
+        if others:
+            r["other_matches"] = others
     limitations = _contract.corpus_limitations(corpus)
     if auto and not claims:
         limitations.insert(0, "No numeric or comparative claims found to check.")
@@ -1267,7 +1310,9 @@ def extract_paper_math(paper_id, mode="latex"):
 MARGINAL_PCT = 1.0
 DOMINANT_SHARE = 0.6
 _ABL_VARIANT = re.compile(
-    r"^\s*(?:w/o|w/|without|no|minus|remove[sd]?|removing|drop(?:ped)?|replace[sd]?|only|with)\b|^\s*[-+−–]\s*\S", re.I
+    r"^\s*(?:w/o|w/|without|no|minus|remove[sd]?|removing|drop(?:ped)?|replace[sd]?|only|with)\b|^\s*[-+−–]\s*\S"
+    r"|^\s*\([A-H]\)(?:\s|$)",  # lettered variant groups: "(A) 1 512 ..." in "Model variations" tables
+    re.I,
 )
 _ABL_FULL = re.compile(r"\b(?:full(?:\s+model)?|ours|complete|proposed|final|all\s+components)\b", re.I)
 _ABL_BASE = re.compile(r"^\s*(?:baseline|base(?:\s+model)?|vanilla|backbone)\b", re.I)
@@ -1335,7 +1380,7 @@ def _is_ablation(table):
     roles = [_abl_role(lbl) for lbl in labels]
     if len(labels) < 2:
         return False
-    if re.search(r"ablat|component|contribution", table.get("caption") or "", re.I):
+    if re.search(r"ablat|component|contribution|variations?\b|variants?\b", table.get("caption") or "", re.I):
         return True
     return "variant" in roles and ({"full", "baseline"} & set(roles) or roles.count("variant") >= 2)
 
@@ -1389,8 +1434,8 @@ def _ablation_alerts(entries, reference, table_label):
             marginal.setdefault(e["component"], []).append(f"{e['metric']} Δ% = {e['delta_percent']:+.2f}%")
     for comp, info in marginal.items():
         alerts.append(
-            f"[{table_label}] Componente marginal: '{comp}' altera o resultado em menos de 1% "
-            f"({'; '.join(info)}) — contribuição possivelmente dentro do ruído experimental."
+            f"[{table_label}] Marginal component: '{comp}' changes the result by less than 1% "
+            f"({'; '.join(info)}); the contribution may be within experimental noise."
         )
     by_metric = {}
     for e in entries:
@@ -1399,10 +1444,10 @@ def _ablation_alerts(entries, reference, table_label):
     for metric, group in by_metric.items():
         if base and _is_number(base["values"].get(metric)):
             total = abs(reference["values"][metric] - base["values"][metric])
-            basis = f"ganho total {reference['component']} vs {base['component']}"
+            basis = f"total gain {reference['component']} vs {base['component']}"
         elif len(group) >= 2:
             total = sum(abs(e["delta"]) for e in group)
-            basis = "soma das variações de todos os componentes"
+            basis = "sum of the changes of all components"
         else:
             continue
         if not total:
@@ -1411,8 +1456,8 @@ def _ablation_alerts(entries, reference, table_label):
         share = abs(top["delta"]) / total
         if share >= DOMINANT_SHARE:
             alerts.append(
-                f"[{table_label}] Componente dominante: '{top['component']}' responde por {share:.0%} "
-                f"do ganho em {metric} ({basis} = {total:.4g}); os demais componentes têm papel secundário."
+                f"[{table_label}] Dominant component: '{top['component']}' accounts for {share:.0%} "
+                f"of the gain in {metric} ({basis} = {total:.4g}); the other components play a secondary role."
             )
     return alerts
 
@@ -1526,7 +1571,10 @@ _HP_REVERSED = (
             re.I,
         ),
     ),
-    ("max_tokens", re.compile(r"\bup\s+to\s+(?P<v>\d+)\s+(?:new\s+)?tokens\b", re.I)),
+    (
+        "max_tokens",
+        re.compile(r"\b(?:up\s+to|(?:a\s+)?maximum\s+of)\s+(?P<v>\d+)\s+(?:new\s+|generated\s+)?tokens\b", re.I),
+    ),
 )
 _HP_RANGES = {
     "temperature": (0, 5),
@@ -1662,6 +1710,92 @@ def _num(raw, key):
     return value if lo <= value <= hi else None
 
 
+_NUMTXT = r"(?P<v>\d+(?:\.\d+)?(?:\s*[eE]\s*[-−]?\s*\d+)?|\.\d+|10\s*\^?\s*[-−]\s*\d+|\d+(?:\.\d+)?\s*[×x·]\s*10\s*\^?\s*[-−]\s*\d+)"
+_OPTIMIZERS = r"AdamW|Adam|Adafactor|SGD|RMSprop|LAMB|Adagrad|Lion|Muon"
+# Training hyperparameters: (name, pattern with a `v` group). Values are kept as written (e.g. "10−9", "1e-4").
+_TRAIN_HP = (
+    (
+        "optimizer",
+        re.compile(
+            rf"\b(?P<v>{_OPTIMIZERS})\b(?=[^.\n]{{0,30}}\b(?:optimi[sz]er|with|lr|learning)\b)"
+            rf"|\b(?:optimi[sz]e\w*|optimi[sz]er|using|use)\b[^.\n]{{0,25}}?\b(?P<v2>{_OPTIMIZERS})\b",
+        ),
+    ),
+    ("learning_rate", re.compile(rf"\b(?:learning\s+rate|\blr)\s*(?:of|=|:|is|was|set\s+to)?\s*{_NUMTXT}", re.I)),
+    (
+        "lr_schedule",
+        re.compile(
+            r"\b(?P<v>inverse[\s-]+square[\s-]*root|cosine(?:\s+annealing)?|linear(?:\s+decay)?|polynomial|"
+            r"step|exponential|one[\s-]?cycle)\s+(?:learning[\s-]+rate\s+)?(?:schedule|decay|annealing|scheduler)\b",
+            re.I,
+        ),
+    ),
+    (
+        "warmup_steps",
+        re.compile(
+            r"\bwarm[\s-]?up(?:_steps|\s+steps)?\s*(?:of|=|:|over|for)?\s*(?P<v>\d[\d,]*)\b"
+            r"|\b(?P<v2>\d[\d,]*)\s+warm[\s-]?up\s+steps\b",
+            re.I,
+        ),
+    ),
+    ("beta1", re.compile(rf"(?:β|beta)\s*_?\s*[1₁]\s*[=:]\s*{_NUMTXT}", re.I)),
+    ("beta2", re.compile(rf"(?:β|beta)\s*_?\s*[2₂]\s*[=:]\s*{_NUMTXT}", re.I)),
+    ("epsilon", re.compile(rf"(?<![A-Za-z])(?:ϵ|ε|epsilon|eps)(?!\s*_?\s*ls)\s*[=:]\s*{_NUMTXT}", re.I)),
+    (
+        "dropout",
+        re.compile(
+            r"(?:\bdropout\b|\bP_?\s*drop\b)[^.\n]{0,30}?(?:=|\bof\b|\brate\b|:)\s*(?P<v>0?\.\d+|\d{1,2}\s*%)", re.I
+        ),
+    ),
+    (
+        "label_smoothing",
+        re.compile(
+            r"\blabel\s+smoothing\b[^.\n]{0,30}?(?:=|\bof\b|\bvalue\b|:)\s*(?P<v>0?\.\d+)"
+            r"|(?:ϵ|ε|epsilon)\s*_?\s*ls\s*=\s*(?P<v2>0?\.\d+)",
+            re.I,
+        ),
+    ),
+    (
+        "batch_size",
+        re.compile(
+            r"\bbatch\s+size\s*(?:of|=|:|is|was)?\s*(?P<v>\d[\d,]*)"
+            r"|\bbatch\w*\b[^.\n]{0,30}?(?:about|approximately|roughly|~)?\s*(?P<v2>\d[\d,]*)\s+(?:source\s+|target\s+)?tokens\b",
+            re.I,
+        ),
+    ),
+    ("epochs", re.compile(r"\b(?:for\s+)?(?P<v>\d{1,4})\s+(?:training\s+)?epochs\b", re.I)),
+    (
+        "train_steps",
+        re.compile(r"\btrain(?:ed|ing)?\s+for\s+(?P<v>\d[\d,]*(?:\.\d+)?\s*[KkM]?)\s+(?:training\s+)?steps\b", re.I),
+    ),
+    ("weight_decay", re.compile(rf"\bweight\s+decay\s*(?:of|=|:)?\s*{_NUMTXT}", re.I)),
+)
+
+
+def extract_training_hyperparameters(text, pages=None):
+    """Training hyperparameters (optimizer, learning rate and schedule, warmup, Adam betas/epsilon, dropout,
+    label smoothing, batch size, epochs/steps, weight decay) -> ({name: value as written}, evidence list)."""
+    params, evidence = {}, []
+    for key, rx in _TRAIN_HP:
+        for m in rx.finditer(text or ""):
+            raw = m.group("v") or (m.groupdict().get("v2") or "")
+            value = re.sub(r"\s+", "", raw).replace("−", "-")
+            if not value:
+                continue
+            if key not in params:
+                params[key] = value
+            evidence.append(
+                {
+                    "parameter": key,
+                    "value": value,
+                    "quote": _untrusted.neutralize(re.sub(r"\s+", " ", m.group(0)).strip()),
+                    "page": pdf_parser.page_at(pages, m.start()) if pages else None,
+                }
+            )
+            break  # the first mention is enough to show the paper reports it
+    return params, evidence
+
+
 def extract_hyperparameters(text, pages=None):
     """Decoding hyperparameters → ({name: value | [values...]}, evidence list)."""
     hits = []
@@ -1761,9 +1895,14 @@ def extract_prompts_and_decoding(paper_id):
             }
         )
     params, evidence = extract_hyperparameters(text, pages)
+    training, training_evidence = extract_training_hyperparameters(text, pages)
     schemas = extract_json_schemas(text)
     result = PromptExtractionResult(
-        paper_id=corpus["paper_id"], prompts=prompts, hyperparameters=params, json_schemas=schemas
+        paper_id=corpus["paper_id"],
+        prompts=prompts,
+        hyperparameters=params,
+        training_hyperparameters=training,
+        json_schemas=schemas,
     ).model_dump()
     warnings = list(corpus["warnings"])
     if not prompts:
@@ -1775,7 +1914,7 @@ def extract_prompts_and_decoding(paper_id):
             "title": corpus["title"],
             "source": corpus["source"],
             "variables": variables,
-            "hyperparameter_evidence": evidence,
+            "hyperparameter_evidence": evidence + training_evidence,
             "warnings": warnings,
         }
     )
@@ -1994,27 +2133,24 @@ def _table_baseline_superiority(paper_id, corpus, inspect_fulltext=True):
         if tb.get("table_id") == "inline_metrics" or tb.get("format") == "inline":
             continue
         metrics_map = tb.get("normalized_metrics") or {}
-        if len(metrics_map) < 2:
-            continue
+        if len(metrics_map) < 2 or _is_ablation(tb):
+            continue  # ablation / "model variations" tables compare the method with itself, not with baselines
         labels = list(metrics_map.keys())
+
+        def own(lbl):
+            """A row of the proposed model's own family ("Model (base)", "Model (big)"), not a baseline."""
+            return bool(title_words) and any(w in lbl.lower() for w in title_words)
+
         ours_label = next((lbl for lbl in labels if _OURS_ROW_RE.search(lbl) and not _ABL_VARIANT.search(lbl)), None)
         if ours_label is None and title_words:
-            ours_label = next(
-                (
-                    lbl
-                    for lbl in labels
-                    if any(w in lbl.lower() for w in title_words)
-                    and not _ABL_VARIANT.search(lbl)
-                    and not _ABL_BASE.search(lbl)
-                ),
-                None,
-            )
+            family = [lbl for lbl in labels if own(lbl) and not _ABL_VARIANT.search(lbl) and not _ABL_BASE.search(lbl)]
+            ours_label = family[-1] if family else None  # the last (usually largest/final) configuration
         if not ours_label:
             continue
         ours_vals = metrics_map.get(ours_label) or {}
         tb_label = tb.get("label") or tb.get("table_id") or "Table"
         for other_label, other_vals in metrics_map.items():
-            if other_label == ours_label or _ABL_VARIANT.search(other_label):
+            if other_label == ours_label or _ABL_VARIANT.search(other_label) or own(other_label):
                 continue
             for metric, ours_v in ours_vals.items():
                 other_v = other_vals.get(metric)
@@ -2064,6 +2200,8 @@ def detect_failure_modes(paper_id: str, inspect_fulltext: bool = True) -> dict:
     out_id = corpus["paper_id"] or p.get("id") or pid
     raw_tables = parse_benchmark_tables(text, pages, corpus["captions"])
     table_spans = [tb["_span"] for tb in raw_tables if tb.get("_span") and tb.get("format") != "inline"]
+    # Captions describe tables; they are not statements about the method's failures.
+    table_spans += [(c["offset"], c["end"]) for c in corpus["captions"]]
     sentences = _prose_sentences(text, corpus["sections"], table_spans=table_spans)
 
     def quote(sent, start, sec):

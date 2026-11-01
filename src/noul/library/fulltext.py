@@ -16,16 +16,18 @@ from noul.search import engine as _engine
 MIN_HTML_FULLTEXT_CHARS = 2500
 
 
-# Version of the cached full-text layout (2: PDF page breaks as \f, line breaks kept, no tag stripping).
-PDF_TEXT_FORMAT = 2
+# Version of the cached full-text layout. 2: PDF page breaks as \f, line breaks kept, no tag stripping.
+# 3: PDF words hyphenated across lines rejoined; Europe PMC JATS XML keeps section headings and table captions.
+PDF_TEXT_FORMAT = 3
+MAX_JATS_BYTES = 8 * 1024 * 1024
 
 
 def is_stale(entry):
-    """A cached full text downloaded before PDF_TEXT_FORMAT 2 (it may have lost pages: see _clean_pdf_page).
-    Europe PMC XML and entries without a source URL (seeded locally) are kept."""
+    """A cached full text extracted with an older layout (it may have lost pages or structure). Entries without
+    a source URL (seeded locally) are kept."""
     if entry.get("format") == PDF_TEXT_FORMAT:
         return False
-    return bool(entry.get("url")) and entry.get("source") != "europepmc_xml"
+    return bool(entry.get("url"))
 
 
 def resolve_pdf_url(paper):
@@ -88,11 +90,17 @@ def _extract_pdf_text(pdf_bytes):
         import pypdf
 
         reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
-        pages = [_clean_pdf_page(page.extract_text() or "") for page in reader.pages[:35]]
-        # "\n\f\n": a page break that is also a line break, so headings at the top of a page start a line.
-        return "\n\f\n".join(pages).strip()
+        return normalize_pdf_text([page.extract_text() or "" for page in reader.pages[:35]])
     except Exception:
         return ""
+
+
+def normalize_pdf_text(pages):
+    """Page texts (a list, or one string with form feeds) -> the cached layout: each page cleaned, pages joined by
+    "\\n\\f\\n" (a page break that is also a line break, so a heading at the top of a page starts a line)."""
+    if isinstance(pages, str):
+        pages = pages.split("\f")
+    return "\n\f\n".join(_clean_pdf_page(p) for p in pages).strip()
 
 
 def _clean_pdf_page(text):
@@ -101,7 +109,80 @@ def _clean_pdf_page(text):
     text = text.replace("\f", " ").replace("\r", "\n")
     text = re.sub(r"[ \t\u00a0]+", " ", text)
     text = re.sub(r" *\n *", "\n", text)
+    text = _dehyphenate(text)
     return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
+_HYPHEN_BREAK = re.compile(r"(\b[A-Za-z]+)-\n(?=([a-z][\w-]*))")
+
+
+def _dehyphenate(text):
+    """Rejoin words split by a line-end hyphen. A lowercase fragment loses the hyphen ("trans-\\nlation" ->
+    "translation"); a capitalised fragment or a hyphenated continuation keeps it ("English-\\nto-German",
+    "state-\\nof-the-art")."""
+
+    def join(m):
+        # Keep the hyphen for capitalised fragments and for compounds that continue with hyphens ("state-of-the-art").
+        keep = not m.group(1).islower() or "-" in m.group(2)
+        return m.group(1) + ("-" if keep else "")
+
+    return _HYPHEN_BREAK.sub(join, text)
+
+
+def _jats_text(xml_bytes):
+    """Plain text from Europe PMC / PMC JATS XML: title, abstract, sections as `## <label> <title>` headings
+    (recognised by pdf_parser.find_sections), paragraphs and `Table N: caption` lines. Documents with a DTD or
+    entity declarations, or larger than MAX_JATS_BYTES, are refused (no entity expansion, no external fetches)."""
+    import xml.etree.ElementTree as ET
+
+    raw = xml_bytes if isinstance(xml_bytes, bytes) else str(xml_bytes).encode("utf-8")
+    if (
+        len(raw) > MAX_JATS_BYTES
+        or re.search(rb"<!(?:DOCTYPE|ENTITY)", raw[:65536] + raw[-4096:], re.I)
+        or b"<!ENTITY" in raw
+    ):
+        return ""
+    try:
+        root = ET.fromstring(raw)
+    except ET.ParseError:
+        return ""
+
+    def local(tag):
+        return tag.rsplit("}", 1)[-1] if isinstance(tag, str) else ""
+
+    def flat(el):
+        return re.sub(r"\s+", " ", "".join(el.itertext())).strip()
+
+    lines = []
+    title = next((el for el in root.iter() if local(el.tag) == "article-title"), None)
+    if title is not None:
+        lines.append(flat(title))
+    for abstract in (el for el in root.iter() if local(el.tag) == "abstract"):
+        lines += ["", "Abstract", flat(abstract)]
+        break
+
+    def walk(el, depth):
+        for child in el:
+            tag = local(child.tag)
+            if tag == "sec":
+                label = next((flat(c) for c in child if local(c.tag) == "label"), "")
+                head = next((flat(c) for c in child if local(c.tag) == "title"), "")
+                if head:
+                    lines.extend(["", "#" * min(depth + 1, 4) + " " + " ".join(x for x in (label, head) if x)])
+                walk(child, depth + 1)
+            elif tag == "p":
+                lines.append(flat(child))
+            elif tag == "table-wrap":
+                label = next((flat(c) for c in child if local(c.tag) == "label"), "Table")
+                caption = next((flat(c) for c in child if local(c.tag) == "caption"), "")
+                lines.append(f"{label}: {caption}".strip())
+            elif tag not in ("label", "title"):
+                walk(child, depth)
+
+    for body in (el for el in root.iter() if local(el.tag) == "body"):
+        walk(body, 1)
+        break
+    return "\n".join(lines).strip()
 
 
 _HTML_BOILERPLATE_RE = re.compile(r"<(script|style|nav|header|footer|noscript)\b[^>]*>.*?</\1\s*>", re.I | re.S)
@@ -164,10 +245,13 @@ def fulltext(id):
                 "https://www.ebi.ac.uk/europepmc/webservices/rest/"
                 f"{urllib.parse.quote(str(p['pmc_id']).strip(), safe='')}/fullTextXML"
             )
-            xml_txt = _nhttp._http_get(xml_url, timeout=15)
-            cleaned = _ids._clean_text(xml_txt)
+            xml_raw = _nhttp._http_get(xml_url, timeout=15, binary=True)
+            cleaned = _jats_text(xml_raw)
             if len(cleaned) > 500:
-                _cache.cache_set("ft:" + pid, {"text": cleaned[:120000], "url": xml_url, "source": "europepmc_xml"})
+                _cache.cache_set(
+                    "ft:" + pid,
+                    {"text": cleaned[:120000], "url": xml_url, "source": "europepmc_xml", "format": PDF_TEXT_FORMAT},
+                )
                 return {
                     "id": pid,
                     "title": p.get("title"),
@@ -194,27 +278,3 @@ def fulltext(id):
         "doi_url": f"https://doi.org/{p['doi']}" if p.get("doi") else None,
         "note": "Open-access full text not directly extractable; use abstract or download_papers.",
     }
-
-
-def pick_chunks(text, question="", n=6, chunk_size=1200):
-    if not text:
-        return []
-    words = text.split()
-    chunks = []
-    step = 180
-    for i in range(0, len(words), step):
-        seg = " ".join(words[i : i + 220])
-        if seg:
-            chunks.append(seg[:chunk_size])
-    if not question or not chunks:
-        return chunks[:n]
-    q_terms = set(re.findall(r"[a-z0-9]{3,}", question.lower()))
-    if not q_terms:
-        return chunks[:n]
-    scored = []
-    for idx, ch in enumerate(chunks):
-        low = ch.lower()
-        score = sum(low.count(t) * (2 if len(t) > 5 else 1) for t in q_terms)
-        scored.append((score, -idx, ch))
-    scored.sort(reverse=True)
-    return [ch for _, _, ch in scored[:n]]

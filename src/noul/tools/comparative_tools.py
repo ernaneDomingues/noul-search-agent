@@ -1188,11 +1188,26 @@ def generate_research_hypotheses(paper_ids, topic=None, max_hypotheses=3):
             )
         )
 
+    quoted = []
+    for fm in failures_by_id.values():
+        for ex in [
+            *(fm.get("critical_assumptions") or [])[:1],
+            *[e for sig in (fm.get("signals") or [])[:1] for e in sig.get("excerpts") or []],
+        ]:
+            if isinstance(ex, dict) and ex.get("text") and ex not in quoted:
+                quoted.append(ex)
     report = ResearchGapReport(
         paper_ids=[d.paper_id for d, _ in rows],
         contradictions_found=contradictions,
         unexplored_complementarities=complementarities,
         hypotheses=hypotheses,
+        evidence=quoted,
+        untrusted_fields=[
+            "contradictions_found",
+            "unexplored_complementarities",
+            "hypotheses[].rationale",
+            "markdown_report",
+        ],
         markdown_report="",
     )
     report.markdown_report = _format_gap_markdown(report, topic_label)

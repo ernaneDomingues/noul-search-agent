@@ -386,7 +386,7 @@
           </article>
           <article class="tool-card" data-tool="verify_paper_claims">
             <h4 class="mono">verify_paper_claims</h4>
-            <p>Claim grounding with strict attribution: locates each claim (or, when `claims` is empty, the numeric/comparative sentences auto-extracted from the abstract/text) in the paper&#x27;s literal text, indexed by page and table/section. Per claim: numbers found/missing in the closest passage, keyword overlap, claim words absent from the text, a location tag &#x27;[p. X, Tabela Y]&#x27; and the best-matching excerpts. It does not decide whether a claim is supported: read `best_match` and decide. Use it before stating numbers from a paper; judge each claim with the returned rubric.</p>
+            <p>Claim grounding with strict attribution: locates each claim (or, when `claims` is empty, the numeric/comparative sentences auto-extracted from the abstract/text) in the paper&#x27;s literal text, indexed by page and table/section. Per claim: numbers found/missing in the closest passage, keyword overlap, claim words absent from the text, a location tag &#x27;[p. X, Table Y]&#x27; and the best-matching excerpts. It does not decide whether a claim is supported: read `best_match` and decide. Use it before stating numbers from a paper; judge each claim with the returned rubric.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> paper_id | <strong>Optional:</strong> claims</div>
               <div><strong>CLI:</strong> <code>noul ground &lt;id&gt;</code></div>
@@ -466,7 +466,7 @@
           </article>
           <article class="tool-card" data-tool="recommend_citations">
             <h4 class="mono">recommend_citations</h4>
-            <p>Contextual citation recommender &amp; infiller (#22): scans a draft paragraph or file (.md/.tex) for explicit `[CITATION NEEDED]` / `\cite{?}` markers and unsubstantiated empirical claims, retrieves 2-3 supporting papers per claim with explicit Portuguese justifications (&#x27;Este artigo de X et al. (Ano) comprova essa afirmação...&#x27;), inserts inline LaTeX or Markdown citations, and generates a deduplicated BibTeX block.</p>
+            <p>Contextual citation recommender &amp; infiller (#22): scans a draft paragraph or file (.md/.tex) for explicit `[CITATION NEEDED]` / `\cite{?}` markers and unsubstantiated empirical claims, retrieves 2-3 candidate supporting papers per claim with a justification quoting each abstract (check that it really backs the claim), inserts inline LaTeX or Markdown citations, and generates a deduplicated BibTeX block.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> draft_text | <strong>Optional:</strong> max_per_claim, citation_style</div>
               <div><strong>CLI:</strong> <code>noul cite &lt;text_or_file&gt;</code></div>
@@ -522,7 +522,7 @@
           </article>
           <article class="tool-card" data-tool="get_fulltext">
             <h4 class="mono">get_fulltext</h4>
-            <p>Fetch open-access full text (via OpenAlex, EuropePMC, arXiv, Unpaywall) and return excerpts relevant to `question`.</p>
+            <p>Fetch open-access full text (via OpenAlex, EuropePMC, arXiv, Unpaywall) and return the passages most relevant to `question` (BM25), each with section and page for citation.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> id | <strong>Optional:</strong> question</div>
               <div><strong>CLI:</strong> <code>noul fulltext &lt;id&gt;</code></div>
@@ -530,7 +530,7 @@
           </article>
           <article class="tool-card" data-tool="query_fulltexts">
             <h4 class="mono">query_fulltexts</h4>
-            <p>Query across multiple papers simultaneously for a specific question (uses full text when Open Access or abstract fallback). Ideal for conversing over a set of papers.</p>
+            <p>Query across multiple papers simultaneously for a specific question (uses full text when Open Access or abstract fallback). Ideal for conversing over a set of papers. Passages are ranked with BM25 and carry section and page for citation.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> ids, question | <strong>Optional:</strong> max_chunks_per_paper</div>
               <div><strong>CLI:</strong> <code>noul ask &lt;ids&gt; --question ...</code></div>

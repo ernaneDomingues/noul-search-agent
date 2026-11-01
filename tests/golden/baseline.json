@@ -13,5 +13,12 @@
     "n": 40,
     "accuracy": 0.975,
     "macro_f1": 0.9749
+  },
+  "evidence_signals": {
+    "n": 6,
+    "signals_accuracy": 1.0,
+    "hyperparameters_f1": 1.0,
+    "claims_located": 1.0,
+    "retrieval_recall_at_1": 0.9
   }
 }

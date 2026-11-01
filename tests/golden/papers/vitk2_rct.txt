@@ -1,0 +1,26 @@
+Effect of Daily Vitamin K2 on Arterial Stiffness: A Randomized Controlled Trial
+Abstract
+In a double-blind randomized controlled trial of 240 adults, daily vitamin K2 for 12 months
+reduced pulse-wave velocity by 0.4 m/s compared with placebo.
+1 Introduction
+Arterial stiffness predicts cardiovascular events. Vitamin K2 activates matrix Gla protein.
+2 Methods
+2.1 Participants
+We randomized 240 adults aged 50 to 75 years to vitamin K2 (180 ug/day) or placebo. A power
+calculation assumed a difference of 0.4 m/s with 80% power.
+2.2 Outcomes
+The primary outcome was carotid-femoral pulse-wave velocity at 12 months.
+
+3 Results
+Table 1: Baseline characteristics of the participants by group.
+Characteristic Vitamin K2 Placebo
+Age, years 62.1 61.8
+Women, % 48 51
+Table 2: Change in pulse-wave velocity at 12 months.
+Outcome Vitamin K2 Placebo Difference
+PWV, m/s -0.3 0.1 -0.4
+4 Discussion
+The effect was smaller in participants with diabetes, which suggests a population limitation.
+5 Limitations
+The trial included mostly white participants from one city, so results may not generalize.
+Data availability: de-identified data are deposited at https://doi.org/10.5061/dryad.example.

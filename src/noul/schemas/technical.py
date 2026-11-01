@@ -58,7 +58,8 @@ class AblationEntry(BaseModel):
 class PromptExtractionResult(BaseModel):
     paper_id: str
     prompts: list[dict[str, Any]] = Field(default_factory=list)
-    hyperparameters: dict[str, Any] = Field(default_factory=dict)
+    hyperparameters: dict[str, Any] = Field(default_factory=dict)  # decoding
+    training_hyperparameters: dict[str, str] = Field(default_factory=dict)  # values as written in the paper
     json_schemas: list[str] = Field(default_factory=list)
 
 

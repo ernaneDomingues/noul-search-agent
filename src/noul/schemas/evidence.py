@@ -30,6 +30,8 @@ class Excerpt(BaseModel):
     section: str | None = None
     page: int | None = None
     untrusted: bool = True
+    chunk_id: str | None = None  # passage id within the paper (retrieval results)
+    relevance: float | None = None  # BM25 relevance to the question (retrieval results; higher = more relevant)
 
 
 class Signal(BaseModel):

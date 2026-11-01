@@ -88,14 +88,29 @@ def page_at(pages, offset):
 def find_table_captions(text):
     """Table captions (`Table 1: ...`, `Tabela 2. ...`, `\\caption{...}`) with offsets, in document order."""
     out = []
-    for m in _CAPTION.finditer(text or ""):
+    text = text or ""
+    for m in _CAPTION.finditer(text):
+        caption, end = m.group(3).strip(), m.end()
+        sep = text[m.end(2) : m.start(3)].strip()
+        if not sep and caption[:1].islower():
+            continue  # prose that starts a line ("Table 2 summarizes our results ..."), not a caption
+        line_len = m.end() - m.start()
+        # PDF captions wrap: a long first line that does not end a sentence continues on the next lines.
+        for _ in range(3):
+            if line_len < 60 or caption.endswith((".", ":")):
+                break
+            nxt_end = text.find("\n", end + 1)
+            nxt = text[end + 1 : nxt_end if nxt_end != -1 else len(text)]
+            if not nxt.strip() or "\f" in nxt or _CAPTION.match(nxt) or _SECTION.match(nxt):
+                break
+            caption, end, line_len = f"{caption} {nxt.strip()}", end + 1 + len(nxt), len(nxt)
         out.append(
             {
                 "label": f"Table {m.group(2)}",
                 "number": m.group(2),
-                "caption": m.group(3).strip(" *_"),
+                "caption": caption.strip(" *_"),
                 "offset": m.start(),
-                "end": m.end(),
+                "end": end,
                 "kind": "text",
             }
         )
@@ -119,8 +134,11 @@ def find_sections(text):
     """Section headings (Markdown, LaTeX, numbered `3.2 Results` or well-known names) with offsets."""
     out = []
     for m in _SECTION.finditer(text or ""):
-        if m.group("num") and len(re.findall(r"\d+(?:\.\d+)?", m.group("num"))) > 2:
+        num = m.group("num")
+        if num and len(re.findall(r"\d+(?:\.\d+)?", num)) > 2:
             continue  # a numeric table row, not a numbered heading
+        if num and (num.rstrip().endswith((".", ",", ";")) or len(num.split()) > 9):
+            continue  # a sentence that starts with a number ("42.3 BLEU after ... GPUs."), not a heading
         title = next(g for g in (m.group("md"), m.group("tex"), m.group("num"), m.group("named")) if g)
         out.append({"title": re.sub(r"\s+", " ", title).strip(" #:"), "offset": m.start()})
     return out

@@ -1,0 +1,35 @@
+SparseRouter: Mixture-of-Prompts Retrieval for Instruction-Tuned LLMs
+Abstract
+SparseRouter routes each instruction to one of eight prompt experts and improves exact match on
+NaturalQA by 4.1 points over a dense retriever.
+1 Introduction
+Instruction-tuned language models depend on the retrieved context. We propose a sparse router
+over prompt experts and evaluate it with greedy decoding.
+2 Method
+The router scores experts with a learned linear layer and keeps the top 2 experts per query.
+3 Experiments
+3.1 Setup
+We decode with temperature 0.2, top_p = 0.9 and a maximum of 256 new tokens. All runs use
+random seed 13. We fine-tune with the AdamW optimizer, learning rate 2e-5 and batch size 32 for
+3 epochs.
+
+3.2 Main Results
+Table 1: Exact match (EM) and F1 on NaturalQA and TriviaQA.
+Method EM F1 TriviaQA EM
+Dense retriever 41.2 50.3 55.0
+BM25 38.7 47.9 52.1
+SparseRouter (ours) 45.3 54.8 57.9
+3.3 Ablation Study
+Table 2: Ablation of SparseRouter components on NaturalQA.
+Variant EM F1
+SparseRouter (full) 45.3 54.8
+w/o gating 43.0 52.2
+w/o expert dropout 44.9 54.1
+w/o top-2 routing 42.6 51.7
+Removing the gate costs 2.3 EM points.
+4 Limitations
+Performance degrades on prompts longer than 4096 tokens, and the router is sensitive to noisy
+instructions.
+5 Conclusion
+Code and checkpoints: https://github.com/example-lab/sparserouter and
+https://huggingface.co/example-lab/sparserouter-7b.

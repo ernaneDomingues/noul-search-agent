@@ -6,8 +6,8 @@ Copilot, Cursor…) reasons and writes the verdicts. Keep it that way.
 
 ## Status: v2 refactor in progress
 
-The approved plan lives in `docs/REFACTOR_PLAN.md` (one PR per phase). Phase 0 is merged; Phase 1 (1a/1b/1c) is merged;
-current: **Phase 2a** (MCP on the official SDK). Do not start a later PR's work in an earlier one.
+The approved plan lives in `docs/REFACTOR_PLAN.md` (one PR per phase). Phases 0, 1, 2 and 3a are merged;
+current: **Phase 3b-1** (retrieval and evidence heuristics). Do not start a later PR's work in an earlier one.
 
 | Path | Role |
 |---|---|
@@ -36,13 +36,14 @@ Import rule: modules reference each other through module attributes (`from noul.
 ## Commands
 
 ```bash
-uv sync --extra dev                                   # once (creates .venv from uv.lock)
+uv sync --extra dev                                   # creates .venv; re-run after the plugin starts (it drops dev extras)
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
 .venv/bin/mypy
 .venv/bin/python -m pytest -p no:cacheprovider --cov   # coverage gate: fail_under in pyproject
 .venv/bin/python -m unittest discover -s tests -p "test_*.py"  # must keep working too
 .venv/bin/python scripts/build_site.py --check                 # site catalog in sync with TOOLS
-.venv/bin/python tests/test_golden_sets.py --report     # classifier precision/recall + misses
+.venv/bin/python tests/test_golden_sets.py --report     # classifier + evidence-signal metrics and misses
+.venv/bin/python scripts/check_live_papers.py           # (network, manual) the same signals on real PDFs
 ```
 
 ## Rules

@@ -175,11 +175,15 @@ class EvidenceContractTests(unittest.TestCase):
         from noul import registry
 
         res = registry.call("get_fulltext", {"id": self.pid, "question": "long context limitation"})
-        self.assertEqual(res["untrusted_fields"], ["excerpts"])
-        self.assertIsInstance(res["excerpts"], list)
-        self.assertTrue(all("</untrusted_source>" not in x for x in res["excerpts"]))
+        self.assertEqual(res["method"], "retrieval")
+        top = res["excerpts"][0]
+        self.assertTrue(top["untrusted"])  # excerpts are Excerpt objects: flagged one by one
+        self.assertIn("long context", top["text"])
+        self.assertEqual(top["section"], "3 Limitations")
+        self.assertGreater(top["relevance"], 0)
+        self.assertTrue(all("</untrusted_source>" not in x["text"] for x in res["excerpts"]))
         whole = registry.call("get_fulltext", {"id": self.pid})
-        self.assertIsInstance(whole["excerpts"], list)
+        self.assertEqual([x["chunk_id"] for x in whole["excerpts"]][:1], ["c1"])  # no question: document order
 
     def test_paper_metadata_tools_flag_titles_and_abstracts(self):
         from noul import registry

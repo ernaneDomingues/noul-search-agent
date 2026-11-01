@@ -17,6 +17,7 @@ from noul.library import downloads as _downloads
 from noul.library import export as _exporting
 from noul.library import fulltext as _ft
 from noul.library import graph as _graph
+from noul.library import retrieval as _retrieval
 from noul.net import cache as _cache
 from noul.providers import artifact_radar as _artifact_radar
 from noul.providers import domain_classifier as _domain_classifier
@@ -486,7 +487,7 @@ def estimate_hardware_specs(paper_id, total_params_b=None, active_params_b=None,
         "Claim grounding with strict attribution: locates each claim (or, when `claims` is empty, the "
         "numeric/comparative sentences auto-extracted from the abstract/text) in the paper's literal text, "
         "indexed by page and table/section. Per claim: numbers found/missing in the closest passage, keyword "
-        "overlap, claim words absent from the text, a location tag '[p. X, Tabela Y]' and the best-matching "
+        "overlap, claim words absent from the text, a location tag '[p. X, Table Y]' and the best-matching "
         "excerpts. It does not decide whether a claim is supported: read `best_match` and decide. "
         "Use it before stating numbers from a paper; judge each claim with the returned rubric."
     ),
@@ -652,9 +653,9 @@ def scaffold_paper_code(paper_id, target_language=None, domain=None):
     description=(
         "Contextual citation recommender & infiller (#22): scans a draft paragraph or file (.md/.tex) for "
         "explicit `[CITATION NEEDED]` / `\\cite{?}` markers and unsubstantiated empirical claims, retrieves "
-        "2-3 supporting papers per claim with explicit Portuguese justifications ('Este artigo de X et al. "
-        "(Ano) comprova essa afirmação...'), inserts inline LaTeX or Markdown citations, and generates a "
-        "deduplicated BibTeX block."
+        "2-3 candidate supporting papers per claim with a justification quoting each abstract (check that it "
+        "really backs the claim), inserts inline LaTeX or Markdown citations, and generates a deduplicated "
+        "BibTeX block."
     ),
     input=_inputs.RecommendCitationsInput,
     profiles=("write",),
@@ -780,40 +781,47 @@ def audit_submission_readiness(draft_path, venue="neurips"):
 @_registry.tool(
     "get_fulltext",
     description=(
-        "Fetch open-access full text (via OpenAlex, EuropePMC, arXiv, Unpaywall) and return excerpts relevant "
-        "to `question`."
+        "Fetch open-access full text (via OpenAlex, EuropePMC, arXiv, Unpaywall) and return the passages most "
+        "relevant to `question` (BM25), each with section and page for citation."
     ),
     input=_inputs.GetFulltextInput,
     profiles=("research",),
     title="Get full text",
+    output=_out.FulltextResult,
 )
 def get_fulltext(id, question=""):
     p = _resolve(id)
     pid = p["id"]
     meta = _ft.fulltext(pid)
+    meta.update(question=question or "", method="retrieval")
     if not meta.get("available"):
         # Provide full abstract fallback so the agent can still answer
         meta["abstract_fallback"] = _untrusted.neutralize((p.get("abstract") or "")[:10000])
         meta["untrusted_fields"] = ["abstract_fallback"]
         return meta
-    text = (_cache.cache_get("ft:" + pid) or {}).get("text") or ""
-    if question:
-        meta["excerpts"] = [_untrusted.neutralize(c) for c in _ft.pick_chunks(text, question, n=6)]
-    else:
-        meta["excerpts"] = [_untrusted.neutralize(text[:9000])]
-    meta["untrusted_fields"] = ["excerpts"]
+    corpus = _corpus_of(pid)
+    meta["excerpts"] = [e.model_dump(mode="json") for e in _retrieval.search(corpus, question or "", n=6, paper_id=pid)]
+    meta["untrusted_fields"] = ["title"]
     return meta
+
+
+def _corpus_of(pid):
+    """The cached full text of `pid` segmented into pages and sections (fulltext() must have run first)."""
+    text = (_cache.cache_get("ft:" + pid) or {}).get("text") or ""
+    return _retrieval.corpus_for(text)
 
 
 @_registry.tool(
     "query_fulltexts",
     description=(
         "Query across multiple papers simultaneously for a specific question (uses full text when Open Access "
-        "or abstract fallback). Ideal for conversing over a set of papers."
+        "or abstract fallback). Ideal for conversing over a set of papers. Passages are ranked with BM25 and "
+        "carry section and page for citation."
     ),
     input=_inputs.QueryFulltextsInput,
     profiles=("research",),
     title="Query full texts",
+    output=_out.QueryFulltextsResult,
 )
 def query_fulltexts(ids, question, max_chunks_per_paper=4):
     """Query across multiple papers (full text when Open Access, or abstract fallback) to answer follow-up questions."""
@@ -825,43 +833,32 @@ def query_fulltexts(ids, question, max_chunks_per_paper=4):
         try:
             p = _resolve(raw_id)
             pid = p["id"]
-            ft_meta = _ft.fulltext(pid)
-            if ft_meta.get("available"):
-                text = (_cache.cache_get("ft:" + pid) or {}).get("text") or ""
-                chunks = _ft.pick_chunks(text, question, n=max_chunks)
-                results.append(
-                    {
-                        "id": pid,
-                        "title": p.get("title"),
-                        "authors": (p.get("authors") or [])[:3],
-                        "year": p.get("year"),
-                        "doi": p.get("doi"),
-                        "evidence": p.get("evidence"),
-                        "content_source": "fulltext",
-                        "excerpts": chunks,
-                    }
-                )
+            row = {
+                "id": pid,
+                "title": _untrusted.neutralize(p.get("title")) if p.get("title") else None,
+                "authors": (p.get("authors") or [])[:3],
+                "year": p.get("year"),
+                "doi": p.get("doi"),
+                "evidence": p.get("evidence"),
+            }
+            if _ft.fulltext(pid).get("available"):
+                excerpts = _retrieval.search(_corpus_of(pid), question, n=max_chunks, paper_id=pid)
+                row["content_source"] = "fulltext"
             else:
-                abs_txt = p.get("abstract") or ""
-                chunks = _ft.pick_chunks(abs_txt, question, n=2) if abs_txt else []
-                results.append(
-                    {
-                        "id": pid,
-                        "title": p.get("title"),
-                        "authors": (p.get("authors") or [])[:3],
-                        "year": p.get("year"),
-                        "doi": p.get("doi"),
-                        "evidence": p.get("evidence"),
-                        "content_source": "abstract_only",
-                        "excerpts": chunks,
-                    }
-                )
+                abstract = p.get("abstract") or ""
+                corpus = _retrieval.corpus_for(f"Abstract\n{abstract}", source="abstract") if abstract else {}
+                excerpts = _retrieval.search(corpus, question, n=2, paper_id=pid) if abstract else []
+                row["content_source"] = "abstract_only"
+            row["excerpts"] = [e.model_dump(mode="json") for e in excerpts]
+            results.append(row)
         except Exception as e:
             results.append({"id": raw_id, "error": str(e)})
-    for r in results:
-        if "excerpts" in r:
-            r["excerpts"] = [_untrusted.neutralize(c) for c in r["excerpts"]]
-    return {"question": question, "results": results, "untrusted_fields": ["results[].excerpts"]}
+    return {
+        "question": question,
+        "method": "retrieval",
+        "results": results,
+        "untrusted_fields": ["results[].title"],
+    }
 
 
 @_registry.tool(

@@ -165,8 +165,8 @@ class AblationTests(_Offline):
 
     def test_marginal_and_dominant_component_alerts(self):
         alerts = t.call("analyze_ablation_tables", {"paper_id": self.pid})["warnings_and_alerts"]
-        marginal = [a for a in alerts if "marginal" in a]
-        dominant = [a for a in alerts if "dominante" in a]
+        marginal = [a for a in alerts if "Marginal component" in a]
+        dominant = [a for a in alerts if "Dominant component" in a]
         self.assertEqual(len(marginal), 1)
         self.assertIn("'w/o KL loss'", marginal[0])
         self.assertEqual(len(dominant), 2)

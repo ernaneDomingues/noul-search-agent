@@ -13,6 +13,7 @@ from collections.abc import Callable
 
 from noul import errors as _errors
 from noul import ids as _ids
+from noul import log as _log
 from noul.evidence import classify as _classify
 from noul.evidence import impact as _impact
 from noul.net import cache as _cache
@@ -235,6 +236,38 @@ def search(query, mode="quick", _unused=None, filters=None, lang="en", sources=N
     return out
 
 
+def _resolve_arxiv(ax):
+    """An arXiv id via Semantic Scholar, then OpenAlex (arXiv DOI 10.48550/arXiv.<id>), then the arXiv API: one
+    rate-limited source (S2 answers 429 often without a key) must not make the paper unresolvable."""
+    from noul.providers import arxiv_search as _arxiv  # lazy: arxiv_search imports this module
+
+    base = re.sub(r"v\d+$", "", ax)
+    attempts = (
+        lambda: _s2._parse_s2_paper(
+            _nhttp._http_json(
+                f"https://api.semanticscholar.org/graph/v1/paper/ARXIV:{urllib.parse.quote(ax, safe='/.')}"
+                f"?fields={_s2.S2_PAPER_FIELDS}"
+            )
+        ),
+        lambda: _openalex._parse_openalex_work(
+            _nhttp._http_json(
+                "https://api.openalex.org/works/https://doi.org/"
+                f"{urllib.parse.quote('10.48550/arXiv.' + base, safe='')}{_nhttp._mailto_qs()}"
+            )
+        ),
+        lambda: next(iter(_arxiv.fetch_by_ids([ax])), None),
+    )
+    for attempt in attempts:
+        try:
+            paper = attempt()
+        except Exception as e:  # noqa: PERF203 - one failure per source is expected
+            _log.logger.info("arXiv %s: source failed (%s), trying the next one", ax, type(e).__name__)
+            continue
+        if paper:
+            return paper
+    return None
+
+
 def resolve_paper(identifier):
     """Retrieve a paper from cache or fetch on-demand by ID, DOI, OpenAlex ID, PMID, arXiv ID, or S2 ID."""
     if not identifier:
@@ -259,9 +292,7 @@ def resolve_paper(identifier):
     fetched = None
     try:
         if is_arxiv:
-            ax = ident.split(":", 1)[-1].strip()
-            url = f"https://api.semanticscholar.org/graph/v1/paper/ARXIV:{urllib.parse.quote(ax, safe='/.')}?fields={_s2.S2_PAPER_FIELDS}"
-            fetched = _s2._parse_s2_paper(_nhttp._http_json(url))
+            fetched = _resolve_arxiv(ident.split(":", 1)[-1].strip())
         elif norm:
             url = f"https://api.openalex.org/works/https://doi.org/{urllib.parse.quote(norm, safe='')}{_nhttp._mailto_qs()}"
             fetched = _openalex._parse_openalex_work(_nhttp._http_json(url))

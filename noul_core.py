@@ -131,7 +131,6 @@ _EXPORTS = [
     "export",
     "fulltext",
     "get_config",
-    "pick_chunks",
     "related_papers",
     "resolve_paper",
     "resolve_pdf_url",
