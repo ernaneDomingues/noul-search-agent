@@ -113,7 +113,7 @@ def fulltext(id):
             if raw.startswith(b"%PDF"):
                 text = _extract_pdf_text(raw)
                 if text and len(text) > 200:
-                    _cache.cache_set("ft:" + pid, {"text": text, "url": pdf_url, "source": source})
+                    _cache.cache_set("ft:" + pid, {"text": text[:120000], "url": pdf_url, "source": source})
                     return {"id": pid, "title": p.get("title"), "available": True, "source": source, "url": pdf_url}
             else:
                 # Possibly an HTML full-text page; landing/login/paywall pages are short once boilerplate is removed.

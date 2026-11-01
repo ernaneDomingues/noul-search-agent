@@ -1,5 +1,6 @@
 """Pieces shared by the MCP servers (SDK-based `noul.server.mcp`/`noul.server.http` and the legacy server)."""
 
+import copy
 import ipaddress
 import os
 import sys
@@ -39,15 +40,38 @@ def resources_read(uri):
     return [{"uri": str(uri), "mimeType": "text/markdown", "text": dossier.get("markdown") or ""}]
 
 
-def visible_tools(profile=None, allow_write=True):
-    """Catalog entries a client may see: the profile's tools, minus write tools when writes are not allowed."""
-    return [t for t in _registry.catalog(profile) if allow_write or not t["writes"]]
+def visible_tools(profile=None, allow_write=True, public=False):
+    """Catalog entries a client may see: the profile's tools, minus write tools when writes are not allowed and
+    minus the server-dossier tools on the public connector."""
+    tools = [
+        t
+        for t in _registry.catalog(profile)
+        if (allow_write or not t["writes"]) and not (public and t["name"] in PUBLIC_HIDDEN_TOOLS)
+    ]
+    return [_with_public_bounds(t) for t in tools] if public else tools
 
 
-def openapi_spec(host=f"http://localhost:{DEFAULT_PORT}", exclude=(), profile=None, allow_write=True):
+def _with_public_bounds(tool):
+    """Advertise the public caps in the input schema (maximum / maxItems) so the model knows them up front."""
+    caps = PUBLIC_ARG_CAPS.get(tool["name"])
+    if not caps:
+        return tool
+    schema = copy.deepcopy(tool["inputSchema"])
+    for key, cap in caps.items():
+        prop = schema["properties"].get(key)
+        if prop is None:
+            continue
+        if prop.get("type") == "array":
+            prop["maxItems"] = cap
+        else:
+            prop["maximum"] = min(cap, prop.get("maximum", cap))
+    return {**tool, "inputSchema": schema}
+
+
+def openapi_spec(host=f"http://localhost:{DEFAULT_PORT}", exclude=(), profile=None, allow_write=True, public=False):
     """OpenAPI 3.1 document for the REST tool endpoints (`POST /tools/<name>`), e.g. for ChatGPT Actions."""
     paths = {}
-    for item in visible_tools(profile, allow_write):
+    for item in visible_tools(profile, allow_write, public):
         name = item["name"]
         if name in exclude:
             continue
@@ -99,3 +123,24 @@ def resolve_profile(cli_value, default):
     if profile not in _registry.PROFILES:
         raise SystemExit(f"noul-mcp: unknown tool profile {profile!r} (use one of: {', '.join(_registry.PROFILES)})")
     return profile
+
+
+# Per-call caps on the public connector (cost/abuse control): integers are lowered, lists are truncated.
+PUBLIC_ARG_CAPS: dict[str, dict[str, int]] = {
+    "search_papers": {"limit": 25, "exclude_ids": 200},
+    "related_papers": {"limit": 25},
+    "get_paper_references": {"limit": 25},
+    "query_fulltexts": {"ids": 5},
+    "export_papers": {"ids": 25},
+    "suggest_boolean_queries": {"paper_ids": 10},
+    "evidence_meter": {"items": 100},
+}
+
+
+def public_caps(name):
+    """Caps for `name` on the public connector (passed to registry.call, which applies them after validation)."""
+    return PUBLIC_ARG_CAPS.get(name)
+
+
+# Server-side dossiers are never exposed by the public connector.
+PUBLIC_HIDDEN_TOOLS = frozenset({"list_research_dossiers", "get_research_dossier"})
