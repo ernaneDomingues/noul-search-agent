@@ -243,10 +243,12 @@ def _evaluate_cs(ev: dict) -> list[_Persona]:
     fp16_vram = (hw.get("fp16") or {}).get("recommended_min_vram_gb")
     int4_vram = (hw.get("int4") or {}).get("recommended_min_vram_gb")
     tier = hw.get("operational_tier")
-    p3_strengths.append(
-        f"Hardware footprint profile ({hw.get('total_parameters_billion')}B params, {hw.get('architecture_type')}): "
-        f"requires ~{fp16_vram} GB VRAM in FP16 (~{int4_vram} GB in INT4), tier='{tier}'."
-    )
+    if hw.get("detected_model_sizes_b"):
+        p3_strengths.append(
+            f"Hardware footprint profile ({hw.get('total_parameters_billion')}B params, {hw.get('architecture_type')}): "
+            f"requires ~{fp16_vram} GB VRAM in FP16 (~{int4_vram} GB in INT4), tier='{tier}'."
+        )
+    # Without a model size in the text the estimator falls back to a default size: not evidence, so not reported.
     if not hw.get("reported_training_hardware"):
         p3_flaws.append(
             "Section omitted / not reported: training/inference GPU hardware specification and wall-clock compute budget not explicitly stated."

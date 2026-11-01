@@ -16,6 +16,18 @@ from noul.search import engine as _engine
 MIN_HTML_FULLTEXT_CHARS = 2500
 
 
+# Version of the cached full-text layout (2: PDF page breaks as \f, line breaks kept, no tag stripping).
+PDF_TEXT_FORMAT = 2
+
+
+def _stale(entry):
+    """A cached full text downloaded before PDF_TEXT_FORMAT 2 (it may have lost pages: see _clean_pdf_page).
+    Europe PMC XML and entries without a source URL (seeded locally) are kept."""
+    if entry.get("format") == PDF_TEXT_FORMAT:
+        return False
+    return bool(entry.get("url")) and entry.get("source") != "europepmc_xml"
+
+
 def resolve_pdf_url(paper):
     """Attempt to resolve a direct Open Access PDF URL for a paper dict via multiple sources."""
     if paper.get("pdf_url"):
@@ -76,14 +88,20 @@ def _extract_pdf_text(pdf_bytes):
         import pypdf
 
         reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
-        pages = []
-        for page in reader.pages[:35]:
-            t = page.extract_text() or ""
-            if t.strip():
-                pages.append(t)
-        return _ids._clean_text("\n\n".join(pages))
+        pages = [_clean_pdf_page(page.extract_text() or "") for page in reader.pages[:35]]
+        # "\n\f\n": a page break that is also a line break, so headings at the top of a page start a line.
+        return "\n\f\n".join(pages).strip()
     except Exception:
         return ""
+
+
+def _clean_pdf_page(text):
+    """Whitespace-normalised page text that keeps line breaks (for section headings) and never strips `<...>`:
+    PDF text is not HTML, and a formula such as `n < d` would otherwise swallow everything up to the next `>`."""
+    text = text.replace("\f", " ").replace("\r", "\n")
+    text = re.sub(r"[ \t\u00a0]+", " ", text)
+    text = re.sub(r" *\n *", "\n", text)
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
 _HTML_BOILERPLATE_RE = re.compile(r"<(script|style|nav|header|footer|noscript)\b[^>]*>.*?</\1\s*>", re.I | re.S)
@@ -97,6 +115,9 @@ def fulltext(id):
     p = _engine.resolve_paper(id)
     pid = p["id"]
     cached_ft = _cache.cache_get("ft:" + pid)
+    stale = None
+    if cached_ft and _stale(cached_ft):
+        stale, cached_ft = cached_ft, None  # extracted by an older, lossy cleaner: fetch and extract again
     if cached_ft and cached_ft.get("text"):
         return {
             "id": pid,
@@ -113,13 +134,25 @@ def fulltext(id):
             if raw.startswith(b"%PDF"):
                 text = _extract_pdf_text(raw)
                 if text and len(text) > 200:
-                    _cache.cache_set("ft:" + pid, {"text": text[:120000], "url": pdf_url, "source": source})
+                    _cache.cache_set(
+                        "ft:" + pid,
+                        {
+                            "text": text[:120000],
+                            "url": pdf_url,
+                            "source": source,
+                            "pdf": True,
+                            "format": PDF_TEXT_FORMAT,
+                        },
+                    )
                     return {"id": pid, "title": p.get("title"), "available": True, "source": source, "url": pdf_url}
             else:
                 # Possibly an HTML full-text page; landing/login/paywall pages are short once boilerplate is removed.
                 html_text = _html_to_text(raw.decode("utf-8", errors="replace"))
                 if len(html_text) >= MIN_HTML_FULLTEXT_CHARS:
-                    _cache.cache_set("ft:" + pid, {"text": html_text[:120000], "url": pdf_url, "source": source})
+                    _cache.cache_set(
+                        "ft:" + pid,
+                        {"text": html_text[:120000], "url": pdf_url, "source": source, "format": PDF_TEXT_FORMAT},
+                    )
                     return {"id": pid, "title": p.get("title"), "available": True, "source": source, "url": pdf_url}
         except Exception:
             pass
@@ -145,6 +178,14 @@ def fulltext(id):
         except Exception:
             pass
 
+    if stale and stale.get("text"):  # the new download failed: the older extraction is better than nothing
+        return {
+            "id": pid,
+            "title": p.get("title"),
+            "available": True,
+            "source": stale.get("source", "cache"),
+            "url": stale.get("url"),
+        }
     return {
         "id": pid,
         "title": p.get("title"),

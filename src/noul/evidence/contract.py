@@ -38,9 +38,10 @@ def priority(value: str | None) -> PriorityHint:
 
 def extraction_confidence(source: str, sections: Iterable | None = None, length: int | None = None) -> Confidence:
     """How much text the heuristics saw. Papers: full text with >= 3 recognisable sections -> high, other full
-    text -> medium, abstract only -> low. The user's draft or reviews: medium, or low under 2,000 characters."""
+    text with 1-2 sections -> medium, no recognisable structure or abstract only -> low. The user's draft or reviews: medium, or low under 2,000 characters."""
     if source == "fulltext":
-        return "high" if len(list(sections or [])) >= 3 else "medium"
+        n = len(list(sections or []))
+        return "high" if n >= 3 else "medium" if n else "low"
     if source in ("draft", "reviews"):
         return "low" if length is not None and length < 2000 else "medium"
     return "low"
@@ -51,6 +52,11 @@ def corpus_limitations(corpus: dict) -> list[str]:
     notes = list(corpus.get("warnings") or [])
     if corpus.get("source") != "fulltext":
         notes.append("Only the title/abstract was analysed: absence of a finding is weak evidence.")
+    elif not corpus.get("sections"):
+        notes.append(
+            "No section structure was recognised in the full text: findings that depend on a section "
+            "(e.g. 'no Limitations section') are unreliable."
+        )
     notes.append("Pattern-based extraction: signals can be false positives or miss paraphrased content.")
     return list(dict.fromkeys(notes))
 
