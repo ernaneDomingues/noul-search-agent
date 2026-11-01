@@ -18,6 +18,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 # Repository root of a source checkout (src/noul/install.py -> repo); wheels ship templates under share/.
 REPO = HERE.parent.parent
+# Running from the single-file executable (PyInstaller): templates are bundled under sys._MEIPASS and the
+# executable itself is both the CLI and the MCP server (`noul mcp`).
+FROZEN = bool(getattr(sys, "frozen", False))
 HOME = Path.home()
 PKG = "noul-search-agent"
 MARK = ("<!-- noul-search-agent:start -->", "<!-- noul-search-agent:end -->")
@@ -49,7 +52,7 @@ def fail(msg):
 def _asset_root():
     """Skill/agent/command templates live next to this file in a checkout, or under <prefix>/share/noul-search-agent
     when installed from a wheel."""
-    candidates = [REPO, Path(sys.prefix) / "share" / PKG]
+    candidates = ([Path(getattr(sys, "_MEIPASS", REPO))] if FROZEN else []) + [REPO, Path(sys.prefix) / "share" / PKG]
     for getter in (lambda: sysconfig.get_path("data"), lambda: __import__("site").getuserbase()):
         try:
             candidates.append(Path(getter()) / "share" / PKG)
@@ -84,6 +87,8 @@ def mcp_command():
         if os.name == "nt":
             return "cmd", ["/c", "npx", "-y", PKG, "mcp"]
         return "npx", ["-y", PKG, "mcp"]
+    if FROZEN:
+        return str(Path(sys.executable).resolve()), ["mcp"]
     script = _console_script("noul-mcp")
     if script:
         return str(script), []
@@ -95,6 +100,8 @@ def cli_command():
         return f"uvx {PKG}"
     if RUNNER == "npx":
         return f"npx -y {PKG}"
+    if FROZEN:
+        return _q(Path(sys.executable).resolve())
     script = _console_script("noul")
     if script:
         return _q(script)
@@ -192,7 +199,7 @@ def patch_block(path, body, begin, end):
     write(path, text.lstrip("\n"), keep_backup=True)
 
 
-def json_mcp(path, entry):
+def json_mcp(path, entry, key="mcpServers"):
     if not path.exists():
         if UNINSTALL:
             return
@@ -203,9 +210,9 @@ def json_mcp(path, entry):
             cfg = json.loads(raw) if raw.strip() else {}
         except (json.JSONDecodeError, UnicodeDecodeError) as e:
             return fail(f"{path} is not valid JSON ({e}). It was left untouched; fix it and re-run.")
-    if not isinstance(cfg, dict) or not isinstance(cfg.get("mcpServers", {}), dict):
-        return fail(f"{path} does not contain a JSON object with an 'mcpServers' object; left untouched.")
-    servers = cfg.setdefault("mcpServers", {})
+    if not isinstance(cfg, dict) or not isinstance(cfg.get(key, {}), dict):
+        return fail(f"{path} does not contain a JSON object with an '{key}' object; left untouched.")
+    servers = cfg.setdefault(key, {})
     if UNINSTALL:
         if "noul" not in servers:
             return
@@ -231,14 +238,17 @@ def claude():
     json_mcp(HOME / ".claude.json", {"type": "stdio", "command": cmd, "args": args, "env": {}})
 
 
-def claude_desktop():
+def _app_config_dir(app):
+    """Per-user config folder of a desktop app (Claude, Code) on this OS."""
     if sys.platform == "darwin":
-        cfg_path = HOME / "Library/Application Support/Claude/claude_desktop_config.json"
-    elif os.name == "nt":
-        appdata = Path(os.environ.get("APPDATA") or (HOME / "AppData/Roaming"))
-        cfg_path = appdata / "Claude/claude_desktop_config.json"
-    else:
-        cfg_path = HOME / ".config/Claude/claude_desktop_config.json"
+        return HOME / "Library/Application Support" / app
+    if os.name == "nt":
+        return Path(os.environ.get("APPDATA") or (HOME / "AppData/Roaming")) / app
+    return HOME / ".config" / app
+
+
+def claude_desktop():
+    cfg_path = _app_config_dir("Claude") / "claude_desktop_config.json"
     cmd, args = mcp_command()
     json_mcp(cfg_path, {"command": cmd, "args": args})
 
@@ -277,20 +287,91 @@ def antigravity():
     json_mcp(HOME / ".gemini/antigravity/mcp_config.json", {"command": cmd, "args": args, "env": {}})
 
 
+def vscode():
+    """VS Code user-level MCP servers (`servers` key in User/mcp.json, used by Copilot agent mode)."""
+    cmd, args = mcp_command()
+    json_mcp(_app_config_dir("Code") / "User/mcp.json", {"type": "stdio", "command": cmd, "args": args}, key="servers")
+
+
+def cursor():
+    cmd, args = mcp_command()
+    json_mcp(HOME / ".cursor/mcp.json", {"command": cmd, "args": args})
+
+
 TARGETS = {
     "claude": claude,
     "claude-desktop": claude_desktop,
+    "vscode": vscode,
+    "cursor": cursor,
     "copilot": copilot,
     "codex": codex,
     "gemini": gemini,
     "antigravity": antigravity,
 }
 
+LABELS = {
+    "claude": "Claude Code",
+    "claude-desktop": "Claude Desktop",
+    "vscode": "VS Code (Copilot agent mode)",
+    "cursor": "Cursor",
+    "copilot": "GitHub Copilot CLI",
+    "codex": "OpenAI Codex CLI",
+    "gemini": "Gemini CLI",
+    "antigravity": "Antigravity",
+}
+
+
+def detect_targets():
+    """Targets whose app seems installed (its config folder or command exists)."""
+    found = []
+    probes = {
+        "claude": [HOME / ".claude", shutil.which("claude")],
+        "claude-desktop": [_app_config_dir("Claude")],
+        "vscode": [_app_config_dir("Code"), shutil.which("code")],
+        "cursor": [HOME / ".cursor", shutil.which("cursor")],
+        "copilot": [HOME / ".copilot"],
+        "codex": [HOME / ".codex", shutil.which("codex")],
+        "gemini": [HOME / ".gemini", shutil.which("gemini")],
+        "antigravity": [HOME / ".gemini/antigravity"],
+    }
+    for name, hints in probes.items():
+        if any(h and Path(h).exists() for h in hints):
+            found.append(name)
+    return found
+
+
+def choose_targets(ask=input):
+    """Interactive picker: lists detected apps and returns the chosen target names ([] = cancel)."""
+    detected = detect_targets()
+    names = list(TARGETS)
+    print("Onde instalar o Noul? / Where should Noul be installed?\n")
+    for i, name in enumerate(names, 1):
+        mark = "  (detectado / detected)" if name in detected else ""
+        print(f"  {i}. {LABELS[name]}{mark}")
+    default = ",".join(str(names.index(n) + 1) for n in detected) or "all"
+    answer = ask(f"\nNúmeros separados por vírgula, 'all' ou Enter para [{default}]: ").strip() or default
+    if answer.lower() in ("q", "quit", "sair", "n", "no", "nao", "não"):
+        return []
+    if answer.lower() in ("all", "todos", "a"):
+        return names
+    chosen = []
+    for part in answer.replace(" ", "").split(","):
+        if part.isdigit() and 1 <= int(part) <= len(names):
+            chosen.append(names[int(part) - 1])
+        elif part in TARGETS:
+            chosen.append(part)
+    return list(dict.fromkeys(chosen))
+
 
 def main(argv=None):
     global DRY, UNINSTALL, RUNNER, ASSETS
     ap = argparse.ArgumentParser(prog="noul-install", description="Install Noul Search into coding & desktop agents.")
-    ap.add_argument("targets", nargs="*", metavar="TARGET", help=f"Any of: {', '.join(TARGETS)} (default: all)")
+    ap.add_argument(
+        "targets",
+        nargs="*",
+        metavar="TARGET",
+        help=f"Any of: {', '.join(TARGETS)} (default: ask in a terminal, otherwise all)",
+    )
     ap.add_argument("--all", action="store_true", help="Install into every supported agent")
     ap.add_argument(
         "--runner",
@@ -319,7 +400,18 @@ def main(argv=None):
     if not UNINSTALL:
         cmd, args = mcp_command()
         print(f"MCP server command ({RUNNER}): {' '.join(_q(x) for x in [cmd, *args])}")
-    for name in list(TARGETS) if a.all or not a.targets else a.targets:
+    if a.all:
+        targets = list(TARGETS)
+    elif a.targets:
+        targets = a.targets
+    elif _interactive() and not UNINSTALL:
+        targets = choose_targets()
+        if not targets:
+            print("Nothing installed.")
+            return 0
+    else:
+        targets = list(TARGETS)
+    for name in targets:
         print(f"== {name}")
         try:
             TARGETS[name]()
@@ -336,6 +428,13 @@ def main(argv=None):
             f"  - Any terminal: {cli_command()} config --email you@university.edu   (or export NOUL_EMAIL)"
         )
     return 0
+
+
+def _interactive():
+    try:
+        return sys.stdin.isatty() and sys.stdout.isatty()
+    except (AttributeError, ValueError):
+        return False
 
 
 if __name__ == "__main__":

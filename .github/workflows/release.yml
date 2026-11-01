@@ -1,0 +1,173 @@
+name: Release (executables and Claude Desktop extensions)
+
+# Builds the single-file `noul` executable for Linux, macOS (arm64) and Windows, smoke-tests each as an MCP
+# server, packs the Claude Desktop extensions (.mcpb: universal `uv` bundle + one `binary` bundle per OS) and,
+# on a `v*` tag, publishes everything to the GitHub Release with SHA256SUMS.
+# Pull requests touching packaging run the same builds as a dry run (artifacts only, nothing published).
+# Code signing runs only when its secrets exist (docs/release/signing.md); otherwise the files are unsigned.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "packaging/**"
+      - "scripts/build_mcpb.py"
+      - "scripts/smoke_mcp.py"
+      - "src/noul/install.py"
+      - ".github/workflows/release.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  executable:
+    name: Executable (${{ matrix.asset }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-26.04
+            asset: noul-linux-x64
+            platform: linux
+            exe: noul
+          - os: macos-latest
+            asset: noul-macos-arm64
+            platform: darwin
+            exe: noul
+          - os: windows-latest
+            asset: noul-windows-x64.exe
+            platform: win32
+            exe: noul.exe
+    env:
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+
+      - name: Build the executable
+        shell: bash
+        run: |
+          python -m pip install . "pyinstaller==6.22.3"
+          pyinstaller packaging/pyinstaller/noul.spec --noconfirm --clean
+
+      - name: Sign (macOS, only with Apple secrets)
+        if: runner.os == 'macOS' && env.APPLE_SIGNING_IDENTITY != ''
+        shell: bash
+        env:
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          echo "$APPLE_CERTIFICATE_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN"
+          codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" dist/noul
+          ditto -c -k --keepParent dist/noul "$RUNNER_TEMP/noul.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/noul.zip" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" --wait
+
+      - name: Sign (Windows, only with Azure Trusted Signing secrets)
+        if: runner.os == 'Windows' && env.AZURE_TRUSTED_SIGNING_ENDPOINT != ''
+        uses: azure/trusted-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
+          files-folder: dist
+          files-folder-filter: exe
+
+      - name: Note unsigned build
+        if: (runner.os == 'macOS' && env.APPLE_SIGNING_IDENTITY == '') || (runner.os == 'Windows' && env.AZURE_TRUSTED_SIGNING_ENDPOINT == '')
+        shell: bash
+        run: echo "::notice::${{ matrix.asset }} is unsigned (no signing secrets); see docs/release/signing.md."
+
+      - name: Smoke test (CLI + MCP over stdio)
+        shell: bash
+        env:
+          NOUL_HOME: ${{ runner.temp }}/noul-home
+        run: |
+          "dist/${{ matrix.exe }}" --version
+          python scripts/smoke_mcp.py -- "dist/${{ matrix.exe }}" mcp
+
+      - name: Pack the binary Claude Desktop extension
+        shell: bash
+        run: |
+          python scripts/build_mcpb.py build --variant binary --exe "dist/${{ matrix.exe }}" \
+            --platform "${{ matrix.platform }}" --out "out/noul-${{ matrix.platform }}.mcpb"
+          cp "dist/${{ matrix.exe }}" "out/${{ matrix.asset }}"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ matrix.asset }}
+          path: out/
+          if-no-files-found: error
+
+  uv-extension:
+    name: Universal extension (uv)
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      - name: Pack and smoke-test the uv bundle
+        env:
+          NOUL_HOME: ${{ runner.temp }}/noul-home
+        run: |
+          python -m pip install . uv
+          python scripts/build_mcpb.py build --variant uv --out out/noul.mcpb
+          npx -y @anthropic-ai/mcpb@2.1.2 unpack out/noul.mcpb "$RUNNER_TEMP/noul-uv"
+          python scripts/smoke_mcp.py -- uv run --project "$RUNNER_TEMP/noul-uv" --quiet --frozen noul-mcp
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: noul-uv-mcpb
+          path: out/
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [executable, uv-extension]
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: release
+          merge-multiple: true
+      - name: Checksums and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          cd release
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "Noul $TAG" --generate-notes --verify-tag
+          fi
+          # Stable names (no version) so releases/latest/download/<file> links on the install page never change.
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber -- *

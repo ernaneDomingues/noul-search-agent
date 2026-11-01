@@ -513,3 +513,22 @@ code, pre, .mono {
     padding: 3rem 0 2.5rem;
   }
 }
+
+/* Install page */
+.install-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+.install-card h3 { margin-top: 0; }
+.install-card ol { padding-left: 1.2rem; color: var(--text-secondary); }
+.install-card ol li { margin: 0.35rem 0; }
+.install-card .btn { margin: 0.25rem 0.5rem 0.25rem 0; }
+.install-note { color: var(--text-muted); font-size: 0.9rem; }
+.download-list { list-style: none; padding: 0; margin: 0.75rem 0; }
+.download-list li { margin: 0.35rem 0; }
+.download-list a { color: var(--accent-cyan); }
+.download-list .is-recommended a::after { content: "  ← recomendado para o seu sistema"; color: var(--accent-emerald); font-size: 0.85rem; }
+.connector-pending { border: 1px dashed var(--border-color); border-radius: 10px; padding: 0.75rem 1rem; color: var(--text-secondary); }
+

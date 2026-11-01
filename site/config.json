@@ -1,0 +1,5 @@
+{
+  "connector_url": "",
+  "release_base": "https://github.com/ernaneDomingues/noul-search-agent/releases/latest/download",
+  "repository": "https://github.com/ernaneDomingues/noul-search-agent"
+}

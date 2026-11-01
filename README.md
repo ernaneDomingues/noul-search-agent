@@ -78,7 +78,15 @@ Gerado a partir do registro (`src/noul/registry.py`) por `scripts/build_site.py`
 
 ## Instalação
 
-Escolha **uma** das opções:
+**Sem terminal (pesquisadores):** acesse a página [**Instalar**](https://ernanedomingues.github.io/noul-search-agent/install.html) e escolha o seu ambiente:
+- **Claude.ai, Claude Desktop ou ChatGPT:** cole a URL do conector público, só de leitura e sem instalar nada.
+- **Claude Desktop, versão completa:** baixe `noul.mcpb` e dê dois cliques. O Claude Desktop pede o e-mail (opcional) e a pasta do Noul.
+- **VS Code / Cursor:** botões de instalação em um clique.
+- **Executável único** para Windows, macOS e Linux (sem Python). Para instalar em vários aplicativos de uma vez, rode `noul install`, que detecta os aplicativos e pergunta onde instalar.
+
+Os executáveis ainda não são assinados digitalmente. Veja como liberá-los no Windows e no macOS em [`docs/release/signing.md`](docs/release/signing.md).
+
+**Desenvolvedores:** escolha **uma** das opções:
 
 ```bash
 # Claude Code (plugin: skill + subagente + /noul-search-config + MCP)

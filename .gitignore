@@ -75,3 +75,8 @@ Thumbs.db
 node_modules/
 npm-debug.log*
 *.tgz
+
+# PyInstaller / release builds
+/build/
+/dist/
+/out/
