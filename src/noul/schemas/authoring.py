@@ -3,6 +3,8 @@
 from pydantic import BaseModel as _Model
 from pydantic import Field as _field
 
+from noul.schemas.evidence import AnalysisResult, Excerpt
+
 
 class CitationRecommendationItem(_Model):
     claim_sentence: str
@@ -41,6 +43,8 @@ class ManuscriptBlueprint(_Model):
 
 
 class DraftAuditFinding(_Model):
+    """Internal finding of the draft-audit heuristics (converted to a `Signal` in the result)."""
+
     category: str  # weak_claim | notation_inconsistency | reproducibility_omission
     severity: str  # high | medium | low
     excerpt: str
@@ -48,14 +52,12 @@ class DraftAuditFinding(_Model):
     suggested_rewrite: str
 
 
-class DraftAuditReport(_Model):
-    source_label: str = "inline_draft"
+class DraftAuditReport(AnalysisResult):
+    """Draft findings are `signals` (category weak_claim | notation_inconsistency | reproducibility_omission,
+    excerpts from the user's draft); `rendered_report` is Markdown or LaTeX per `output_format`."""
+
     venue: str = "general"
     output_format: str = "markdown"
-    weak_or_unsubstantiated_claims: list[DraftAuditFinding] = _field(default_factory=list)
-    notation_or_terminology_inconsistencies: list[DraftAuditFinding] = _field(default_factory=list)
-    reproducibility_omissions: list[DraftAuditFinding] = _field(default_factory=list)
-    pre_submission_checklist: list[str] = _field(default_factory=list)
     rendered_report: str = ""
 
 
@@ -104,23 +106,27 @@ class RebuttalPoint(_Model):
     point_id: str
     reviewer_id: str
     category: str  # clarity_question | new_experiment_request | baseline_criticism | notation_or_formatting | methodological_or_statistical
-    severity: str = "medium"  # high | medium | low
-    original_comment: str = ""
+    priority_hint: str = "medium"  # high | medium | low (pattern-based guess)
     requires_new_experiment: bool = False
-    draft_response: str = ""
-    manuscript_action_plan: str = ""
+    comment: Excerpt  # the reviewer's words (untrusted)
+    response_template: str = ""  # with [TODO] placeholders: never a claim about results
+    manuscript_action_template: str = ""
 
 
-class RebuttalReport(_Model):
+class RebuttalReport(AnalysisResult):
+    """Parsed reviewer points with response templates; `excerpts` hold the paper abstract / draft context."""
+
     reviewers_detected: list[str] = _field(default_factory=list)
     total_points: int = 0
-    new_experiments_required: int = 0
+    new_experiments_requested: int = 0
     points: list[RebuttalPoint] = _field(default_factory=list)
     markdown_rebuttal: str = ""
     latex_rebuttal: str = ""
 
 
 class GatekeeperCheckItem(_Model):
+    """Internal finding of the gatekeeper heuristics (converted to signals / checklist items in the result)."""
+
     check_id: str
     category: str  # anonymity | checklist | overclaiming | mandatory_section
     passed: bool
@@ -130,13 +136,10 @@ class GatekeeperCheckItem(_Model):
     remediation: str = ""
 
 
-class SubmissionGatekeeperReport(_Model):
+class SubmissionGatekeeperReport(AnalysisResult):
+    """Pre-submission evidence: anonymity and overclaiming findings are `signals`; venue checklist and mandatory
+    sections are `checklist` items (detected yes/no). No readiness score: the client judges readiness."""
+
     venue: str
-    readiness_score: int = _field(default=100, ge=0, le=100)  # 0 to 100
-    desk_reject_risk: str  # low | medium | critical
-    anonymity_violations: list[GatekeeperCheckItem] = _field(default_factory=list)
-    venue_checklist: list[GatekeeperCheckItem] = _field(default_factory=list)
-    overclaiming_flags: list[GatekeeperCheckItem] = _field(default_factory=list)
-    mandatory_sections: list[GatekeeperCheckItem] = _field(default_factory=list)
-    mandatory_corrective_actions: list[str] = _field(default_factory=list)
-    summary_markdown: str = ""
+    double_blind: bool = False
+    suggested_actions: list[str] = _field(default_factory=list)

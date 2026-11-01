@@ -92,47 +92,53 @@ class ReviewCommitteeTests(unittest.TestCase):
             },
         )
 
+    @staticmethod
+    def _concerns(res):
+        return " ".join(sig["description"] for sig in res["signals"] if sig["kind"] in ("concern", "gap")).lower()
+
     def test_cs_neurips_iclr_personas_and_omitted_controls(self):
         res = noul_tools.call("review_paper", {"paper_id": self.cs_id})
-        self.assertEqual(res["domain_evaluated"], "computer_science")
+        self.assertEqual(res["tool"], "review_paper")
+        self.assertEqual(res["subject"]["domain"], "computer_science")
         self.assertIn("NeurIPS / ICLR", res["rubric_applied"])
-        self.assertEqual(len(res["evaluations"]), 3)
-
-        roles = [e["persona_role"] for e in res["evaluations"]]
         self.assertEqual(
-            roles,
+            [p["role"] for p in res["perspectives"]],
             [
                 "Theoretical Reviewer (NeurIPS/ICLR)",
                 "Skeptical Empirical Reviewer (NeurIPS/ICLR)",
                 "Systems & Reproducibility Engineer (NeurIPS/ICLR)",
             ],
         )
-
-        all_flaws = " ".join(f for e in res["evaluations"] for f in e["critical_flaws"])
+        ids = {sig["id"] for sig in res["signals"]}
+        for p in res["perspectives"]:
+            self.assertTrue(set(p["signal_ids"]) <= ids)
+        concerns = self._concerns(res)
         # Cites omitted ablation table and omitted open code / evasive availability statement
-        self.assertIn("no ablation", all_flaws.lower())
-        self.assertIn("no public code", all_flaws.lower())
+        self.assertIn("no ablation", concerns)
+        self.assertIn("no public code", concerns)
         self.assertTrue(res["missing_experiments_or_controls"])
-        self.assertTrue(res["unanswered_questions"])
-        self.assertIn(res["verdict"], ("accept", "accept_with_reservations", "borderline", "reject"))
-        self.assertGreaterEqual(res["overall_score"], 1.0)
-        self.assertLessEqual(res["overall_score"], 5.0)
+        self.assertTrue(res["questions_for_authors"])
+        # Evidence, not a verdict: no verdict or scores anywhere; the client judges with the rubric.
+        for banned in ("verdict", "overall_score", "evaluations"):
+            self.assertNotIn(banned, res)
+        self.assertEqual(res["rubric"]["criteria"][-1]["id"], "recommendation")
+        self.assertIn(res["extraction_confidence"], ("low", "medium", "high"))
 
     def test_domain_switching_changes_rubric_personas_flaws_and_questions(self):
         cs_res = noul_tools.review_paper(self.cs_id)
         bio_res = noul_tools.review_paper(self.bio_id)
         econ_res = noul_tools.review_paper(self.econ_id)
 
-        self.assertEqual(bio_res["domain_evaluated"], "biomedical")
-        self.assertEqual(econ_res["domain_evaluated"], "economics")
+        self.assertEqual(bio_res["subject"]["domain"], "biomedical")
+        self.assertEqual(econ_res["subject"]["domain"], "economics")
 
         self.assertNotEqual(cs_res["rubric_applied"], bio_res["rubric_applied"])
         self.assertNotEqual(bio_res["rubric_applied"], econ_res["rubric_applied"])
         self.assertIn("CONSORT", bio_res["rubric_applied"])
         self.assertIn("Econometrics", econ_res["rubric_applied"])
 
-        bio_roles = [e["persona_role"] for e in bio_res["evaluations"]]
-        econ_roles = [e["persona_role"] for e in econ_res["evaluations"]]
+        bio_roles = [p["role"] for p in bio_res["perspectives"]]
+        econ_roles = [p["role"] for p in econ_res["perspectives"]]
         self.assertIn("Clinical Trial & Study Design Methodologist (CONSORT/STROBE)", bio_roles)
         self.assertIn("Biostatistician & Statistical Power Auditor", bio_roles)
         self.assertIn("Translational Medicine & Clinical Safety Reviewer", bio_roles)
@@ -141,29 +147,32 @@ class ReviewCommitteeTests(unittest.TestCase):
         self.assertIn("Empirical Robustness & Inference Auditor", econ_roles)
         self.assertIn("Policy & External Validity Economist", econ_roles)
 
-        bio_flaws = " ".join(f for e in bio_res["evaluations"] for f in e["critical_flaws"]).lower()
+        bio_flaws = self._concerns(bio_res)
         self.assertIn("power calculation", bio_flaws)
         self.assertIn("preclinical", bio_flaws)
 
-        econ_flaws = " ".join(f for e in econ_res["evaluations"] for f in e["critical_flaws"]).lower()
+        econ_flaws = self._concerns(econ_res)
         self.assertIn("clustered standard errors", econ_flaws)
         self.assertIn("placebo", econ_flaws)
 
-        self.assertNotEqual(cs_res["unanswered_questions"], bio_res["unanswered_questions"])
-        self.assertNotEqual(bio_res["unanswered_questions"], econ_res["unanswered_questions"])
+        self.assertNotEqual(cs_res["questions_for_authors"], bio_res["questions_for_authors"])
+        self.assertNotEqual(bio_res["questions_for_authors"], econ_res["questions_for_authors"])
 
     def test_alias_and_cli_pretty(self):
         alias_res = noul_tools.call("review_paper_scientific", {"paper_id": self.econ_id, "inspect_fulltext": False})
-        self.assertEqual(alias_res["domain_evaluated"], "economics")
-        self.assertIn("Peer-Review Committee Report", alias_res["markdown_report"])
+        self.assertEqual(alias_res["subject"]["domain"], "economics")
+        self.assertEqual(alias_res["extraction_confidence"], "low")
+        self.assertIn("# Peer-review evidence", alias_res["rendered_markdown"])
 
         buf = io.StringIO()
         with redirect_stdout(buf):
             rc = noul_cli.main(["review", self.cs_id, "--pretty"])
         self.assertEqual(rc, 0)
         out = buf.getvalue()
-        self.assertIn("# Peer-Review Committee Report:", out)
+        self.assertIn("# Peer-review evidence", out)
         self.assertIn("Theoretical Reviewer (NeurIPS/ICLR)", out)
+        self.assertIn("not a verdict", out)
+        self.assertNotIn("Verdict", out)
 
 
 if __name__ == "__main__":

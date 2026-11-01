@@ -5,13 +5,17 @@ Deterministic, stdlib-only critical audit across 3 specialized personas per scie
 and General STEM), consolidated by a Meta-Reviewer into a structured PeerReviewReport."""
 
 import re
+from dataclasses import dataclass, field
 from typing import Any
 
 from noul import errors as _errors
+from noul.evidence import contract as _contract
+from noul.evidence import untrusted as _untrusted
 from noul.prompts import rubrics_biomedical, rubrics_cs, rubrics_economics
 from noul.providers import artifact_radar, domain_classifier, pdf_parser
-from noul.schemas.domain import ReviewVerdict, ScientificDomain
-from noul.schemas.review import PeerReviewReport, PersonaEvaluation
+from noul.schemas.domain import ScientificDomain
+from noul.schemas.evidence import AnalysisSubject, Excerpt, PriorityHint, Signal, SignalKind
+from noul.schemas.review import PeerReviewReport, ReviewPerspective
 from noul.search import engine as _engine
 from noul.tools import hardware_tools, technical_tools
 
@@ -44,13 +48,16 @@ GENERAL_STEM_PERSONAS: list[dict[str, Any]] = [
 ]
 
 
-def _clamp_score(val: float) -> float:
-    return round(max(1.0, min(5.0, float(val))), 2)
+@dataclass
+class _Persona:
+    """One reviewer persona's heuristic findings. `strengths` / `critical_flaws` items are a description, or a
+    `(description, excerpt, ...)` tuple when the finding rests on text quoted from the paper."""
 
-
-def _clip(text: str, limit: int = 220) -> str:
-    s = re.sub(r"\s+", " ", str(text or "")).strip()
-    return s if len(s) <= limit else s[: limit - 1].rstrip() + "…"
+    persona_role: str
+    rubric_focus: str = ""
+    strengths: list = field(default_factory=list)
+    critical_flaws: list = field(default_factory=list)
+    unanswered_questions: list = field(default_factory=list)
 
 
 def _has_section(sections: list, pattern: str) -> bool:
@@ -102,18 +109,10 @@ def _collect_evidence(paper_id: str, domain_Override: str | None, inspect_fullte
     }
 
 
-def _unverified_claim_strings(claims_res: dict) -> list[str]:
-    out = []
-    for cl in claims_res.get("claims") or []:
-        if cl.get("status") in ("extrapolated", "partially_supported"):
-            out.append(f"[{cl['status']}] {_clip(cl.get('claim'), 180)} — {cl.get('citation_tag', '')}")
-    return out[:4]
-
-
 # --------------------------------------------------------------------------- Computer Science (NeurIPS / ICLR)
 
 
-def _evaluate_cs(ev: dict) -> list[PersonaEvaluation]:
+def _evaluate_cs(ev: dict) -> list[_Persona]:
     text = ev["text"]
     sections = ev["corpus"]["sections"]
     math_info = ev["math"]
@@ -123,11 +122,12 @@ def _evaluate_cs(ev: dict) -> list[PersonaEvaluation]:
     failures = ev["failures"]
     hw = ev["hardware"]
     prompts = ev["prompts"]
-    unverified = _unverified_claim_strings(ev["claims"])
 
     # Persona 1: Theoretical Reviewer (NeurIPS/ICLR)
     p1 = rubrics_cs.PERSONAS[0]
-    p1_strengths, p1_flaws, p1_questions = [], [], list(p1["default_questions"])
+    p1_strengths: list = []
+    p1_flaws: list = []
+    p1_questions: list = list(p1["default_questions"])
     eq_n = math_info.get("equation_count", 0)
     algo_n = math_info.get("algorithm_count", 0)
     if eq_n > 0 or algo_n > 0:
@@ -151,20 +151,17 @@ def _evaluate_cs(ev: dict) -> list[PersonaEvaluation]:
             "Omitted analysis: asymptotic computational/memory complexity (e.g. Big-O scaling or FLOPs) is not formally derived."
         )
     for assump in (failures.get("critical_assumptions") or [])[:2]:
-        p1_flaws.append(f'Unvalidated theoretical/modeling assumption in text: "{_clip(assump, 160)}"')
-        p1_questions.append(f"How sensitive is the method when the assumption '{_clip(assump, 100)}' is violated?")
+        p1_flaws.append(("Theoretical/modeling assumption stated without validation in the text", assump))
+    if failures.get("critical_assumptions"):
+        p1_questions.append("How sensitive is the method when the stated modeling assumptions are violated?")
     if not p1_strengths:
-        p1_strengths.append(
-            f'Problem formulation stated in manuscript abstract/introduction ("{_clip(ev["paper"].get("title"), 120)}").'
-        )
-
-    p1_score = (
-        3.2 + (0.6 if eq_n + algo_n > 0 else -0.6) + (0.4 if len(p1_flaws) <= 1 else -0.3 * min(len(p1_flaws), 3))
-    )
+        p1_strengths.append("Problem formulation stated in the abstract/introduction.")
 
     # Persona 2: Skeptical Empirical Reviewer (NeurIPS/ICLR)
     p2 = rubrics_cs.PERSONAS[1]
-    p2_strengths, p2_flaws, p2_questions = [], [], list(p2["default_questions"])
+    p2_strengths: list = []
+    p2_flaws: list = []
+    p2_questions: list = list(p2["default_questions"])
     tables = bench.get("tables") or []
     abl_entries = abl.get("ablations") or []
     if tables:
@@ -196,11 +193,9 @@ def _evaluate_cs(ev: dict) -> list[PersonaEvaluation]:
             "Omitted statistical rigor: error bars, multi-seed variance (± std), or significance tests across runs are not reported."
         )
     for bsup in (failures.get("baseline_superiority_scenarios") or [])[:2]:
-        p2_flaws.append(f"Baseline superiority / competitive weakness: {_clip(bsup, 180)}")
-    for fm in (failures.get("failure_modes") or [])[:2]:
-        p2_flaws.append(
-            f"Empirical failure mode [{fm['category']}, severity={fm['severity']}]: {_clip(fm['description'], 170)}"
-        )
+        p2_flaws.append(("A baseline may match or beat the proposed method here", bsup))
+    for fm in (failures.get("signals") or [])[:2]:
+        p2_flaws.append((f"Candidate empirical failure mode ({fm['category']})", *fm["excerpts"][:1]))
     if not _has_section(sections, r"limitation|error\s+analysis|failure|threat"):
         p2_flaws.append(
             "Section omitted: dedicated 'Limitations' or 'Error Analysis' section not found in document structure."
@@ -208,11 +203,11 @@ def _evaluate_cs(ev: dict) -> list[PersonaEvaluation]:
     if not p2_strengths:
         p2_strengths.append("Empirical claims and target task are outlined in the paper summary.")
 
-    p2_score = 3.0 + (0.6 if tables else -0.5) + (0.6 if abl_entries else -0.5) - 0.2 * min(len(p2_flaws), 3)
-
     # Persona 3: Systems & Reproducibility Engineer (NeurIPS/ICLR)
     p3 = rubrics_cs.PERSONAS[2]
-    p3_strengths, p3_flaws, p3_questions = [], [], list(p3["default_questions"])
+    p3_strengths: list = []
+    p3_flaws: list = []
+    p3_questions: list = list(p3["default_questions"])
     if art.get("has_code"):
         p3_strengths.append(f"Open-source code repository linked in manuscript ({art.get('code_url')}).")
     else:
@@ -242,43 +237,27 @@ def _evaluate_cs(ev: dict) -> list[PersonaEvaluation]:
         hp_keys = ", ".join(sorted((prompts.get("hyperparameters") or {}).keys()))
         p3_strengths.append(f"Hyperparameters explicitly documented ({hp_keys}).")
 
-    p3_score = (
-        3.1
-        + (0.7 if art.get("has_code") else -0.6)
-        + (0.3 if prompts.get("hyperparameters") else -0.2)
-        - (0.5 if art.get("evasive_availability_statement") else 0.0)
-    )
-
     return [
-        PersonaEvaluation(
+        _Persona(
             persona_role=p1["role"],
             rubric_focus=p1["focus"],
             strengths=p1_strengths,
             critical_flaws=p1_flaws,
-            unverified_claims=unverified,
             unanswered_questions=p1_questions[:3],
-            score=_clamp_score(p1_score),
-            confidence_score=4.2 if ev["corpus"]["source"] == "fulltext" else 3.5,
         ),
-        PersonaEvaluation(
+        _Persona(
             persona_role=p2["role"],
             rubric_focus=p2["focus"],
             strengths=p2_strengths,
             critical_flaws=p2_flaws,
-            unverified_claims=unverified,
             unanswered_questions=p2_questions[:3],
-            score=_clamp_score(p2_score),
-            confidence_score=4.3 if tables else 3.6,
         ),
-        PersonaEvaluation(
+        _Persona(
             persona_role=p3["role"],
             rubric_focus=p3["focus"],
             strengths=p3_strengths,
             critical_flaws=p3_flaws,
-            unverified_claims=unverified,
             unanswered_questions=p3_questions[:3],
-            score=_clamp_score(p3_score),
-            confidence_score=4.0,
         ),
     ]
 
@@ -286,17 +265,18 @@ def _evaluate_cs(ev: dict) -> list[PersonaEvaluation]:
 # --------------------------------------------------------------------------- Biomedical (CONSORT / STROBE / PRISMA)
 
 
-def _evaluate_biomedical(ev: dict) -> list[PersonaEvaluation]:
+def _evaluate_biomedical(ev: dict) -> list[_Persona]:
     text = ev["text"]
     paper = ev["paper"]
     evidence_lvl = paper.get("evidence") or "other"
     failures = ev["failures"]
     art = ev["artifacts"]
-    unverified = _unverified_claim_strings(ev["claims"])
 
     # Persona 1: Clinical Trial & Study Design Methodologist (CONSORT/STROBE)
     p1 = rubrics_biomedical.PERSONAS[0]
-    p1_strengths, p1_flaws, p1_questions = [], [], list(p1["default_questions"])
+    p1_strengths: list = []
+    p1_flaws: list = []
+    p1_questions: list = list(p1["default_questions"])
     if evidence_lvl in ("rct", "meta-analysis", "systematic-review"):
         p1_strengths.append(
             f"High-evidence study design detected: '{evidence_lvl}' (top tier of the clinical evidence pyramid)."
@@ -334,15 +314,11 @@ def _evaluate_biomedical(ev: dict) -> list[PersonaEvaluation]:
     if not p1_strengths:
         p1_strengths.append(f"Biomedical research question and study scope defined ({evidence_lvl} design).")
 
-    p1_score = (
-        3.0
-        + (0.7 if evidence_lvl in ("rct", "meta-analysis", "systematic-review") else -0.3)
-        - 0.25 * min(len(p1_flaws), 3)
-    )
-
     # Persona 2: Biostatistician & Statistical Power Auditor
     p2 = rubrics_biomedical.PERSONAS[1]
-    p2_strengths, p2_flaws, p2_questions = [], [], list(p2["default_questions"])
+    p2_strengths: list = []
+    p2_flaws: list = []
+    p2_questions: list = list(p2["default_questions"])
     m_n = re.search(
         r"\b[nN]\s*=\s*(\d[\d,]*)|\b(\d[\d,]*)\s+(?:patients|participants|subjects|adults|cases)\b", text, re.I
     )
@@ -394,11 +370,11 @@ def _evaluate_biomedical(ev: dict) -> list[PersonaEvaluation]:
     if not p2_strengths:
         p2_strengths.append("Quantitative biomedical outcome measures are referenced in the study.")
 
-    p2_score = 3.1 + (0.4 if m_n else -0.5) - 0.25 * min(len(p2_flaws), 3)
-
     # Persona 3: Translational Medicine & Clinical Safety Reviewer
     p3 = rubrics_biomedical.PERSONAS[2]
-    p3_strengths, p3_flaws, p3_questions = [], [], list(p3["default_questions"])
+    p3_strengths: list = []
+    p3_flaws: list = []
+    p3_questions: list = list(p3["default_questions"])
     if evidence_lvl == "preclinical" or re.search(
         r"\b(?:in\s+vitro|mice|murine|rat\s+model|animal\s+model|cell\s+line|xenograft)\b", text, re.I
     ):
@@ -417,45 +393,34 @@ def _evaluate_biomedical(ev: dict) -> list[PersonaEvaluation]:
         p3_flaws.append(
             "Safety omission: adverse events (AEs), toxicity grade, and safety monitoring are not reported in the analyzed text."
         )
-    for fm in (failures.get("failure_modes") or [])[:2]:
-        p3_flaws.append(f"Clinical/population limitation [{fm['category']}]: {_clip(fm['description'], 170)}")
+    for fm in (failures.get("signals") or [])[:2]:
+        p3_flaws.append((f"Candidate clinical/population limitation ({fm['category']})", *fm["excerpts"][:1]))
     if art.get("has_dataset") or art.get("has_code"):
         p3_strengths.append("Open clinical data or analysis scripts linked for independent verification.")
     elif art.get("evasive_availability_statement"):
         p3_flaws.append("Data availability concern: de-identified patient data only 'available upon request'.")
 
-    p3_score = 3.0 + (0.4 if len(p3_strengths) >= 2 else 0.0) - 0.3 * min(len(p3_flaws), 3)
-
     return [
-        PersonaEvaluation(
+        _Persona(
             persona_role=p1["role"],
             rubric_focus=p1["focus"],
             strengths=p1_strengths,
             critical_flaws=p1_flaws,
-            unverified_claims=unverified,
             unanswered_questions=p1_questions[:3],
-            score=_clamp_score(p1_score),
-            confidence_score=4.1,
         ),
-        PersonaEvaluation(
+        _Persona(
             persona_role=p2["role"],
             rubric_focus=p2["focus"],
             strengths=p2_strengths,
             critical_flaws=p2_flaws,
-            unverified_claims=unverified,
             unanswered_questions=p2_questions[:3],
-            score=_clamp_score(p2_score),
-            confidence_score=4.2,
         ),
-        PersonaEvaluation(
+        _Persona(
             persona_role=p3["role"],
             rubric_focus=p3["focus"],
             strengths=p3_strengths,
             critical_flaws=p3_flaws,
-            unverified_claims=unverified,
             unanswered_questions=p3_questions[:3],
-            score=_clamp_score(p3_score),
-            confidence_score=4.0,
         ),
     ]
 
@@ -463,17 +428,18 @@ def _evaluate_biomedical(ev: dict) -> list[PersonaEvaluation]:
 # --------------------------------------------------------------------------- Economics (Econometrics & Causal ID)
 
 
-def _evaluate_economics(ev: dict) -> list[PersonaEvaluation]:
+def _evaluate_economics(ev: dict) -> list[_Persona]:
     text = ev["text"]
     failures = ev["failures"]
     art = ev["artifacts"]
     math_info = ev["math"]
     bench = ev["benchmarks"]
-    unverified = _unverified_claim_strings(ev["claims"])
 
     # Persona 1: Causal Identification Econometrician
     p1 = rubrics_economics.PERSONAS[0]
-    p1_strengths, p1_flaws, p1_questions = [], [], list(p1["default_questions"])
+    p1_strengths: list = []
+    p1_flaws: list = []
+    p1_questions: list = list(p1["default_questions"])
     m_id = re.search(
         r"\b(difference[-\s]in[-\s]differences|diff[-\s]in[-\s]diff|\bDiD\b|instrumental\s+variables?|\b2SLS\b|"
         r"regression\s+discontinuity|\bRDD\b|natural\s+experiment|event\s+study|synthetic\s+control|"
@@ -503,13 +469,13 @@ def _evaluate_economics(ev: dict) -> list[PersonaEvaluation]:
         p1_strengths.append("Addresses identifying assumptions (parallel trends / exogeneity / endogeneity threats).")
 
     for assump in (failures.get("critical_assumptions") or [])[:2]:
-        p1_flaws.append(f'Econometric assumption requiring verification: "{_clip(assump, 160)}"')
-
-    p1_score = 3.2 + (0.6 if m_id else -0.6) - 0.25 * min(len(p1_flaws), 3)
+        p1_flaws.append(("Econometric assumption that needs verification", assump))
 
     # Persona 2: Empirical Robustness & Inference Auditor
     p2 = rubrics_economics.PERSONAS[1]
-    p2_strengths, p2_flaws, p2_questions = [], [], list(p2["default_questions"])
+    p2_strengths: list = []
+    p2_flaws: list = []
+    p2_questions: list = list(p2["default_questions"])
     if re.search(
         r"\b(?:cluster(?:ed)?\s+standard\s+errors?|robust\s+standard\s+errors?|heteroskedasticity|wild\s+bootstrap|two[-\s]way\s+cluster)\b",
         text,
@@ -539,11 +505,11 @@ def _evaluate_economics(ev: dict) -> list[PersonaEvaluation]:
     if not p2_strengths:
         p2_strengths.append("Empirical dataset and quantitative estimation scope described.")
 
-    p2_score = 3.0 + (0.5 if len(p2_strengths) >= 2 else -0.3) - 0.25 * min(len(p2_flaws), 3)
-
     # Persona 3: Policy & External Validity Economist
     p3 = rubrics_economics.PERSONAS[2]
-    p3_strengths, p3_flaws, p3_questions = [], [], list(p3["default_questions"])
+    p3_strengths: list = []
+    p3_flaws: list = []
+    p3_questions: list = list(p3["default_questions"])
     if re.search(
         r"\b(?:policy|welfare|elasticity|percentage\s+points?|basis\s+points?|economic\s+significance|cost[-\s]benefit)\b",
         text,
@@ -565,38 +531,27 @@ def _evaluate_economics(ev: dict) -> list[PersonaEvaluation]:
             "Replication omission: no public replication package (Stata/R/Python scripts and dataset) linked."
         )
 
-    p3_score = 3.1 + (0.4 if art.get("has_code") or art.get("has_dataset") else -0.4) - 0.2 * min(len(p3_flaws), 3)
-
     return [
-        PersonaEvaluation(
+        _Persona(
             persona_role=p1["role"],
             rubric_focus=p1["focus"],
             strengths=p1_strengths,
             critical_flaws=p1_flaws,
-            unverified_claims=unverified,
             unanswered_questions=p1_questions[:3],
-            score=_clamp_score(p1_score),
-            confidence_score=4.1,
         ),
-        PersonaEvaluation(
+        _Persona(
             persona_role=p2["role"],
             rubric_focus=p2["focus"],
             strengths=p2_strengths,
             critical_flaws=p2_flaws,
-            unverified_claims=unverified,
             unanswered_questions=p2_questions[:3],
-            score=_clamp_score(p2_score),
-            confidence_score=4.1,
         ),
-        PersonaEvaluation(
+        _Persona(
             persona_role=p3["role"],
             rubric_focus=p3["focus"],
             strengths=p3_strengths,
             critical_flaws=p3_flaws,
-            unverified_claims=unverified,
             unanswered_questions=p3_questions[:3],
-            score=_clamp_score(p3_score),
-            confidence_score=3.9,
         ),
     ]
 
@@ -604,17 +559,17 @@ def _evaluate_economics(ev: dict) -> list[PersonaEvaluation]:
 # --------------------------------------------------------------------------- General STEM fallback
 
 
-def _evaluate_general_stem(ev: dict) -> list[PersonaEvaluation]:
+def _evaluate_general_stem(ev: dict) -> list[_Persona]:
     text = ev["text"]
     math_info = ev["math"]
     bench = ev["benchmarks"]
     art = ev["artifacts"]
     failures = ev["failures"]
-    unverified = _unverified_claim_strings(ev["claims"])
 
     evals = []
     for idx, p in enumerate(GENERAL_STEM_PERSONAS):
-        strengths, flaws = [], []
+        strengths: list = []
+        flaws: list = []
         if idx == 0:
             if math_info.get("equation_count", 0) > 0:
                 strengths.append(
@@ -622,8 +577,8 @@ def _evaluate_general_stem(ev: dict) -> list[PersonaEvaluation]:
                 )
             else:
                 flaws.append("Section omitted: no formal mathematical model or governing equations reported.")
-            for fm in (failures.get("failure_modes") or [])[:2]:
-                flaws.append(f"Methodological limitation [{fm['category']}]: {_clip(fm['description'], 160)}")
+            for fm in (failures.get("signals") or [])[:2]:
+                flaws.append((f"Candidate methodological limitation ({fm['category']})", *fm["excerpts"][:1]))
             if not flaws:
                 flaws.append(
                     "Control omission: explicit negative control or baseline calibration not detailed in text."
@@ -641,70 +596,74 @@ def _evaluate_general_stem(ev: dict) -> list[PersonaEvaluation]:
             else:
                 flaws.append("Reproducibility omission: no open data or code repository linked in the manuscript.")
         if not strengths:
-            strengths.append(f"Core scientific objective stated for '{_clip(ev['paper'].get('title'), 100)}'.")
-        score = _clamp_score(3.1 + 0.3 * len(strengths) - 0.3 * len(flaws))
+            strengths.append("Core scientific objective stated in the abstract.")
         evals.append(
-            PersonaEvaluation(
+            _Persona(
                 persona_role=p["role"],
                 rubric_focus=p["focus"],
                 strengths=strengths,
                 critical_flaws=flaws,
-                unverified_claims=unverified,
                 unanswered_questions=list(p["default_questions"])[:2],
-                score=score,
-                confidence_score=3.8,
             )
         )
     return evals
 
 
-def _format_markdown_report(report: PeerReviewReport) -> str:
-    lines = [
-        f"# Peer-Review Committee Report: {report.title or report.paper_id}",
-        "",
-        f"- **Paper ID:** `{report.paper_id}`",
-        f"- **Domain Evaluated:** `{report.domain_evaluated}`",
-        f"- **Rubric Applied:** {report.rubric_applied}",
-        f"- **Verdict:** **{report.verdict.value.upper()}**",
-        f"- **Overall Score:** **{report.overall_score:.2f} / 5.00**",
-        "",
-        "## Executive Summary",
-        report.executive_summary,
-        "",
-        "## Meta-Reviewer Notes",
-        report.meta_reviewer_notes,
-        "",
-        "## Multi-Persona Evaluations",
-    ]
-    for i, ev in enumerate(report.evaluations, 1):
-        lines += [
-            "",
-            f"### Reviewer {i}: {ev.persona_role} (Score: {ev.score:.2f}/5.0, Confidence: {ev.confidence_score:.1f}/5.0)",
-            f"_Focus: {ev.rubric_focus}_",
-            "",
-            "**Methodological Strengths:**",
-        ]
-        lines += [f"- {s}" for s in ev.strengths] or ["- None highlighted."]
-        lines.append("")
-        lines.append("**Critical Flaws & Omitted Controls:**")
-        lines += [f"- {f}" for f in ev.critical_flaws] or ["- No critical flaws flagged."]
-        if ev.unverified_claims:
-            lines.append("")
-            lines.append("**Unverified / Extrapolated Claims:**")
-            lines += [f"- {c}" for c in ev.unverified_claims]
-        lines.append("")
-        lines.append("**Questions for the Authors:**")
-        lines += [f"- {q}" for q in ev.unanswered_questions]
+_GAP = re.compile(
+    r"omitted|omission|not\s+reported|not\s+found|missing|\bno\s+(?:public|formal|explicit|structured|ablation|open)",
+    re.I,
+)
+_HIGH = re.compile(r"omitted|missing|no\s+public|evasive|preclinical", re.I)
+_FINAL_CRITERION = (
+    "recommendation",
+    "Weighing all perspectives, what is your recommendation (e.g. accept / revise / reject) and its main reasons?",
+    "Make the call yourself from the excerpts; heuristic gaps may be false negatives when only the abstract was "
+    "available.",
+)
 
-    lines += ["", "## Missing Experiments or Controls"]
-    lines += [f"- {m}" for m in report.missing_experiments_or_controls] or ["- None identified."]
-    lines += ["", "## Consolidated Unanswered Questions"]
-    lines += [f"- {q}" for q in report.unanswered_questions] or ["- None."]
-    return "\n".join(lines)
+
+def _finding(item) -> tuple[str, list[Excerpt]]:
+    if isinstance(item, tuple):
+        desc, *quotes = item
+        return desc, [q if isinstance(q, Excerpt) else Excerpt.model_validate(q) for q in quotes if q]
+    return item, []
+
+
+def _slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")[:48]
+
+
+def _claim_signals(claims_res: dict, start: int) -> list[Signal]:
+    """Claims whose numbers or terms are not all found in the closest passage: for the client to check."""
+    out: list[Signal] = []
+    for cl in claims_res.get("claims") or []:
+        if not (
+            cl.get("numbers_missing") or cl.get("hedging_cues_missing_in_text") or cl.get("keyword_overlap", 1) < 0.5
+        ):
+            continue
+        quotes = [Excerpt.model_validate(cl["best_match"])] if cl.get("best_match") else []
+        if cl.get("claim_untrusted"):
+            quotes.insert(0, _untrusted.excerpt(cl["claim"], paper_id=(quotes[0].paper_id if quotes else None)))
+        out.append(
+            Signal(
+                id=f"c{start + len(out)}",
+                category="claim_grounding",
+                kind="concern",
+                description="Claim whose numbers or wording are not all found in the closest passage",
+                priority_hint="medium",
+                detail=f"numbers missing: {', '.join(cl.get('numbers_missing') or []) or '—'}; "
+                f"keyword overlap: {cl.get('keyword_overlap', 0):.2f}",
+                excerpts=quotes,
+            )
+        )
+        if len(out) >= 4:
+            break
+    return out
 
 
 def review_paper(paper_id: str, domain: str | None = None, inspect_fulltext: bool = True) -> dict:
-    """Run a domain-adaptive 3-persona peer-review committee (#17, #20) and consolidate via a Meta-Reviewer."""
+    """Collect the evidence for a domain-adaptive 3-persona peer review (#17, #20): signals per persona, questions
+    for the authors and a rubric. The client's model writes the review and the recommendation."""
     ev = _collect_evidence(paper_id, domain_Override=domain, inspect_fulltext=bool(inspect_fulltext))
     dom = ev["domain"]
 
@@ -721,67 +680,69 @@ def review_paper(paper_id: str, domain: str | None = None, inspect_fulltext: boo
         rubric_name = GENERAL_STEM_RUBRIC_NAME
         evaluations = _evaluate_general_stem(ev)
 
-    overall_score = round(sum(e.score for e in evaluations) / 3.0, 2)
-    all_flaws = [f for e in evaluations for f in e.critical_flaws]
-    severe_flaw_count = sum(
-        1 for f in all_flaws if re.search(r"omitted|missing|no\s+public|evasive|preclinical", f, re.I)
-    )
+    paper = ev["paper"]
+    pid = str(paper.get("id") or paper_id)
+    signals: list[Signal] = []
+    perspectives: list[ReviewPerspective] = []
+    questions: list[str] = []
+    for pi, persona in enumerate(evaluations, 1):
+        ids: list[str] = []
+        for source_kind, items in (("strength", persona.strengths), ("concern", persona.critical_flaws)):
+            for item in items:
+                desc, quotes = _finding(item)
+                kind: SignalKind
+                prio: PriorityHint
+                if source_kind == "strength":
+                    kind, prio = "strength", "low"
+                else:
+                    kind = "gap" if _GAP.search(desc) else "concern"
+                    prio = "high" if _HIGH.search(desc) else "medium"
+                sid = f"r{pi}.{len(ids) + 1}"
+                signals.append(
+                    Signal(
+                        id=sid,
+                        category=_slug(persona.persona_role),
+                        kind=kind,
+                        description=_untrusted.neutralize(desc),
+                        priority_hint=prio,
+                        excerpts=quotes,
+                    )
+                )
+                ids.append(sid)
+        qs = [q for q in persona.unanswered_questions if q][:3]
+        questions += [q for q in qs if q not in questions]
+        perspectives.append(
+            ReviewPerspective(
+                role=persona.persona_role, focus=persona.rubric_focus, signal_ids=ids, questions_for_authors=qs
+            )
+        )
+    signals += _claim_signals(ev["claims"], 1)
 
-    if overall_score >= 4.0 and severe_flaw_count == 0:
-        verdict = ReviewVerdict.ACCEPT
-    elif overall_score >= 3.2:
-        verdict = ReviewVerdict.ACCEPT_WITH_RESERVATIONS
-    elif overall_score >= 2.3:
-        verdict = ReviewVerdict.BORDERLINE
-    else:
-        verdict = ReviewVerdict.REJECT
-
-    missing_controls = []
-    for f in all_flaws:
-        if f not in missing_controls and re.search(r"omitted|omission|not\s+reported|missing|no\s+", f, re.I):
-            missing_controls.append(f)
-    if not missing_controls and all_flaws:
-        missing_controls = list(dict.fromkeys(all_flaws))[:4]
-
-    questions = []
-    for e in evaluations:
-        for q in e.unanswered_questions:
-            if q not in questions:
-                questions.append(q)
-
-    title = ev["paper"].get("title") or ev["paper"].get("id") or ""
-    exec_summary = (
-        f"Multi-persona peer review of '{title}' under the {rubric_name} ({dom.value}). "
-        f"Consolidated score: {overall_score:.2f}/5.00 ({verdict.value}). "
-        f"Audited {ev['corpus']['source']} corpus across {len(evaluations)} specialized reviewers, "
-        f"identifying {sum(len(e.strengths) for e in evaluations)} methodological strengths and "
-        f"{len(all_flaws)} critical flaws/omissions."
-    )
-    meta_notes = (
-        f"Meta-Reviewer synthesis ({dom.value}): Roles engaged — "
-        + ", ".join(e.persona_role for e in evaluations)
-        + f". Primary decision driver: {missing_controls[0] if missing_controls else 'overall methodological balance'}."
-    )
-
+    criteria = [
+        (f"p{i}", f"{p.role}: {p.focus}", f"Signals: {', '.join(p.signal_ids) or 'none'}.")
+        for i, p in enumerate(perspectives, 1)
+    ]
+    corpus = ev["corpus"]
     report = PeerReviewReport(
-        paper_id=str(ev["paper"].get("id") or paper_id),
-        title=title,
-        domain_evaluated=dom.value,
+        tool="review_paper",
+        subject=AnalysisSubject(
+            paper_id=pid, title=paper.get("title") or "", domain=dom.value, source=corpus["source"]
+        ),
+        signals=signals,
+        rubric=_contract.rubric(rubric_name, [*criteria, _FINAL_CRITERION]),
+        extraction_confidence=_contract.extraction_confidence(corpus["source"], corpus.get("sections")),
+        limitations=_contract.corpus_limitations(corpus),
         rubric_applied=rubric_name,
-        verdict=verdict,
-        overall_score=overall_score,
-        executive_summary=exec_summary,
-        evaluations=evaluations,
-        meta_reviewer_notes=meta_notes,
-        missing_experiments_or_controls=missing_controls[:8],
-        unanswered_questions=questions[:8],
-        markdown_report="",
+        perspectives=perspectives,
+        missing_experiments_or_controls=[s.description for s in signals if s.kind == "gap"][:8],
+        questions_for_authors=questions[:8],
     )
-    report.markdown_report = _format_markdown_report(report)
-    out = report.model_dump(mode="json")
-    if ev["corpus"].get("warnings"):
-        out["warnings"] = list(ev["corpus"]["warnings"])
-    return out
+    extra = ["", "## Reviewer perspectives"]
+    for p in perspectives:
+        extra += [f"- **{p.role}** — {p.focus} (signals: {', '.join(p.signal_ids) or 'none'})"]
+        extra += [f"  - Question: {q}" for q in p.questions_for_authors]
+    report.rendered_markdown = _contract.render_markdown(report, "Peer-review evidence", extra)
+    return report.model_dump(mode="json")
 
 
 def review_paper_scientific(paper_id: str, domain: str | None = None, inspect_fulltext: bool = True) -> dict:

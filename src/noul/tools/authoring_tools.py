@@ -10,6 +10,8 @@ from pathlib import Path
 from noul import config as _config
 from noul import errors as _errors
 from noul import ids as _ids
+from noul.evidence import contract as _contract
+from noul.evidence import untrusted as _untrusted
 from noul.net import cache as _cache
 from noul.providers import arxiv_client
 from noul.schemas.authoring import (
@@ -26,6 +28,7 @@ from noul.schemas.authoring import (
     RelatedWorkSynthesis,
     RelatedWorkThemeCluster,
 )
+from noul.schemas.evidence import AnalysisSubject, ChecklistItem, Signal
 
 
 def _tools():
@@ -1097,100 +1100,86 @@ def audit_manuscript_draft(
     notation = _detect_notation_inconsistencies(text)
     repro = _detect_reproducibility_omissions(text)
 
+    signals: list[Signal] = []
+    for f in [*weak, *notation, *repro]:
+        signals.append(
+            Signal(
+                id=f"d{len(signals) + 1}",
+                category=f.category,
+                kind="gap" if f.category == "reproducibility_omission" else "concern",
+                description=f.issue_description,
+                priority_hint=_contract.priority(f.severity),
+                detail=f"Suggested rewrite: {f.suggested_rewrite}" if f.suggested_rewrite else "",
+                # Omissions carry a label, not a passage of the draft: no excerpt for them.
+                excerpts=[_untrusted.excerpt(f.excerpt, origin="draft")]
+                if f.excerpt and f.category != "reproducibility_omission"
+                else [],
+            )
+        )
+
+    def state(findings):
+        return "no" if findings else "unclear"
+
     checklist = [
-        f"[{'x' if not weak else ' '}] All empirical and SOTA claims are anchored to specific tables, figures, or citations.",
-        f"[{'x' if not notation else ' '}] Mathematical notation and technical terminology are consistent across prose and equations.",
-        f"[{'x' if not repro else ' '}] Reproducibility details (seeds, hyperparameters, sample sizes, error bars, hardware) are complete.",
-        f"[ ] Venue-specific mandatory sections for {v.upper()} (Limitations, Ethics/Broader Impact, Checklist) are included.",
+        ChecklistItem(
+            id="claims_anchored",
+            question="Are all empirical and SOTA claims anchored to specific tables, figures or citations?",
+            detected=state(weak),
+        ),
+        ChecklistItem(
+            id="notation_consistent",
+            question="Are notation and terminology consistent across prose and equations?",
+            detected=state(notation),
+        ),
+        ChecklistItem(
+            id="reproducibility_complete",
+            question="Are reproducibility details (seeds, hyperparameters, sample sizes, error bars, hardware) complete?",
+            detected=state(repro),
+        ),
+        ChecklistItem(
+            id="venue_sections",
+            question=f"Are the {v.upper()} mandatory sections (Limitations, Ethics/Broader Impact, checklist) included?",
+            detected="unclear",
+            remediation="Run audit_submission_readiness for the venue-specific checks.",
+        ),
     ]
-
-    if fmt == "latex":
-        lines = [
-            f"\\section*{{Manuscript Audit Report ({v.upper()}) — {source_label}}}",
-            "\\subsection*{1. Weak or Unsubstantiated Claims}",
-        ]
-        for f in weak or [
-            DraftAuditFinding(
-                category="weak_claim",
-                severity="low",
-                excerpt="None",
-                issue_description="No weak claims detected.",
-                suggested_rewrite="N/A",
-            )
-        ]:
-            lines.append(
-                f"\\noindent\\textbf{{[{f.severity.upper()}]}} \\texttt{{{f.excerpt}}} --- {f.issue_description} \\emph{{Suggested fix:}} {f.suggested_rewrite}\\\\"
-            )
-        lines.append("\\subsection*{2. Notation & Terminology Inconsistencies}")
-        for f in notation or [
-            DraftAuditFinding(
-                category="notation_inconsistency",
-                severity="low",
-                excerpt="None",
-                issue_description="No notation inconsistencies detected.",
-                suggested_rewrite="N/A",
-            )
-        ]:
-            lines.append(
-                f"\\noindent\\textbf{{[{f.severity.upper()}]}} \\texttt{{{f.excerpt}}} --- {f.issue_description} \\emph{{Suggested fix:}} {f.suggested_rewrite}\\\\"
-            )
-        lines.append("\\subsection*{3. Reproducibility Omissions}")
-        for f in repro or [
-            DraftAuditFinding(
-                category="reproducibility_omission",
-                severity="low",
-                excerpt="None",
-                issue_description="All reproducibility checks passed.",
-                suggested_rewrite="N/A",
-            )
-        ]:
-            lines.append(
-                f"\\noindent\\textbf{{[{f.severity.upper()}]}} \\texttt{{{f.excerpt}}} --- {f.issue_description} \\emph{{Suggested fix:}} {f.suggested_rewrite}\\\\"
-            )
-        rendered = "\n".join(lines)
-    else:
-        lines = [
-            f"# Manuscript Audit Report (`{source_label}` — Venue: `{v.upper()}`)",
-            "",
-            f"## 1. Weak or Unsubstantiated Claims ({len(weak)})",
-        ]
-        if weak:
-            for f in weak:
-                lines.append(
-                    f"- **[{f.severity.upper()}]** `{f.excerpt}`\n  - **Issue:** {f.issue_description}\n  - **Suggested Rewrite:** {f.suggested_rewrite}"
-                )
-        else:
-            lines.append("- None detected.")
-        lines += ["", f"## 2. Notation & Terminology Inconsistencies ({len(notation)})"]
-        if notation:
-            for f in notation:
-                lines.append(
-                    f"- **[{f.severity.upper()}]** `{f.excerpt}`\n  - **Issue:** {f.issue_description}\n  - **Suggested Rewrite:** {f.suggested_rewrite}"
-                )
-        else:
-            lines.append("- None detected.")
-        lines += ["", f"## 3. Reproducibility Omissions ({len(repro)})"]
-        if repro:
-            for f in repro:
-                lines.append(
-                    f"- **[{f.severity.upper()}]** `{f.excerpt}`\n  - **Issue:** {f.issue_description}\n  - **Suggested Rewrite:** {f.suggested_rewrite}"
-                )
-        else:
-            lines.append("- None detected.")
-        lines += ["", "## 4. Pre-Submission Checklist"] + [f"- {item}" for item in checklist]
-        rendered = "\n".join(lines)
-
     report = DraftAuditReport(
-        source_label=source_label,
+        tool="audit_manuscript_draft",
+        subject=AnalysisSubject(title=source_label, source="draft"),
+        signals=signals,
+        checklist=checklist,
+        rubric=_contract.rubric(
+            f"Manuscript draft audit ({v.upper()})",
+            (
+                ("claims", "Which claims are over-stated or lack a table, figure or citation?"),
+                ("notation", "Which notation or terminology changes would confuse a reviewer?"),
+                ("reproducibility", "What would a reader need to reproduce the main result that is missing?"),
+                ("priorities", "Which three fixes matter most before submission?"),
+            ),
+            "These are pattern-based findings on the user's draft, not an assessment. Confirm each against the "
+            "excerpt; 'unclear' means the heuristics found no problem, not that the item is satisfied.",
+        ),
+        extraction_confidence="medium" if len(text) > 2000 else "low",
+        limitations=["Pattern-based detection: paraphrased problems are missed and some flags are false positives."],
         venue=v,
         output_format=fmt,
-        weak_or_unsubstantiated_claims=weak,
-        notation_or_terminology_inconsistencies=notation,
-        reproducibility_omissions=repro,
-        pre_submission_checklist=checklist,
-        rendered_report=rendered,
     )
-    return report.model_dump()
+    report.rendered_markdown = _contract.render_markdown(report, f"Manuscript draft audit ({source_label})")
+    if fmt == "latex":
+        lines = [f"\\section*{{Manuscript Audit ({v.upper()}) --- {source_label}}}", "\\begin{itemize}"]
+        for sig in signals:
+            quote = sig.excerpts[0].text if sig.excerpts else ""
+            lines.append(
+                f"\\item \\textbf{{[{sig.category}, {sig.priority_hint}]}} \\texttt{{{quote}}} --- "
+                f"{sig.description} \\emph{{{sig.detail}}}"
+            )
+        if not signals:
+            lines.append("\\item No pattern-based findings.")
+        lines.append("\\end{itemize}")
+        report.rendered_report = "\n".join(lines)
+    else:
+        report.rendered_report = report.rendered_markdown
+    return report.model_dump(mode="json")
 
 
 # ---------------------------------------------------------------------------
@@ -1656,6 +1645,33 @@ def _segment_reviewer_blocks(raw_text: str) -> list[tuple[str, list[str]]]:
     return out
 
 
+_REBUTTAL_TEMPLATES = {
+    "new_experiment_request": (
+        "We thank the reviewer for suggesting this experiment. [TODO: say whether you ran it; if so, the setup, "
+        "the number of runs/seeds and the result, including any that did not favour your method.]",
+        "[TODO: where the new results appear, e.g. 'Table X / Appendix Y'.]",
+    ),
+    "baseline_criticism": (
+        "We thank the reviewer for pointing to this baseline. [TODO: whether you added the comparison, the result, "
+        "and how it changes or qualifies your claims.]",
+        "[TODO: the table/section updated with the baseline.]",
+    ),
+    "methodological_or_statistical": (
+        "We thank the reviewer for this methodological point. [TODO: the assumption or analysis in question, your "
+        "justification, and any sensitivity/robustness check you added.]",
+        "[TODO: the methodology/limitations section updated.]",
+    ),
+    "notation_or_formatting": (
+        "We thank the reviewer for catching this. [TODO: the notation/caption fix.]",
+        "[TODO: the sections where notation or captions changed.]",
+    ),
+    "clarity_question": (
+        "We thank the reviewer for the question. [TODO: a direct answer, pointing to the evidence in the paper.]",
+        "[TODO: the paragraph or figure added/clarified, if any.]",
+    ),
+}
+
+
 def parse_and_draft_rebuttal(
     reviews_input: str,
     paper_id: str | None = None,
@@ -1663,137 +1679,108 @@ def parse_and_draft_rebuttal(
     output_format: str = "markdown",
 ) -> dict:
     """Issue #26: Parse raw peer-review comments by reviewer and objection, classify each point,
-    flag items requiring new experiments, and generate a polite, evidence-backed Author Rebuttal
-    in both Markdown and LaTeX."""
+    flag items requiring new experiments, and build a rebuttal skeleton (Markdown and LaTeX) whose responses are
+    templates with [TODO] placeholders - the author supplies the actual results."""
     t = _tools()
     reviews_text, _, _ = _load_text_or_workspace_file(reviews_input)
     fmt = (output_format or "markdown").strip().lower()
     if fmt not in ("markdown", "latex"):
         raise _errors.HTTPError(400, f"Invalid output_format '{output_format}'. Use 'markdown' or 'latex'.")
 
-    context_evidence = ""
+    context: list = []
     if paper_id and str(paper_id).strip():
         try:
             p = t._resolve(str(paper_id).strip())
-            context_evidence = f"{p.get('title', '')}. {p.get('abstract', '')}"
+            if p.get("abstract"):
+                context.append(_untrusted.excerpt(p["abstract"], paper_id=p.get("id"), section="Abstract"))
         except Exception:
-            context_evidence = ""
+            pass
     if draft_input and str(draft_input).strip():
         try:
-            d_txt, _, _ = _load_text_or_workspace_file(str(draft_input).strip())
-            context_evidence = (context_evidence + " " + d_txt[:4000]).strip()
+            d_txt, d_label, _ = _load_text_or_workspace_file(str(draft_input).strip())
+            context.append(_untrusted.excerpt(d_txt, origin="draft", section=d_label, limit=1200))
         except Exception:
             pass
 
     segmented = _segment_reviewer_blocks(reviews_text)
     reviewers_detected = [rev for rev, _ in segmented]
     points: list[RebuttalPoint] = []
-
     for rev_idx, (rev_id, comments) in enumerate(segmented, 1):
-        short_rev = f"R{rev_idx}"
         for pt_idx, comment in enumerate(comments, 1):
-            pid = f"{short_rev}.{pt_idx}"
             cat, sev, req_exp = _classify_rebuttal_comment(comment)
-
-            if cat == "new_experiment_request":
-                resp = (
-                    f"We thank {rev_id} for suggesting this empirical validation. We have executed the requested "
-                    f"additional experiments and statistical checks across multiple random seeds. The new results "
-                    f"confirm our primary findings with consistent improvements and tight confidence intervals."
-                )
-                action = "Action in Manuscript: Added new experimental table and statistical significance analysis in Section 4 / Appendix B."
-            elif cat == "baseline_criticism":
-                resp = (
-                    f"We appreciate {rev_id} highlighting this relevant baseline comparison. We have incorporated "
-                    f"a direct comparison and discussion contrasting our formulation's complexity and empirical accuracy "
-                    f"against the suggested baseline."
-                )
-                action = "Action in Manuscript: Updated Table 1 and Section 2 (Related Work) to include the baseline comparison."
-            elif cat == "methodological_or_statistical":
-                resp = (
-                    f"We thank {rev_id} for raising this rigorous methodological point. We have clarified the underlying "
-                    f"identification/theoretical assumptions and added a formal sensitivity and boundary-condition analysis."
-                )
-                action = "Action in Manuscript: Expanded Section 3 (Methodology) and Section 5 (Limitations) with formal assumption justifications."
-            elif cat == "notation_or_formatting":
-                resp = (
-                    f"We thank {rev_id} for catching this presentation detail. We have standardized the mathematical "
-                    f"notation, defined all symbols immediately after each equation, and improved figure/table captions."
-                )
-                action = "Action in Manuscript: Fixed notation definitions and updated captions in Sections 3-4."
-            else:
-                anchor = f" (consistent with our evidence in '{context_evidence[:90]}...')" if context_evidence else ""
-                resp = (
-                    f"We thank {rev_id} for this constructive question. To clarify: our mechanism operates by explicitly "
-                    f"decoupling the core transformation from auxiliary overhead{anchor}, which we now explain step-by-step."
-                )
-                action = "Action in Manuscript: Added an intuitive walkthrough paragraph and diagram reference in Section 3.1."
-
+            response, action = _REBUTTAL_TEMPLATES.get(cat, _REBUTTAL_TEMPLATES["clarity_question"])
             points.append(
                 RebuttalPoint(
-                    point_id=pid,
-                    reviewer_id=rev_id,
+                    point_id=f"R{rev_idx}.{pt_idx}",
+                    reviewer_id=_untrusted.neutralize(rev_id),
                     category=cat,
-                    severity=sev,
-                    original_comment=comment,
+                    priority_hint=_contract.priority(sev),
                     requires_new_experiment=req_exp,
-                    draft_response=resp,
-                    manuscript_action_plan=action,
+                    comment=_untrusted.excerpt(comment, origin="reviews", limit=2000),
+                    response_template=response,
+                    manuscript_action_template=action,
                 )
             )
 
     new_exp_count = sum(1 for pt in points if pt.requires_new_experiment)
-
     md_lines = [
-        "# Author Rebuttal & Revision Plan",
+        "# Author rebuttal skeleton",
         "",
-        f"- **Reviewers Addressed:** {', '.join(reviewers_detected)}",
-        f"- **Total Actionable Points:** {len(points)} (`{new_exp_count}` requiring new experiments)",
+        "> Templates only: replace every [TODO] with what you actually did and found. Noul does not know your "
+        "results; never send a response that claims experiments you have not run.",
         "",
+        f"- **Reviewers:** {', '.join(reviewers_detected)}",
+        f"- **Points:** {len(points)} ({new_exp_count} asking for new experiments)",
     ]
-    tex_lines = [
-        "% Author Rebuttal — Generated by Noul Authoring Copilot",
-        "\\section*{Author Response to Reviewers}",
-        "",
-    ]
-
+    tex_lines = ["% Author rebuttal skeleton (Noul): replace every [TODO]", "\\section*{Author Response to Reviewers}"]
     current_rev = None
     for pt in points:
         if pt.reviewer_id != current_rev:
             current_rev = pt.reviewer_id
-            md_lines.extend([f"## Response to {current_rev}", ""])
-            tex_lines.extend([f"\\subsection*{{Response to {current_rev}}}", ""])
-
-        exp_badge = " `[NEW EXPERIMENT REQUIRED]`" if pt.requires_new_experiment else ""
-        md_lines.extend(
-            [
-                f"### [{pt.point_id}] Category: `{pt.category}` (Severity: `{pt.severity}`){exp_badge}",
-                f"> **Reviewer Comment:** {pt.original_comment}",
-                "",
-                f"**Author Response:** {pt.draft_response}",
-                "",
-                f"**{pt.manuscript_action_plan}**",
-                "",
-            ]
-        )
-        tex_lines.extend(
-            [
-                "\\begin{quote}",
-                f"\\textbf{{Reviewer Comment [{pt.point_id} — {pt.category}]:}} \\textit{{{pt.original_comment}}}",
-                "\\end{quote}",
-                f"\\noindent\\textbf{{Response:}} {pt.draft_response}\\\\",
-                f"\\noindent\\textcolor{{blue}}{{\\textbf{{{pt.manuscript_action_plan}}}}}",
-                "\\medskip",
-                "",
-            ]
-        )
+            md_lines += ["", f"## Response to {current_rev}"]
+            tex_lines += ["", f"\\subsection*{{Response to {current_rev}}}"]
+        badge = " — asks for a new experiment" if pt.requires_new_experiment else ""
+        md_lines += [
+            "",
+            f"### [{pt.point_id}] {pt.category} (priority hint: {pt.priority_hint}){badge}",
+            _untrusted.render(pt.comment),
+            "",
+            f"**Response:** {pt.response_template}",
+            "",
+            f"**Change in the manuscript:** {pt.manuscript_action_template}",
+        ]
+        tex_lines += [
+            f"\\paragraph{{[{pt.point_id}] {pt.category}}} \\textit{{(reviewer comment {pt.point_id})}}",
+            f"\\noindent\\textbf{{Response:}} {pt.response_template}\\\\",
+            f"\\noindent\\textbf{{Change:}} {pt.manuscript_action_template}",
+        ]
 
     report = RebuttalReport(
+        tool="parse_and_draft_rebuttal",
+        subject=AnalysisSubject(paper_id=str(paper_id).strip() if paper_id else None, source="reviews"),
+        excerpts=context,
+        rubric=_contract.rubric(
+            "Rebuttal planning",
+            (
+                (
+                    "valid",
+                    "Which reviewer points are correct, which are misunderstandings, and which are out of scope?",
+                ),
+                ("evidence", "For each point, what evidence (existing results, new analysis) answers it?"),
+                ("experiments", "Which requested experiments are feasible before the deadline?"),
+                ("tone", "Is each response specific, polite and free of claims you cannot back up?"),
+            ),
+            "The categories and priorities are pattern-based guesses and the responses are templates. Help the "
+            "author decide each point and fill the [TODO]s with their real results; never invent results.",
+        ),
+        extraction_confidence="medium" if points else "low",
+        limitations=["Comment segmentation and classification are pattern-based; check the grouping per reviewer."],
         reviewers_detected=reviewers_detected,
         total_points=len(points),
-        new_experiments_required=new_exp_count,
+        new_experiments_requested=new_exp_count,
         points=points,
         markdown_rebuttal="\n".join(md_lines).strip(),
         latex_rebuttal="\n".join(tex_lines).strip(),
     )
-    return report.model_dump()
+    report.rendered_markdown = report.markdown_rebuttal if fmt == "markdown" else report.latex_rebuttal
+    return report.model_dump(mode="json")

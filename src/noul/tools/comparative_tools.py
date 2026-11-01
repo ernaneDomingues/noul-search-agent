@@ -31,6 +31,23 @@ _SECTION_LABEL = re.compile(
 _SENT_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9(\[\"'])")
 
 
+def _first_text(excerpts):
+    """Text of the first excerpt in a list of `Excerpt` dicts (or None)."""
+    for ex in excerpts or []:
+        if isinstance(ex, dict) and ex.get("text"):
+            return ex["text"]
+    return None
+
+
+def _first_failure_text(report):
+    """The sentence behind the first candidate failure mode of a `detect_failure_modes` result (or None)."""
+    for sig in report.get("signals") or []:
+        text = _first_text(sig.get("excerpts"))
+        if text:
+            return text
+    return None
+
+
 def _sentences(text):
     """Split an abstract into sentences; labels of structured abstracts ("Methods: ...") start a new sentence."""
     text = re.sub(r"\s+", " ", str(text or "")).strip()
@@ -1020,7 +1037,7 @@ def generate_research_hypotheses(paper_ids, topic=None, max_hypotheses=3):
             failures_by_id[d.paper_id] = technical_tools.detect_failure_modes(d.paper_id, inspect_fulltext=True)
         except Exception:
             failures_by_id[d.paper_id] = {
-                "failure_modes": [],
+                "signals": [],
                 "critical_assumptions": [],
                 "baseline_superiority_scenarios": [],
                 "operational_limits": {},
@@ -1040,8 +1057,8 @@ def generate_research_hypotheses(paper_ids, topic=None, max_hypotheses=3):
             fm_a = failures_by_id.get(d_a.paper_id) or {}
             fm_b = failures_by_id.get(d_b.paper_id) or {}
 
-            assump_a = (fm_a.get("critical_assumptions") or [None])[0]
-            assump_b = (fm_b.get("critical_assumptions") or [None])[0]
+            assump_a = _first_text(fm_a.get("critical_assumptions"))
+            assump_b = _first_text(fm_b.get("critical_assumptions"))
             if assump_a or assump_b:
                 a_txt = _clip(assump_a or d_a.reported_limitations[0], 130)
                 b_txt = _clip(assump_b or d_b.reported_limitations[0], 130)
@@ -1066,8 +1083,8 @@ def generate_research_hypotheses(paper_ids, topic=None, max_hypotheses=3):
             d_b, ex_b = rows[j]
             tag_a, tag_b = ex_a["tag"], ex_b["tag"]
             fm_b = failures_by_id.get(d_b.paper_id) or {}
-            b_modes = fm_b.get("failure_modes") or []
-            b_lim = _clip(b_modes[0]["description"], 140) if b_modes else _clip(d_b.reported_limitations[0], 140)
+            b_mode = _first_failure_text(fm_b)
+            b_lim = _clip(b_mode or d_b.reported_limitations[0], 140)
             a_strength = _headline(d_a)
             complementarities.append(
                 f"Unexplored synergy ({tag_a} -> {tag_b}): {tag_a}'s mechanism ('{a_strength}') can mitigate "
@@ -1099,16 +1116,8 @@ def generate_research_hypotheses(paper_ids, topic=None, max_hypotheses=3):
             if third_id not in source_ids:
                 source_ids.append(third_id)
 
-        lim_b = (
-            _clip(fm_b["failure_modes"][0]["description"], 140)
-            if fm_b.get("failure_modes")
-            else _clip(d_b.reported_limitations[0], 140)
-        )
-        lim_a = (
-            _clip(fm_a["failure_modes"][0]["description"], 140)
-            if fm_a.get("failure_modes")
-            else _clip(d_a.reported_limitations[0], 140)
-        )
+        lim_b = _clip(_first_failure_text(fm_b) or d_b.reported_limitations[0], 140)
+        lim_a = _clip(_first_failure_text(fm_a) or d_a.reported_limitations[0], 140)
 
         dom = d_a.domain if d_a.domain != "general_stem" else d_b.domain
         shared_benches = list(dict.fromkeys(_real_benchmarks(d_a) + _real_benchmarks(d_b)))

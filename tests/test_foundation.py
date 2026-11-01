@@ -15,7 +15,7 @@ import noul_core
 import pydantic
 
 import noul
-from noul.schemas.domain import ReviewVerdict, ScientificDomain
+from noul.schemas.domain import ScientificDomain
 from noul.schemas.paper import ArtifactStatus, PaperReference, UnifiedPaper
 
 
@@ -24,7 +24,6 @@ class SchemaTests(unittest.TestCase):
         self.assertEqual(
             [d.value for d in ScientificDomain], ["computer_science", "biomedical", "economics", "general_stem"]
         )
-        self.assertEqual(ReviewVerdict("borderline"), ReviewVerdict.BORDERLINE)
 
     def test_unified_paper_defaults_and_nested(self):
         p = UnifiedPaper(

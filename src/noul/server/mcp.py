@@ -23,6 +23,7 @@ from noul import __version__
 from noul import config as _config
 from noul import log as _log
 from noul import registry as _registry
+from noul.evidence import untrusted as _untrusted
 from noul.search import engine as _engine
 from noul.server import common as _common
 from noul.server import limits as _limits
@@ -92,8 +93,9 @@ PROMPTS: dict[str, dict[str, Any]] = {
             "1. get_paper and detect_paper_domain; get_fulltext when available.\n"
             "2. Gather evidence: verify_paper_claims, detect_failure_modes, extract_benchmark_tables / "
             "analyze_ablation_tables (empirical work), scan_paper_artifacts (reproducibility).\n"
-            "3. review_paper gives heuristic signals and a domain rubric: YOU decide the verdict, citing the "
-            "excerpts that support each strength, weakness and question. Say when evidence is missing. " + UNTRUSTED
+            "3. review_paper returns heuristic signals with excerpts and a domain rubric, never a verdict: YOU "
+            "answer each rubric criterion and decide the recommendation, citing the excerpts (page/section) behind "
+            "each strength, weakness and question. Say when the available text cannot settle a point. " + UNTRUSTED
         ),
         "requires": ("review_paper", "verify_paper_claims", "detect_failure_modes"),
     },
@@ -151,6 +153,8 @@ def _text_result(payload: Any, is_error: bool = False, output: Any = None) -> ty
                 # Never send structuredContent that would fail the advertised outputSchema: text only.
                 _log.logger.warning("structured result does not match %s (%s)", output.__name__, type(e).__name__)
                 structured = None
+    if not is_error and _untrusted.contains_untrusted(text):
+        text = _untrusted.NOTICE + "\n\n" + text  # third-party text inside: say so before the data
     return types.CallToolResult(
         content=[types.TextContent(type="text", text=text)], structured_content=structured, is_error=is_error
     )

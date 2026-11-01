@@ -25,15 +25,14 @@ from noul.schemas.authoring import (
     SubmissionGatekeeperReport,
 )
 from noul.schemas.code import CodeScaffold
-from noul.schemas.domain import ReviewVerdict, ScientificDomain
+from noul.schemas.domain import ScientificDomain
 from noul.schemas.hardware import HardwareFeasibility, PrecisionMemory
 from noul.schemas.paper import ArtifactStatus, PaperReference, UnifiedPaper
-from noul.schemas.review import PeerReviewReport, PersonaEvaluation
+from noul.schemas.review import PeerReviewReport, ReviewPerspective
 from noul.schemas.technical import (
     AblationEntry,
     ArxivVersionDiffReport,
     BenchmarkTable,
-    FailureModeEntry,
     FailureModesReport,
     GroundedClaim,
     MathItem,
@@ -43,7 +42,6 @@ from noul.schemas.technical import (
 
 __all__ = [
     "ScientificDomain",
-    "ReviewVerdict",
     "ArtifactStatus",
     "PaperReference",
     "UnifiedPaper",
@@ -53,7 +51,7 @@ __all__ = [
     "BooleanQuerySuggestion",
     "ResearchHypothesis",
     "ResearchGapReport",
-    "PersonaEvaluation",
+    "ReviewPerspective",
     "PeerReviewReport",
     "CodeScaffold",
     "PrecisionMemory",
@@ -63,7 +61,6 @@ __all__ = [
     "MathItem",
     "AblationEntry",
     "PromptExtractionResult",
-    "FailureModeEntry",
     "FailureModesReport",
     "VersionChangeItem",
     "ArxivVersionDiffReport",

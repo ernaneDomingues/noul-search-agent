@@ -76,11 +76,20 @@ class DraftAuditorTests(unittest.TestCase):
             "audit_manuscript_draft",
             {"draft_input": "draft_neurips.tex", "venue": "neurips", "output_format": "markdown"},
         )
-        self.assertEqual(res["source_label"], "draft_neurips.tex")
-        self.assertGreaterEqual(len(res["weak_or_unsubstantiated_claims"]), 2)
-        self.assertGreaterEqual(len(res["notation_or_terminology_inconsistencies"]), 2)
-        self.assertGreaterEqual(len(res["reproducibility_omissions"]), 4)
-        self.assertIn("# Manuscript Audit Report", res["rendered_report"])
+        self.assertEqual(res["subject"]["title"], "draft_neurips.tex")
+        by_cat = {}
+        for sig in res["signals"]:
+            by_cat.setdefault(sig["category"], []).append(sig)
+            self.assertNotIn("severity", sig)
+        self.assertGreaterEqual(len(by_cat["weak_claim"]), 2)
+        self.assertGreaterEqual(len(by_cat["notation_inconsistency"]), 2)
+        self.assertGreaterEqual(len(by_cat["reproducibility_omission"]), 4)
+        quote = by_cat["weak_claim"][0]["excerpts"][0]
+        self.assertEqual(quote["origin"], "draft")
+        self.assertFalse(quote["untrusted"])  # the user's own draft
+        self.assertEqual(by_cat["reproducibility_omission"][0]["excerpts"], [])  # an omission has no passage
+        self.assertEqual({c["id"]: c["detected"] for c in res["checklist"]}["claims_anchored"], "no")
+        self.assertIn("# Manuscript draft audit", res["rendered_report"])
 
     def test_workspace_confinement_blocks_outside_files_and_symlinks(self):
         outside_dir = Path(tempfile.mkdtemp(prefix="noul-draft-outside-"))
@@ -125,7 +134,8 @@ class DraftAuditorTests(unittest.TestCase):
         with redirect_stdout(buf2):
             rc2 = cli.main(["draft", "audit", "This method clearly proves a massive improvement.", "--pretty"])
         self.assertEqual(rc2, 0)
-        self.assertIn("Weak or Unsubstantiated Claims", buf2.getvalue())
+        self.assertIn("category: weak_claim", buf2.getvalue())
+        self.assertIn("> This method clearly proves a massive improvement.", buf2.getvalue())
 
 
 if __name__ == "__main__":

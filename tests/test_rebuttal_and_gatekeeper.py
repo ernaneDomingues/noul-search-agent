@@ -38,7 +38,7 @@ Reviewer #2:
         )
         self.assertEqual(res["reviewers_detected"], ["Reviewer 1", "Reviewer 2"])
         self.assertEqual(res["total_points"], 5)
-        self.assertGreaterEqual(res["new_experiments_required"], 1)
+        self.assertGreaterEqual(res["new_experiments_requested"], 1)
 
         categories = {pt["point_id"]: pt["category"] for pt in res["points"]}
         self.assertEqual(categories["R1.1"], "clarity_question")
@@ -49,6 +49,13 @@ Reviewer #2:
 
         r1_2 = next(pt for pt in res["points"] if pt["point_id"] == "R1.2")
         self.assertTrue(r1_2["requires_new_experiment"])
+        self.assertTrue(r1_2["comment"]["untrusted"])
+        self.assertEqual(r1_2["comment"]["origin"], "reviews")
+        # Templates, never invented results.
+        self.assertIn("[TODO", r1_2["response_template"])
+        for pt in res["points"]:
+            self.assertNotIn("We have executed", pt["response_template"])
+            self.assertNotIn("confirm our primary findings", pt["response_template"])
         self.assertIn("Response to Reviewer 1", res["markdown_rebuttal"])
         self.assertIn("\\subsection*{Response to Reviewer 2}", res["latex_rebuttal"])
 
@@ -74,16 +81,17 @@ Reviewer #2:
             {"draft_path": "leaky_submission.tex", "venue": "neurips"},
         )
         self.assertEqual(res["venue"], "neurips")
-        self.assertEqual(res["desk_reject_risk"], "critical")
-        self.assertLess(res["readiness_score"], 40)
-
-        anon_ids = {v["check_id"] for v in res["anonymity_violations"]}
+        for banned in ("desk_reject_risk", "readiness_score"):
+            self.assertNotIn(banned, res)
+        anon_ids = {v["category"] for v in res["signals"] if v["category"].startswith("anon_")}
         self.assertIn("anon_repo_url", anon_ids)
         self.assertIn("anon_author_block", anon_ids)
         self.assertIn("anon_pdf_metadata", anon_ids)
         self.assertIn("anon_self_citation", anon_ids)
-        self.assertGreaterEqual(len(res["overclaiming_flags"]), 2)
-        self.assertTrue(len(res["mandatory_corrective_actions"]) >= 4)
+        self.assertGreaterEqual(len([v for v in res["signals"] if not v["category"].startswith("anon_")]), 2)
+        self.assertTrue(all(v["priority_hint"] == "high" for v in res["signals"] if v["category"].startswith("anon_")))
+        self.assertTrue(len(res["suggested_actions"]) >= 4)
+        self.assertTrue(res["double_blind"])
 
     def test_gatekeeper_passes_compliant_anonymous_manuscript_and_pdf(self):
         good_draft = WS / "clean_submission.tex"
@@ -111,10 +119,9 @@ Reviewer #2:
         )
 
         res = t.audit_submission_readiness("clean_submission.tex", venue="neurips")
-        self.assertEqual(len(res["anonymity_violations"]), 0)
-        self.assertEqual(len(res["overclaiming_flags"]), 0)
-        self.assertEqual(res["readiness_score"], 100)
-        self.assertEqual(res["desk_reject_risk"], "low")
+        self.assertEqual(res["signals"], [])
+        self.assertTrue(res["checklist"])
+        self.assertTrue(all(c["detected"] == "yes" for c in res["checklist"]), res["checklist"])
 
         # Also test PDF file support in workspace
         pdf_file = WS / "manuscript.pdf"
@@ -124,8 +131,7 @@ Reviewer #2:
             b"endstream\nendobj\n%%EOF"
         )
         res_pdf = t.audit_submission_readiness("manuscript.pdf", venue="icml")
-        self.assertEqual(res_pdf["desk_reject_risk"], "critical")
-        self.assertTrue(any(v["check_id"] == "anon_repo_url" for v in res_pdf["anonymity_violations"]))
+        self.assertTrue(any(v["category"] == "anon_repo_url" for v in res_pdf["signals"]))
 
     def test_cli_rebuttal_and_gatekeeper_pretty(self):
         rev_file = WS / "rev_cli.txt"
@@ -150,7 +156,8 @@ Reviewer #2:
         with redirect_stdout(buf2):
             rc2 = cli.main(["gatekeeper", "audit", "cli_submission.tex", "--venue", "neurips", "--pretty"])
         self.assertEqual(rc2, 0)
-        self.assertIn("# Pre-Submission Gatekeeper Audit", buf2.getvalue())
+        self.assertIn("# Pre-submission audit (cli_submission.tex, venue NEURIPS)", buf2.getvalue())
+        self.assertIn("**anonymity.** Does anything", buf2.getvalue())
 
 
 if __name__ == "__main__":
