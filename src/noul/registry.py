@@ -276,7 +276,7 @@ def _fold_enum_case(annotation: Any, value: Any) -> Any:
     return fold(value)
 
 
-def call(name: str, args: Any = None) -> Any:
+def call(name: str, args: Any = None, caps: Mapping[str, int] | None = None) -> Any:
     """Validate `args` against the tool's input model and run it. Errors are `HTTPError` (400/404)."""
     if name not in _loaded():
         raise _errors.HTTPError(404, f"Unknown tool {name}")
@@ -305,6 +305,19 @@ def call(name: str, args: Any = None) -> Any:
         for k, v in args.items()
         if not (v is None and not fields[k].is_required() and fields[k].default is not None)
     }
+    # Caps (public connector) apply to the validated values, so "1000.0" or "1_000" cannot slip past them.
+    # Oversized lists are refused (truncating them would silently change the answer, e.g. Evidence Meter
+    # percentages); numbers are lowered and the result says so.
+    notices = []
+    for key, cap in (caps or {}).items():
+        value = kwargs.get(key)
+        if isinstance(value, list) and len(value) > cap:
+            raise _errors.HTTPError(
+                400, f"at most {cap} items in '{key}' on the public connector ({len(value)} given); split the call"
+            )
+        if isinstance(value, int) and not isinstance(value, bool) and value > cap:
+            notices.append(f"'{key}' lowered from {value} to {cap} on the public connector")
+            kwargs[key] = cap
     for k, v in kwargs.items():
         if isinstance(v, list):
             kwargs[k] = [x.model_dump(exclude_unset=True) if isinstance(x, BaseModel) else x for x in v]
@@ -327,4 +340,6 @@ def call(name: str, args: Any = None) -> Any:
     _log.logger.debug(
         "tool done name=%s trace_id=%s duration_ms=%.0f", name, trace_id, (time.perf_counter() - started) * 1000
     )
+    if notices and isinstance(result, dict):
+        result = {**result, "notice": "; ".join(notices)}
     return result

@@ -43,6 +43,19 @@ class RateLimiter:
         return wait
 
 
+def client_key(ip: str) -> str:
+    """Rate-limit key: IPv6 addresses are grouped by /64 (one subscriber usually owns a whole /64)."""
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return ip
+    if isinstance(addr, ipaddress.IPv6Address):
+        if addr.ipv4_mapped:
+            return str(addr.ipv4_mapped)
+        return str(ipaddress.ip_network(f"{addr}/64", strict=False))
+    return str(addr)
+
+
 def client_ip(scope: dict[str, Any], headers: dict[str, str], trusted_proxy_hops: int) -> str:
     """The client address. With `trusted_proxy_hops` = n > 0, the n-th X-Forwarded-For entry from the right is used
     (entries to its left are client-supplied and can be forged); otherwise the TCP peer address."""
@@ -59,15 +72,47 @@ def client_ip(scope: dict[str, Any], headers: dict[str, str], trusted_proxy_hops
 
 
 def env_rate_limiter(public: bool) -> RateLimiter | None:
-    """Rate limiter from NOUL_RATE_LIMIT (requests/minute, 0 disables) and NOUL_RATE_BURST; on by default in
-    public mode (60/min, burst 20), off otherwise unless NOUL_RATE_LIMIT is set."""
+    """Per-client flood guard from NOUL_RATE_LIMIT (requests/minute, 0 disables) and NOUL_RATE_BURST; on by
+    default in public mode (600/min, burst 120 - hosted clients share egress IPs), off otherwise."""
     raw = os.environ.get("NOUL_RATE_LIMIT")
     if raw is None and not public:
         return None
-    rate = float(raw) if raw not in (None, "") else 60.0
+    rate = float(raw) if raw not in (None, "") else 600.0
     if rate <= 0:
         return None
-    return RateLimiter(rate, int(os.environ.get("NOUL_RATE_BURST") or 20))
+    return RateLimiter(rate, int(os.environ.get("NOUL_RATE_BURST") or 120))
+
+
+def env_tool_rate_limiter(public: bool) -> RateLimiter | None:
+    """Per-instance ceiling on tool calls (NOUL_TOOL_RATE_LIMIT per minute, NOUL_TOOL_RATE_BURST; public default
+    300/min, burst 60): the cost control for upstream APIs, whatever client addresses are used."""
+    raw = os.environ.get("NOUL_TOOL_RATE_LIMIT")
+    if raw is None and not public:
+        return None
+    rate = float(raw) if raw not in (None, "") else 300.0
+    if rate <= 0:
+        return None
+    return RateLimiter(rate, int(os.environ.get("NOUL_TOOL_RATE_BURST") or 60), max_keys=1)
+
+
+class Concurrency:
+    """Shared cap on tool calls running at once (MCP and REST together)."""
+
+    def __init__(self, limit: int) -> None:
+        self.limit = limit
+        self._lock = threading.Lock()
+        self._active = 0
+
+    def try_acquire(self) -> bool:
+        with self._lock:
+            if self._active >= self.limit:
+                return False
+            self._active += 1
+            return True
+
+    def release(self) -> None:
+        with self._lock:
+            self._active = max(0, self._active - 1)
 
 
 def env_trusted_proxy_hops() -> int:

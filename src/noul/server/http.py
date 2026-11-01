@@ -53,6 +53,7 @@ class Guard:
         allowed_hosts: frozenset[str] | None,
         rate_limiter: _limits.RateLimiter | None = None,
         trusted_proxy_hops: int = 0,
+        public: bool = False,
     ):
         self.app = app
         self.token = token or None
@@ -60,6 +61,7 @@ class Guard:
         self.allowed_hosts = allowed_hosts  # None: not bound to loopback (e.g. Cloud Run behind a proxy)
         self.rate_limiter = rate_limiter
         self.trusted_proxy_hops = trusted_proxy_hops
+        self.public = public
 
     async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
         if scope["type"] == "lifespan":
@@ -70,9 +72,23 @@ class Guard:
                 await send({"type": "websocket.close", "code": 1008})
             return
         headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope.get("headers", [])}
+        # Repeated X-Forwarded-For headers are one list in order (a dict would keep only the last one).
+        xff = [v.decode("latin-1") for k, v in scope.get("headers", []) if k.lower() == b"x-forwarded-for"]
+        if xff:
+            headers["x-forwarded-for"] = ",".join(xff)
         path = scope.get("path", "")
         origin = (headers.get("origin") or "").rstrip("/")
-        cors = {"Access-Control-Allow-Origin": origin, "Vary": "Origin"} if origin in self.cors_origins else {}
+        if self.public and origin:
+            # Open, credential-less server: any origin may call it (browser inspectors, web clients).
+            cors = {"Access-Control-Allow-Origin": "*", "Access-Control-Expose-Headers": "Mcp-Session-Id"}
+        elif origin in self.cors_origins:
+            cors = {
+                "Access-Control-Allow-Origin": origin,
+                "Vary": "Origin",
+                "Access-Control-Expose-Headers": "Mcp-Session-Id",
+            }
+        else:
+            cors = {}
 
         async def reply(status: int, payload: Any, extra: dict[str, str] | None = None) -> None:
             for message in _json(status, payload, {**cors, **(extra or {})}):
@@ -80,15 +96,22 @@ class Guard:
 
         if self.allowed_hosts is not None and headers.get("host", "").lower() not in self.allowed_hosts:
             return await reply(403, {"error": "Forbidden: invalid Host header"})
-        if origin and origin not in self.cors_origins:
+        if origin and not self.public and origin not in self.cors_origins:
             return await reply(403, {"error": "Forbidden: origin not allowed (see NOUL_CORS_ORIGINS)"})
         if scope.get("method") == "OPTIONS":
             hdrs = [(k.lower().encode(), v.encode()) for k, v in {**cors, **_PREFLIGHT_HEADERS}.items()]
             await send({"type": "http.response.start", "status": 204, "headers": hdrs})
             await send({"type": "http.response.body", "body": b""})
             return
-        if self.rate_limiter is not None and path != "/healthz":
-            wait = self.rate_limiter.check(_limits.client_ip(scope, headers, self.trusted_proxy_hops))
+        if self.public and path == "/mcp" and scope.get("method") in ("GET", "DELETE"):
+            # Stateless JSON transport: no server-to-client SSE stream and no sessions to delete.
+            return await reply(405, {"error": "Method not allowed: POST JSON-RPC messages to /mcp"}, {"Allow": "POST"})
+        if self.rate_limiter is not None and path != "/healthz" and not path.startswith("/.well-known/"):
+            # Per-client flood guard only: hosted clients (Claude.ai, ChatGPT) share their vendor's egress IPs, so
+            # the real cost control is the per-instance tool-call limit and concurrency cap.
+            wait = self.rate_limiter.check(
+                _limits.client_key(_limits.client_ip(scope, headers, self.trusted_proxy_hops))
+            )
             if wait > 0:
                 retry = str(max(1, int(wait + 0.999)))
                 return await reply(429, {"error": "Too many requests; slow down."}, {"Retry-After": retry})
@@ -146,14 +169,21 @@ def build_app(
     rate_limiter: _limits.RateLimiter | None = None,
     trusted_proxy_hops: int = 0,
     max_concurrency: int | None = None,
+    tool_limiter: _limits.RateLimiter | None = None,
 ) -> Any:
     """Starlette app (wrapped in Guard). Writes are only possible with a token *and* allow_write, never in `public`
     mode (the hosted read-only connector: no token, request-size caps, no server dossiers)."""
     allow_write = bool(allow_write and token) and not public
+    # One concurrency budget shared by MCP and REST tool calls.
+    concurrency = _limits.Concurrency(max_concurrency) if max_concurrency else None
     server = _mcp.build_server(
-        profile=profile, allow_write=allow_write, elicit_email=False, public=public, max_concurrency=max_concurrency
+        profile=profile,
+        allow_write=allow_write,
+        elicit_email=False,
+        public=public,
+        max_concurrency=concurrency,
+        tool_limiter=tool_limiter,
     )
-    rest_in_flight = [0]
 
     async def healthz(request: Request) -> Response:
         return JSONResponse({"status": "ok", "version": __version__})
@@ -161,12 +191,14 @@ def build_app(
     async def openapi(request: Request) -> Response:
         proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "http").split(",")[0].strip()
         host = request.headers.get("host") or request.url.netloc
-        return JSONResponse(_common.openapi_spec(f"{proto}://{host}", profile=profile, allow_write=allow_write))
+        return JSONResponse(
+            _common.openapi_spec(f"{proto}://{host}", profile=profile, allow_write=allow_write, public=public)
+        )
 
     async def list_tools(request: Request) -> Response:
         tools = [
             {"name": t["name"], "description": t["description"], "inputSchema": t["inputSchema"]}
-            for t in _common.visible_tools(profile, allow_write)
+            for t in _common.visible_tools(profile, allow_write, public)
         ]
         return JSONResponse({"tools": tools})
 
@@ -177,7 +209,7 @@ def build_app(
             body = json.loads(raw) if raw.strip() else {}
         except ValueError as e:
             return JSONResponse({"error": f"Invalid JSON: {e}"}, status_code=400)
-        if name not in {t["name"] for t in _common.visible_tools(profile, allow_write=True)}:
+        if name not in {t["name"] for t in _common.visible_tools(profile, allow_write=True, public=public)}:
             return JSONResponse({"error": f"Unknown tool {name}"}, status_code=404)
         if not allow_write and _registry.call_writes(name, body):
             return JSONResponse(
@@ -187,23 +219,28 @@ def build_app(
                 },
                 status_code=403,
             )
-        if public:
-            body = _common.apply_public_caps(name, body)
-        if max_concurrency is not None and rest_in_flight[0] >= max_concurrency:
+        caps = _common.public_caps(name) if public else None
+        if tool_limiter is not None and (wait := tool_limiter.check("tools")) > 0:
+            return JSONResponse(
+                {"error": f"RateLimited: tool-call limit reached; retry in {int(wait + 0.999)} s."},
+                status_code=429,
+                headers={"Retry-After": str(max(1, int(wait + 0.999)))},
+            )
+        if concurrency is not None and not concurrency.try_acquire():
             return JSONResponse(
                 {"error": "Busy: too many requests in progress; retry shortly."},
                 status_code=503,
                 headers={"Retry-After": "5"},
             )
-        rest_in_flight[0] += 1
         try:
-            result = await run_in_threadpool(_registry.call, name, body)
+            result = await run_in_threadpool(_registry.call, name, body, caps)
         except Exception as e:
             code = getattr(e, "code", None)
             status = code if isinstance(code, int) and 400 <= code < 600 else 500
             return JSONResponse({"error": f"{type(e).__name__}: {e}"}, status_code=status)
         finally:
-            rest_in_flight[0] -= 1
+            if concurrency is not None:
+                concurrency.release()
         payload = result if isinstance(result, dict) else {"result": result}
         return Response(json.dumps(payload, ensure_ascii=False, default=str), media_type="application/json")
 
@@ -220,9 +257,13 @@ def build_app(
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
         custom_starlette_routes=routes,
         max_request_body_size=_common.MAX_BODY_BYTES,
+        # Public connector: stateless JSON responses - no long-lived SSE streams per client (slot exhaustion)
+        # and no per-instance session state (Cloud Run has no session affinity across instances).
+        stateless_http=public,
+        json_response=public,
     )
     # The public connector is open by design: a configured token would only lock its intended users out.
-    return Guard(app, None if public else token, cors_origins, allowed_hosts, rate_limiter, trusted_proxy_hops)
+    return Guard(app, None if public else token, cors_origins, allowed_hosts, rate_limiter, trusted_proxy_hops, public)
 
 
 def loopback_hosts(port: int) -> frozenset[str]:
@@ -237,6 +278,9 @@ def serve(
     token = os.environ.get("NOUL_HTTP_TOKEN") or None
     want_write = os.environ.get("NOUL_HTTP_ALLOW_WRITE") == "1"
     loopback = _common.is_loopback_host(host)
+    if public:  # hosted defaults: bounded cache (instance RAM) and smaller downloads (memory per call)
+        os.environ.setdefault("NOUL_CACHE_MAX_ROWS", "2000")
+        os.environ.setdefault("NOUL_MAX_DOWNLOAD_MB", "15")
     app = build_app(
         profile=profile,
         token=token,
@@ -247,6 +291,7 @@ def serve(
         rate_limiter=_limits.env_rate_limiter(public),
         trusted_proxy_hops=_limits.env_trusted_proxy_hops(),
         max_concurrency=_limits.env_max_concurrency(public),
+        tool_limiter=_limits.env_tool_rate_limiter(public),
     )
     shown = f"[{host}]" if ":" in host else host
     print(

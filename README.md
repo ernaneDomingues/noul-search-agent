@@ -168,9 +168,9 @@ noul-mcp --http 8765          # ou: uv run noul-mcp --http 8765
 Segurança: escuta em `127.0.0.1` por padrão e valida o cabeçalho `Host` (anti DNS rebinding); CORS apenas para `NOUL_CORS_ORIGINS`; autenticação `Authorization: Bearer` com `NOUL_HTTP_TOKEN` (exceto `/healthz`); ferramentas que gravam em disco (`download_papers`, `save_research_dossier`, `configure_noul`) ficam ocultas e bloqueadas via HTTP, a menos que `NOUL_HTTP_ALLOW_WRITE=1` **e** um token estejam definidos. Outras variáveis: `NOUL_HTTP_HOST`, `PORT`, `NOUL_HTTP_LOG=1`.
 
 ### 7. Conector público (Claude.ai, ChatGPT) e Google Cloud Run
-O mesmo servidor roda como **conector público só de leitura**: sem login, perfil `research` sem ferramentas de escrita, limite por IP (60 req/min), concorrência limitada e tetos por chamada. Qualquer pessoa usa colando `https://<serviço>/mcp` em Claude.ai/Claude Desktop (Conectores) ou ChatGPT (modo desenvolvedor).
+O mesmo servidor roda como **conector público só de leitura**: sem login, 12 ferramentas do perfil `research` (sem escrita e sem os dossiês do servidor), transporte *stateless*, limite de chamadas de ferramenta por instância, concorrência limitada e tetos por chamada anunciados no schema. Qualquer pessoa usa colando `https://<serviço>/mcp` em Claude.ai/Claude Desktop (Conectores) ou ChatGPT (modo desenvolvedor).
 ```bash
-NOUL_PUBLIC=1 noul-mcp --http 8765                          # local; ou: noul-mcp --http --public
+NOUL_PUBLIC=1 noul-mcp --http 8765                          # local (127.0.0.1): para testar como conector, exponha via túnel HTTPS
 docker build -t noul-search-agent . && docker run -p 8080:8080 -e NOUL_PUBLIC=1 noul-search-agent
 ```
 Deploy no Cloud Run (escala a zero, sem chaves de serviço, via GitHub Actions): [`docs/deploy/cloud-run.md`](docs/deploy/cloud-run.md).

@@ -28,6 +28,15 @@ UA = "noul-search-agent/" + __version__ + " (+https://github.com/ernanedomingues
 MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024
 
 
+def _max_download_bytes():
+    """Default response cap: NOUL_MAX_DOWNLOAD_MB (the public connector uses 15) or MAX_DOWNLOAD_BYTES."""
+    try:
+        mb = float(os.environ.get("NOUL_MAX_DOWNLOAD_MB") or 0)
+    except ValueError:
+        mb = 0
+    return int(mb * 1024 * 1024) if mb > 0 else MAX_DOWNLOAD_BYTES
+
+
 def _user_agent():
     email = _config._email()
     return UA[:-1] + f"; mailto:{email})" if email else UA
@@ -275,12 +284,14 @@ def _fetch_once(url, headers, timeout, max_bytes, public_only):
     raise _errors.HTTPError(502, f"Too many redirects (> {MAX_REDIRECTS})")
 
 
-def _http_get(url, headers=None, timeout=15, binary=False, max_bytes=MAX_DOWNLOAD_BYTES, public_only=False):
+def _http_get(url, headers=None, timeout=15, binary=False, max_bytes=None, public_only=False):
     """GET with a byte cap, retries (429/5xx/transient network errors, honouring Retry-After within RETRY_BUDGET)
     and per-host rate limits. `timeout` applies per phase (connect/read/write), like urllib's socket timeout.
 
     `public_only=True` applies the SSRF guard to the URL and every redirect (use it for URLs that come from
     third-party metadata, e.g. PDF/full-text links). Errors raise `noul.errors.HTTPError` with `.code`."""
+    if max_bytes is None:
+        max_bytes = _max_download_bytes()
     # identity: never let a server send a compression bomb that expands past the byte cap before we count it.
     hdrs = {"User-Agent": _user_agent(), "Accept": "*/*", "Accept-Encoding": "identity"}
     if headers:

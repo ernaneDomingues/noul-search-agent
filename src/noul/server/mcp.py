@@ -25,6 +25,7 @@ from noul import log as _log
 from noul import registry as _registry
 from noul.search import engine as _engine
 from noul.server import common as _common
+from noul.server import limits as _limits
 
 INSTRUCTIONS = (
     "Noul retrieves and structures scientific evidence; YOU (the host model) judge it. Typical flow: frame the "
@@ -155,6 +156,19 @@ def _text_result(payload: Any, is_error: bool = False, output: Any = None) -> ty
     )
 
 
+def _instructions(public: bool, prompts: list[str]) -> str:
+    text = INSTRUCTIONS.replace(
+        "Prompts noul-research, noul-review and noul-write give the full workflows.",
+        (
+            f"Prompt{'s' if len(prompts) > 1 else ''} {', '.join(prompts)} give{'' if len(prompts) > 1 else 's'} "
+            "the full workflow" + ("s." if len(prompts) > 1 else ".")
+        )
+        if prompts
+        else "",
+    )
+    return text + (PUBLIC_INSTRUCTIONS if public else "")
+
+
 def _error_text(exc: Exception) -> str:
     """Error text for the host model: argument/lookup problems are not network failures (do not retry them)."""
     code = getattr(exc, "code", None)
@@ -211,7 +225,8 @@ def build_server(
     allow_write: bool = True,
     elicit_email: bool = False,
     public: bool = False,
-    max_concurrency: int | None = None,
+    max_concurrency: int | _limits.Concurrency | None = None,
+    tool_limiter: _limits.RateLimiter | None = None,
 ) -> Server:
     """MCP server exposing the tools of `profile`; write tools are hidden and refused unless `allow_write`.
 
@@ -220,10 +235,10 @@ def build_server(
     if public:
         allow_write, elicit_email = False, False
     email_prompt = _EmailPrompt(elicit_email and allow_write)
-    in_flight = [0]
+    limiter = _limits.Concurrency(max_concurrency) if isinstance(max_concurrency, int) else max_concurrency
 
     def visible() -> dict[str, dict[str, Any]]:
-        return {t["name"]: t for t in _common.visible_tools(profile, allow_write)}
+        return {t["name"]: t for t in _common.visible_tools(profile, allow_write, public)}
 
     async def list_tools(ctx: Any, params: Any) -> types.ListToolsResult:
         return types.ListToolsResult(
@@ -283,11 +298,19 @@ def build_server(
                     }
                 )
 
-        if public:
-            args = _common.apply_public_caps(name, args)
-        if max_concurrency is not None and in_flight[0] >= max_concurrency:
+        caps = _common.public_caps(name) if public else None
+        if tool_limiter is not None and (wait := tool_limiter.check("tools")) > 0:
             return _text_result(
-                "Busy: the server is handling too many requests right now; retry in a few seconds.", is_error=True
+                f"RateLimited: the public Noul connector reached its tool-call limit. Wait about {int(wait + 0.999)} s "
+                "and retry this call once; if it fails again, tell the user the public server is busy and continue "
+                "with the results you already have.",
+                is_error=True,
+            )
+        if limiter is not None and not limiter.try_acquire():
+            return _text_result(
+                "Busy: the Noul server is at capacity. Wait about 5 s and retry this call once; if it fails again, "
+                "tell the user the server is busy and continue with the results you already have.",
+                is_error=True,
             )
 
         token = anyio.lowlevel.current_token()
@@ -301,17 +324,17 @@ def build_server(
         def run() -> Any:
             _engine.SOURCE_PROGRESS.set(progress)
             try:
-                return _registry.call(name, args)
+                return _registry.call(name, args, caps=caps)
             finally:
                 finished.set()
 
-        in_flight[0] += 1
         try:
             result = await anyio.to_thread.run_sync(contextvars.copy_context().run, run)
         except Exception as e:
             return _text_result(_error_text(e), is_error=True)
         finally:
-            in_flight[0] -= 1
+            if limiter is not None:
+                limiter.release()
         return _text_result(result, output=_registry.REGISTRY[name].output)
 
     async def list_resources(ctx: Any, params: Any) -> types.ListResourcesResult:
@@ -364,11 +387,12 @@ def build_server(
         "noul",
         version=__version__,
         title="Noul Search",
-        instructions=INSTRUCTIONS + (PUBLIC_INSTRUCTIONS if public else ""),
+        instructions=_instructions(public, available_prompts()),
         on_list_tools=list_tools,
         on_call_tool=call_tool,
-        on_list_resources=list_resources,
-        on_read_resource=read_resource,
+        # The public connector exposes no resources at all (no capability advertised).
+        on_list_resources=None if public else list_resources,
+        on_read_resource=None if public else read_resource,
         on_list_prompts=list_prompts,
         on_get_prompt=get_prompt,
     )

@@ -82,16 +82,18 @@ class RateLimiterTests(unittest.TestCase):
 
         from noul.server import limits
 
+        keys = ("NOUL_RATE_LIMIT", "NOUL_TOOL_RATE_LIMIT", "NOUL_MAX_CONCURRENCY", "NOUL_TRUSTED_PROXY")
         with mock.patch.dict(os.environ, {}, clear=False):
-            for key in ("NOUL_RATE_LIMIT", "NOUL_MAX_CONCURRENCY", "NOUL_TRUSTED_PROXY"):
+            for key in keys:
                 os.environ.pop(key, None)
-            self.assertIsNotNone(limits.env_rate_limiter(public=True))
+            flood = limits.env_rate_limiter(public=True)
+            self.assertEqual((flood.rate * 60, flood.burst), (600.0, 120))
+            tools = limits.env_tool_rate_limiter(public=True)
+            self.assertEqual((tools.rate * 60, tools.burst), (300.0, 60))
             self.assertIsNone(limits.env_rate_limiter(public=False))
+            self.assertIsNone(limits.env_tool_rate_limiter(public=False))
             self.assertEqual(limits.env_max_concurrency(public=True), 8)
-            self.assertIsNone(limits.env_max_concurrency(public=False))
             self.assertEqual(limits.env_trusted_proxy_hops(), 0)
-            os.environ["NOUL_RATE_LIMIT"] = "0"
-            self.assertIsNone(limits.env_rate_limiter(public=True))
 
 
 class PublicAppTests(unittest.TestCase):
@@ -104,14 +106,16 @@ class PublicAppTests(unittest.TestCase):
     def test_no_token_needed_and_writes_are_impossible(self):
         with public_client(token="ignored-in-public", allow_write=True) as c:
             names = {t["name"] for t in c.get("/tools").json()["tools"]}
-            self.assertEqual(len(names), 14)
+            self.assertEqual(len(names), 12)  # research minus write tools minus server-dossier tools
             self.assertFalse(names & {"download_papers", "save_research_dossier", "configure_noul"})
+            self.assertFalse(names & {"list_research_dossiers", "get_research_dossier"})
+            self.assertEqual(c.post("/tools/list_research_dossiers", json={}).status_code, 404)
             args = {"bibtex_input": "@misc{a,title={T}}", "output_path": "x.bib"}
             self.assertEqual(c.post("/tools/sanitize_bibtex", json=args).status_code, 404)  # not in research
             r = c.post("/tools/evidence_meter", json={"items": [{"stance": "supportive"}]})
             self.assertEqual(r.json()["total_papers"], 1)
 
-    def test_mcp_endpoint_instructions_and_no_server_dossiers(self):
+    def test_server_dossiers_are_never_exposed(self):
         from noul import api
 
         api.save_research_dossier("Private topic", "# Secret synthesis", [], None)
@@ -119,14 +123,37 @@ class PublicAppTests(unittest.TestCase):
             init = c.post("/mcp", json=INIT, headers=MCP_HEADERS)
             result = mcp_payloads(init)[0]["result"]
             self.assertIn("public, read-only Noul connector", result["instructions"])
+            self.assertNotIn("resources", result["capabilities"])
+            self.assertNotIn("noul-review", result["instructions"])
             headers = {**MCP_HEADERS, "MCP-Protocol-Version": result["protocolVersion"]}
-            if init.headers.get("mcp-session-id"):
-                headers["Mcp-Session-Id"] = init.headers["mcp-session-id"]
-            c.post("/mcp", json={"jsonrpc": "2.0", "method": "notifications/initialized"}, headers=headers)
-            listed = c.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "resources/list"}, headers=headers)
-            self.assertEqual(mcp_payloads(listed)[0]["result"]["resources"], [])
+            listed = c.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, headers=headers)
+            names = {t["name"] for t in mcp_payloads(listed)[0]["result"]["tools"]}
+            self.assertFalse(names & {"list_research_dossiers", "get_research_dossier"})
+            call = {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {"name": "list_research_dossiers", "arguments": {}},
+            }
+            out = mcp_payloads(c.post("/mcp", json=call, headers=headers))[0]["result"]
+            self.assertTrue(out["isError"])
+            self.assertNotIn("Private topic", json.dumps(out))
+            self.assertEqual(c.post("/tools/get_research_dossier", json={"slug": "private-topic"}).status_code, 404)
 
-    def test_rate_limit_answers_429_with_retry_after(self):
+    def test_stateless_transport_any_origin_and_never_401(self):
+        with public_client(token="configured-but-ignored") as c:
+            init = c.post("/mcp", json=INIT, headers={**MCP_HEADERS, "Origin": "https://claude.ai"})
+            self.assertEqual(init.status_code, 200)
+            self.assertTrue(init.headers["content-type"].startswith("application/json"))
+            self.assertNotIn("mcp-session-id", init.headers)
+            self.assertEqual(init.headers["access-control-allow-origin"], "*")
+            pre = c.options("/mcp", headers={"Origin": "http://localhost:6274"})
+            self.assertEqual(pre.status_code, 204)
+            self.assertEqual(c.get("/mcp").status_code, 405)
+            self.assertEqual(c.delete("/mcp").status_code, 405)
+            self.assertEqual(c.get("/.well-known/oauth-protected-resource").status_code, 404)
+
+    def test_flood_guard_answers_429_but_not_for_discovery_or_health(self):
         from noul.server.limits import RateLimiter
 
         limiter = RateLimiter(rate_per_minute=60, burst=2, clock=FakeClock())
@@ -135,37 +162,97 @@ class PublicAppTests(unittest.TestCase):
             blocked = c.get("/tools")
             self.assertEqual(blocked.status_code, 429)
             self.assertEqual(blocked.headers["retry-after"], "1")
-            self.assertEqual(c.get("/healthz").status_code, 200)  # health checks are never limited
+            self.assertEqual(c.get("/healthz").status_code, 200)
+            self.assertEqual(c.get("/.well-known/oauth-authorization-server").status_code, 404)
 
-    def test_request_sizes_are_capped(self):
+    def test_tool_call_limit_is_readable_by_the_model(self):
+        from noul.server.limits import RateLimiter
+
+        limiter = RateLimiter(rate_per_minute=60, burst=1, max_keys=1, clock=FakeClock())
+        with public_client(tool_limiter=limiter) as c:
+            headers = {**MCP_HEADERS, "MCP-Protocol-Version": "2025-06-18"}
+            call = {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {"name": "evidence_meter", "arguments": {"items": [{"stance": "supportive"}]}},
+            }
+            first = mcp_payloads(c.post("/mcp", json=call, headers=headers))[0]["result"]
+            second = mcp_payloads(c.post("/mcp", json=call, headers=headers))[0]["result"]
+            self.assertFalse(first.get("isError"))
+            self.assertTrue(second["isError"])
+            self.assertTrue(second["content"][0]["text"].startswith("RateLimited:"))
+            rest = c.post("/tools/evidence_meter", json={"items": [{"stance": "supportive"}]})
+            self.assertEqual(rest.status_code, 429)
+
+    def test_caps_lower_numbers_with_a_notice_and_refuse_long_lists(self):
+        from noul import registry
+        from noul.errors import HTTPError
+        from noul.server.common import public_caps
+
         seen = {}
 
-        def fake_search(query, **kwargs):
+        def fake(**kwargs):
             seen.update(kwargs)
-            return {"papers": [], "total_found": 0, "sources": [], "warnings": []}
-
-        from noul import registry
+            return {"papers": []}
 
         tool = registry.REGISTRY["search_papers"]
-        replacement = dataclasses.replace(tool, fn=fake_search)
-        with mock.patch.dict(registry.REGISTRY, {"search_papers": replacement}), public_client() as c:
-            c.post("/tools/search_papers", json={"query": "q", "limit": 500})
-        self.assertEqual(seen["limit"], 25)
+        with mock.patch.dict(registry.REGISTRY, {"search_papers": dataclasses.replace(tool, fn=fake)}):
+            for raw in (1000, "1000", 1000.0, "1_000"):
+                with self.subTest(limit=raw):
+                    out = registry.call(
+                        "search_papers", {"query": "q", "limit": raw}, caps=public_caps("search_papers")
+                    )
+                    self.assertEqual(seen["limit"], 25)
+                    self.assertIn("lowered from 1000 to 25", out["notice"])
+        with self.assertRaises(HTTPError) as ctx:
+            registry.call(
+                "evidence_meter", {"items": [{"stance": "supportive"}] * 101}, caps=public_caps("evidence_meter")
+            )
+        self.assertEqual(ctx.exception.code, 400)
+        self.assertIn("split the call", str(ctx.exception))
+        self.assertIsNone(public_caps("get_paper"))
 
-    def test_caps_helper(self):
-        from noul.server.common import apply_public_caps
+    def test_public_schema_advertises_the_caps(self):
+        with public_client() as c:
+            tools = {t["name"]: t for t in c.get("/tools").json()["tools"]}
+        self.assertEqual(tools["search_papers"]["inputSchema"]["properties"]["limit"]["maximum"], 25)
+        self.assertEqual(tools["query_fulltexts"]["inputSchema"]["properties"]["ids"]["maxItems"], 5)
+        self.assertEqual(tools["get_paper_references"]["inputSchema"]["properties"]["limit"]["maximum"], 25)
 
-        capped = apply_public_caps("query_fulltexts", {"ids": list("abcdefgh"), "question": "q"})
-        self.assertEqual(capped["ids"], list("abcde"))
-        self.assertEqual(apply_public_caps("search_papers", {"query": "q", "limit": "40"})["limit"], 25)
-        self.assertEqual(apply_public_caps("get_paper", {"id": "x"}), {"id": "x"})
+    def test_ipv6_clients_share_a_bucket_per_64_and_xff_headers_are_joined(self):
+        from noul.server.limits import RateLimiter, client_key
+
+        self.assertEqual(client_key("2001:db8::1"), client_key("2001:db8::ffff"))
+        self.assertNotEqual(client_key("2001:db8::1"), client_key("2001:db8:0:1::1"))
+        self.assertEqual(client_key("::ffff:203.0.113.5"), "203.0.113.5")
+        limiter = RateLimiter(rate_per_minute=60, burst=2, clock=FakeClock())
+        with public_client(rate_limiter=limiter, trusted_proxy_hops=1) as c:
+            codes = [c.get("/tools", headers={"X-Forwarded-For": f"2001:db8::{i:x}"}).status_code for i in range(4)]
+            self.assertEqual(codes, [200, 200, 429, 429])
+            # Two X-Forwarded-For headers: the rightmost entry overall is the proxy's, the forged first one ignored.
+            forged = [("x-forwarded-for", "9.9.9.9"), ("x-forwarded-for", "2001:db8::7")]
+            self.assertEqual(c.get("/tools", headers=forged).status_code, 429)
+
+    def test_cache_is_bounded_when_configured(self):
+        import os
+
+        from noul.net import cache
+
+        with mock.patch.dict(os.environ, {"NOUL_CACHE_MAX_ROWS": "5"}):
+            for i in range(20):
+                cache.cache_set(f"bound:{i}", {"i": i})
+            with cache._conn() as conn:
+                self.assertLessEqual(conn.execute("SELECT COUNT(*) FROM kv").fetchone()[0], 5)
+            self.assertEqual(cache.cache_get("bound:19"), {"i": 19})
+            self.assertIsNone(cache.cache_get("bound:0"))
 
 
 class ConcurrencyTests(unittest.TestCase):
     def test_extra_parallel_calls_get_a_busy_error(self):
         from noul.server.mcp import build_server
 
-        def slow_call(name, args):
+        def slow_call(name, args, caps=None):
             time.sleep(0.3)
             return {"ok": True}
 
