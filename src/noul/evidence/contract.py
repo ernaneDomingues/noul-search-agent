@@ -36,12 +36,13 @@ def priority(value: str | None) -> PriorityHint:
     return "low" if v == "low" else "medium"
 
 
-def extraction_confidence(source: str, sections: Iterable | None = None) -> Confidence:
-    """How much text the heuristics saw: full text with a recognisable structure, full text, or less."""
+def extraction_confidence(source: str, sections: Iterable | None = None, length: int | None = None) -> Confidence:
+    """How much text the heuristics saw. Papers: full text with >= 3 recognisable sections -> high, other full
+    text -> medium, abstract only -> low. The user's draft or reviews: medium, or low under 2,000 characters."""
     if source == "fulltext":
         return "high" if len(list(sections or [])) >= 3 else "medium"
     if source in ("draft", "reviews"):
-        return "medium"
+        return "low" if length is not None and length < 2000 else "medium"
     return "low"
 
 
@@ -85,7 +86,9 @@ def render_markdown(result: AnalysisResult, title: str, extra: Iterable[str] = (
     """Markdown view of an analytic result: findings grouped by kind, checklist, excerpts and the rubric."""
     subj = result.subject
     lines = [f"# {title}", ""]
-    if subj.title or subj.paper_id:
+    if subj.title and "subject.title" in result.untrusted_fields:
+        lines += ["- **Subject:**", _untrusted.wrap(subj.title, subj.paper_id or "paper"), ""]
+    elif subj.title or subj.paper_id:
         lines.append(f"- **Subject:** {_untrusted.neutralize(subj.title or subj.paper_id)}")
     if subj.domain:
         lines.append(f"- **Domain:** `{subj.domain}`")

@@ -109,7 +109,10 @@ class GroundingTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("> Sparse-7B scores 56.2 on GSM8K", out)
         self.assertIn("Location: [p. 4, Tabela 2]", out)
-        self.assertIn('<untrusted_source id="doi:10.1000/ground">\n| Sparse-7B (ours) | 78.4% | 56.2 |', out)
+        self.assertRegex(
+            out,
+            r'<untrusted_source id="doi:10.1000/ground" nonce="\w+">\n\[p. 4, Tabela 2\] \| Sparse-7B \(ours\) \| 78.4% \| 56.2 \|',
+        )
 
 
 if __name__ == "__main__":

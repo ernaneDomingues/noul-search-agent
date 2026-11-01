@@ -124,7 +124,9 @@ def _slim(p, idx=None, abstract_chars=1500):
         or k in ("id", "title", "authors", "year", "journal", "doi", "citations", "evidence", "open_access")
     }
     out["authors"] = (out.get("authors") or [])[:4]
-    out["abstract"] = (p.get("abstract") or "")[:abstract_chars]
+    # Titles and abstracts are third-party text (anyone can publish a preprint): defuse delimiter look-alikes.
+    out["title"] = _untrusted.neutralize(out.get("title")) if out.get("title") else out.get("title")
+    out["abstract"] = _untrusted.neutralize((p.get("abstract") or "")[:abstract_chars])
     if idx is not None:
         out["n"] = idx
     return out
@@ -207,6 +209,7 @@ def search_papers(
         "sources": r["sources"],
         "warnings": r["warnings"],
         "papers": [_slim(p, i + 1 + start) for i, p in enumerate(papers)],
+        "untrusted_fields": ["papers[].title", "papers[].abstract"],
     }
     if wanted_domain:
         out["domain"] = wanted_domain
@@ -250,6 +253,7 @@ def get_paper(id, domain=None):
     forced = _domain_override(domain)
     p = _resolve(id)
     out = _slim(p, abstract_chars=10000)
+    out["untrusted_fields"] = ["title", "abstract"]
     if forced:
         out["domain"] = forced
         out["domain_overridden"] = True
@@ -484,7 +488,7 @@ def estimate_hardware_specs(paper_id, total_params_b=None, active_params_b=None,
         "indexed by page and table/section. Per claim: numbers found/missing in the closest passage, keyword "
         "overlap, claim words absent from the text, a location tag '[p. X, Tabela Y]' and the best-matching "
         "excerpts. It does not decide whether a claim is supported: read `best_match` and decide. "
-        "Use it before stating numbers from a paper. Returns evidence, not a verdict (`AnalysisResult`: signals with excerpts, checklist, rubric, extraction_confidence, limitations); you judge with the rubric and cite the excerpts."
+        "Use it before stating numbers from a paper; judge each claim with the returned rubric."
     ),
     input=_inputs.VerifyPaperClaimsInput,
     profiles=("review",),
@@ -551,7 +555,7 @@ def extract_prompts_and_decoding(paper_id):
         "long_context, noise_sensitivity, out_of_distribution, latency_or_compute, sample_or_population_bias "
         "and general_limitation (as `signals` with the triggering sentence and a priority hint), extracts "
         "critical_assumptions, baseline_superiority_scenarios (from text and from benchmark tables where a "
-        "baseline beats Ours) and operational_limits. Returns evidence, not a verdict (`AnalysisResult`: signals with excerpts, checklist, rubric, extraction_confidence, limitations); you judge with the rubric and cite the excerpts."
+        "baseline beats Ours) and operational_limits. Candidates, not confirmed failures: check each excerpt."
     ),
     input=_inputs.DetectFailureModesInput,
     profiles=("review",),
@@ -588,7 +592,7 @@ def diff_arxiv_versions(arxiv_id, from_version="v1", to_version="v2"):
         "Econometrician, Robustness Auditor, and Policy Economist for Economics). Returns each persona's "
         "strengths, concerns and gaps as signals with excerpts, missing experiments/controls, questions for "
         "the authors and the domain rubric - no verdict or score: you write the review and the "
-        "recommendation. Returns evidence, not a verdict (`AnalysisResult`: signals with excerpts, checklist, rubric, extraction_confidence, limitations); you judge with the rubric and cite the excerpts."
+        "recommendation, citing the excerpts."
     ),
     input=_inputs.ReviewPaperInput,
     profiles=("review",),
@@ -703,7 +707,7 @@ def generate_manuscript_blueprint(topic, venue="neurips", hypothesis="", key_fin
         "Draft manuscript auditor (#23 Mode 2): audits a draft (.md/.tex in workspace or inline text) for "
         "weak or unsubstantiated claims, mathematical/terminological inconsistencies ($L$ vs $\\mathcal{L}$), "
         "and reproducibility omissions (seeds, hyperparameters, sample size N, error bars, compute hardware), "
-        "as signals quoting the draft with suggested rewrites. Returns evidence, not a verdict (`AnalysisResult`: signals with excerpts, checklist, rubric, extraction_confidence, limitations); you judge with the rubric and cite the excerpts."
+        "as signals quoting the draft with suggested rewrites, a checklist and a rubric; no assessment."
     ),
     input=_inputs.AuditManuscriptDraftInput,
     profiles=("write",),
@@ -762,7 +766,7 @@ def parse_and_draft_rebuttal(reviews_input, paper_id=None, draft_input=None, out
         "`\\author` blocks, PDF metadata, first-person self-citations), (2) Venue Checklist Engine, (3) "
         "Overclaiming Scanner, and (4) Mandatory Sections Check - anonymity/overclaiming findings as signals, "
         "checklist and sections as a checklist (detected yes/no) and suggested actions; no readiness score: "
-        "you judge readiness. Returns evidence, not a verdict (`AnalysisResult`: signals with excerpts, checklist, rubric, extraction_confidence, limitations); you judge with the rubric and cite the excerpts."
+        "you judge readiness with the returned rubric."
     ),
     input=_inputs.AuditSubmissionReadinessInput,
     profiles=("write",),
@@ -796,7 +800,7 @@ def get_fulltext(id, question=""):
     if question:
         meta["excerpts"] = [_untrusted.neutralize(c) for c in _ft.pick_chunks(text, question, n=6)]
     else:
-        meta["excerpts"] = _untrusted.neutralize(text[:9000])
+        meta["excerpts"] = [_untrusted.neutralize(text[:9000])]
     meta["untrusted_fields"] = ["excerpts"]
     return meta
 
@@ -876,6 +880,13 @@ def citation_graph(id):
         "title": p.get("title"),
         "references": [_slim(x, i + 1, abstract_chars=600) for i, x in enumerate(res.get("references") or [])],
         "citing": [_slim(x, i + 1, abstract_chars=600) for i, x in enumerate(res.get("citing") or [])],
+        "untrusted_fields": [
+            "title",
+            "references[].title",
+            "references[].abstract",
+            "citing[].title",
+            "citing[].abstract",
+        ],
     }
 
 
@@ -899,6 +910,7 @@ def related_papers(id, relation="all", study_types=None, year_min=None, limit=15
         "similar": [_slim(x, i + 1, abstract_chars=800) for i, x in enumerate(res.get("similar") or [])],
         "references": [_slim(x, i + 1, abstract_chars=800) for i, x in enumerate(res.get("references") or [])],
         "citing": [_slim(x, i + 1, abstract_chars=800) for i, x in enumerate(res.get("citing") or [])],
+        "untrusted_fields": ["anchor_paper", "similar[].abstract", "references[].abstract", "citing[].abstract"],
     }
 
 

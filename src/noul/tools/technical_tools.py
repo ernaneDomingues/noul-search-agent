@@ -513,7 +513,7 @@ def _passages(corpus):
             continue
         section = pdf_parser.section_at(sections, m.start())
         if section:
-            label = f"Seção {section}"
+            label = f"Seção {_untrusted.label(section)}"
         else:
             label = "Seção Resumo" if corpus["source"] == "abstract" else "Seção Texto"
         out.append({"page": pdf_parser.page_at(pages, m.start()), "label": label, "quote": quote, "scoring": quote})
@@ -663,6 +663,7 @@ def verify_paper_claims(paper_id, claims=None):
         rubric=_contract.rubric("Claim grounding", _CLAIMS_RUBRIC),
         extraction_confidence=_contract.extraction_confidence(corpus["source"], corpus["sections"]),
         limitations=limitations,
+        untrusted_fields=["subject.title", "claims[].citation_tag"],
         auto_extracted_claims=auto,
         claims=results,
     )
@@ -672,7 +673,7 @@ def verify_paper_claims(paper_id, claims=None):
             "",
             f"### Claim {i}",
             _untrusted.wrap(c.claim, pid or "paper") if auto else f"> {_untrusted.neutralize(c.claim)}",
-            f"- Location: {c.citation_tag}; numbers found: {', '.join(c.numbers_found) or '—'}; "
+            f"- Location: {_untrusted.neutralize(c.citation_tag)}; numbers found: {', '.join(c.numbers_found) or '—'}; "
             f"missing: {', '.join(c.numbers_missing) or '—'}; keyword overlap: {c.keyword_overlap:.2f}"
             + (
                 f"; claim words absent from the text: {', '.join(c.hedging_cues_missing_in_text)}"
@@ -2122,6 +2123,7 @@ def detect_failure_modes(paper_id: str, inspect_fulltext: bool = True) -> dict:
         rubric=_contract.rubric("Failure-mode triage", _FAILURE_RUBRIC),
         extraction_confidence=_contract.extraction_confidence(corpus["source"], corpus["sections"]),
         limitations=_contract.corpus_limitations(corpus),
+        untrusted_fields=["subject.title"],
         critical_assumptions=assumptions,
         baseline_superiority_scenarios=baseline_scenarios,
         operational_limits=_extract_operational_limits(text),

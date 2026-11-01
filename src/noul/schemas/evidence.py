@@ -24,6 +24,7 @@ class Excerpt(BaseModel):
     """A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews)."""
 
     text: str
+    truncated: bool = False  # the passage was cut to fit (ends with "…")
     origin: Origin = "paper"
     paper_id: str | None = None
     section: str | None = None
@@ -58,6 +59,8 @@ class ChecklistItem(BaseModel):
 
 
 class RubricCriterion(BaseModel):
+    """One question the client's model should answer, citing excerpts."""
+
     id: str
     question: str
     guidance: str = ""
@@ -72,6 +75,8 @@ class Rubric(BaseModel):
 
 
 class AnalysisSubject(BaseModel):
+    """What was analysed: a paper (id/title/domain) or the user's draft or reviews (`title` = file label)."""
+
     paper_id: str | None = None
     title: str = ""
     domain: str | None = None
@@ -82,7 +87,7 @@ class AnalysisResult(BaseModel):
     """Common shape of every analytic tool result."""
 
     tool: str
-    method: Literal["heuristic"] = "heuristic"
+    method: Literal["heuristic", "retrieval"] = "heuristic"
     subject: AnalysisSubject
     signals: list[Signal] = Field(default_factory=list)
     checklist: list[ChecklistItem] = Field(default_factory=list)
@@ -90,6 +95,8 @@ class AnalysisResult(BaseModel):
     rubric: Rubric
     extraction_confidence: Confidence
     limitations: list[str] = Field(default_factory=list)
+    # Fields outside `Excerpt`s that hold third-party text (e.g. the paper title, location labels).
+    untrusted_fields: list[str] = Field(default_factory=list)
     rendered_markdown: str = ""
 
 

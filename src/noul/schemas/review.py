@@ -9,6 +9,8 @@ from noul.schemas.evidence import AnalysisResult
 
 
 class ReviewPerspective(BaseModel):
+    """One reviewer persona of the domain rubric and the signals it produced."""
+
     role: str
     focus: str = ""
     signal_ids: list[str] = Field(default_factory=list)

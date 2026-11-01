@@ -48,6 +48,21 @@ GENERAL_STEM_PERSONAS: list[dict[str, Any]] = [
 ]
 
 
+def _paper_label(ev: dict, text: object) -> Excerpt:
+    """Text derived from the paper (table labels, URLs) kept out of tool-authored descriptions."""
+    return _untrusted.excerpt(text, paper_id=str(ev["paper"].get("id") or ""), limit=300)
+
+
+def _abstract(ev: dict) -> Excerpt | None:
+    """The abstract as an excerpt (so a 'stated in the abstract' finding has something to cite)."""
+    text = ev["paper"].get("abstract")
+    return (
+        _untrusted.excerpt(text, paper_id=str(ev["paper"].get("id") or ""), section="Abstract", limit=400)
+        if text
+        else None
+    )
+
+
 @dataclass
 class _Persona:
     """One reviewer persona's heuristic findings. `strengths` / `critical_flaws` items are a description, or a
@@ -155,7 +170,7 @@ def _evaluate_cs(ev: dict) -> list[_Persona]:
     if failures.get("critical_assumptions"):
         p1_questions.append("How sensitive is the method when the stated modeling assumptions are violated?")
     if not p1_strengths:
-        p1_strengths.append("Problem formulation stated in the abstract/introduction.")
+        p1_strengths.append(("Problem formulation stated in the abstract/introduction.", _abstract(ev)))
 
     # Persona 2: Skeptical Empirical Reviewer (NeurIPS/ICLR)
     p2 = rubrics_cs.PERSONAS[1]
@@ -175,11 +190,14 @@ def _evaluate_cs(ev: dict) -> list[_Persona]:
     if abl_entries:
         top_abl = abl_entries[0]
         p2_strengths.append(
-            f"Component ablation study present ({len(abl_entries)} ablated entries; top impact: "
-            f"'{top_abl['component']}' on {top_abl['metric']} with Δ% = {top_abl['delta_percent']:+.2f}%)."
+            (
+                f"Component ablation study present ({len(abl_entries)} ablated entries; largest change "
+                f"Δ% = {top_abl['delta_percent']:+.2f}%).",
+                _paper_label(ev, f"Top ablated component '{top_abl['component']}' on metric '{top_abl['metric']}'"),
+            )
         )
         for alert in (abl.get("warnings_and_alerts") or [])[:2]:
-            p2_flaws.append(f"Ablation audit alert: {alert}")
+            p2_flaws.append(("Ablation audit alert (built from the paper's table labels)", _paper_label(ev, alert)))
     else:
         p2_flaws.append(
             "Section omitted / not reported: no ablation study ('w/o component' or component contribution table) found in manuscript."
@@ -209,11 +227,15 @@ def _evaluate_cs(ev: dict) -> list[_Persona]:
     p3_flaws: list = []
     p3_questions: list = list(p3["default_questions"])
     if art.get("has_code"):
-        p3_strengths.append(f"Open-source code repository linked in manuscript ({art.get('code_url')}).")
+        p3_strengths.append(
+            ("Open-source code repository linked in the manuscript.", _paper_label(ev, art.get("code_url")))
+        )
     else:
         p3_flaws.append("Reproducibility omission: no public code repository (GitHub/GitLab) linked in the paper.")
     if art.get("has_weights"):
-        p3_strengths.append(f"Pretrained model weights / checkpoints linked ({art.get('weights_url')}).")
+        p3_strengths.append(
+            ("Pretrained model weights / checkpoints linked.", _paper_label(ev, art.get("weights_url")))
+        )
     if art.get("evasive_availability_statement"):
         p3_flaws.append(
             "Evasive availability statement detected: code or data declared 'available upon reasonable request' rather than openly hosted."
@@ -596,7 +618,7 @@ def _evaluate_general_stem(ev: dict) -> list[_Persona]:
             else:
                 flaws.append("Reproducibility omission: no open data or code repository linked in the manuscript.")
         if not strengths:
-            strengths.append("Core scientific objective stated in the abstract.")
+            strengths.append(("Core scientific objective stated in the abstract.", _abstract(ev)))
         evals.append(
             _Persona(
                 persona_role=p["role"],
@@ -661,7 +683,9 @@ def _claim_signals(claims_res: dict, start: int) -> list[Signal]:
     return out
 
 
-def review_paper(paper_id: str, domain: str | None = None, inspect_fulltext: bool = True) -> dict:
+def review_paper(
+    paper_id: str, domain: str | None = None, inspect_fulltext: bool = True, _tool: str = "review_paper"
+) -> dict:
     """Collect the evidence for a domain-adaptive 3-persona peer review (#17, #20): signals per persona, questions
     for the authors and a rubric. The client's model writes the review and the recommendation."""
     ev = _collect_evidence(paper_id, domain_Override=domain, inspect_fulltext=bool(inspect_fulltext))
@@ -724,7 +748,7 @@ def review_paper(paper_id: str, domain: str | None = None, inspect_fulltext: boo
     ]
     corpus = ev["corpus"]
     report = PeerReviewReport(
-        tool="review_paper",
+        tool=_tool,
         subject=AnalysisSubject(
             paper_id=pid, title=paper.get("title") or "", domain=dom.value, source=corpus["source"]
         ),
@@ -732,6 +756,7 @@ def review_paper(paper_id: str, domain: str | None = None, inspect_fulltext: boo
         rubric=_contract.rubric(rubric_name, [*criteria, _FINAL_CRITERION]),
         extraction_confidence=_contract.extraction_confidence(corpus["source"], corpus.get("sections")),
         limitations=_contract.corpus_limitations(corpus),
+        untrusted_fields=["subject.title"],
         rubric_applied=rubric_name,
         perspectives=perspectives,
         missing_experiments_or_controls=[s.description for s in signals if s.kind == "gap"][:8],
@@ -747,4 +772,6 @@ def review_paper(paper_id: str, domain: str | None = None, inspect_fulltext: boo
 
 def review_paper_scientific(paper_id: str, domain: str | None = None, inspect_fulltext: bool = True) -> dict:
     """Alias for review_paper (#20 specification compatibility)."""
-    return review_paper(paper_id=paper_id, domain=domain, inspect_fulltext=inspect_fulltext)
+    return review_paper(
+        paper_id=paper_id, domain=domain, inspect_fulltext=inspect_fulltext, _tool="review_paper_scientific"
+    )

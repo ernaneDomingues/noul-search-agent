@@ -1159,7 +1159,7 @@ def audit_manuscript_draft(
             "These are pattern-based findings on the user's draft, not an assessment. Confirm each against the "
             "excerpt; 'unclear' means the heuristics found no problem, not that the item is satisfied.",
         ),
-        extraction_confidence="medium" if len(text) > 2000 else "low",
+        extraction_confidence=_contract.extraction_confidence("draft", length=len(text)),
         limitations=["Pattern-based detection: paraphrased problems are missed and some flags are false positives."],
         venue=v,
         output_format=fmt,
@@ -1773,7 +1773,7 @@ def parse_and_draft_rebuttal(
             "The categories and priorities are pattern-based guesses and the responses are templates. Help the "
             "author decide each point and fill the [TODO]s with their real results; never invent results.",
         ),
-        extraction_confidence="medium" if points else "low",
+        extraction_confidence=_contract.extraction_confidence("reviews", length=len(reviews_text)) if points else "low",
         limitations=["Comment segmentation and classification are pattern-based; check the grouping per reviewer."],
         reviewers_detected=reviewers_detected,
         total_points=len(points),

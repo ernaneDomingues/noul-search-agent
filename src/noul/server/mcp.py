@@ -142,6 +142,9 @@ def _annotations(item: dict[str, Any]) -> types.ToolAnnotations:
 
 
 def _text_result(payload: Any, is_error: bool = False, output: Any = None) -> types.CallToolResult:
+    if isinstance(payload, dict) and not is_error and "rendered_markdown" in payload and output is not None:
+        # Analytic results: the Markdown view is for the CLI (--pretty); over MCP it would double the payload.
+        payload = {k: v for k, v in payload.items() if k != "rendered_markdown"}
     text = payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False, default=str)
     structured = None
     if isinstance(payload, dict) and not is_error:
@@ -150,14 +153,20 @@ def _text_result(payload: Any, is_error: bool = False, output: Any = None) -> ty
             try:
                 output.model_validate(structured)
             except Exception as e:
-                # Never send structuredContent that would fail the advertised outputSchema: text only.
+                # A tool that advertises an outputSchema must send conforming structuredContent; an error result
+                # is the only conforming way out (clients skip the schema check for is_error).
                 _log.logger.warning("structured result does not match %s (%s)", output.__name__, type(e).__name__)
-                structured = None
-    if not is_error and _untrusted.contains_untrusted(text):
-        text = _untrusted.NOTICE + "\n\n" + text  # third-party text inside: say so before the data
-    return types.CallToolResult(
-        content=[types.TextContent(type="text", text=text)], structured_content=structured, is_error=is_error
-    )
+                return types.CallToolResult(
+                    content=[
+                        types.TextContent(type="text", text="InternalError: the result did not match its schema.")
+                    ],
+                    is_error=True,
+                )
+    content: list[types.ContentBlock] = [types.TextContent(type="text", text=text)]
+    if not is_error and _untrusted.has_untrusted(payload):
+        # Separate block after the data: content[0] stays an exact serialisation of structuredContent.
+        content.append(types.TextContent(type="text", text=_untrusted.NOTICE))
+    return types.CallToolResult(content=content, structured_content=structured, is_error=is_error)
 
 
 def _instructions(public: bool, prompts: list[str]) -> str:

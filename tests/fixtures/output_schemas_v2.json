@@ -1,0 +1,2891 @@
+{
+ "audit_manuscript_draft": {
+  "$defs": {
+   "AnalysisSubject": {
+    "description": "What was analysed: a paper (id/title/domain) or the user's draft or reviews (`title` = file label).",
+    "properties": {
+     "domain": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Domain"
+     },
+     "paper_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Paper Id"
+     },
+     "source": {
+      "default": "",
+      "title": "Source",
+      "type": "string"
+     },
+     "title": {
+      "default": "",
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "title": "AnalysisSubject",
+    "type": "object"
+   },
+   "ChecklistItem": {
+    "description": "A yes/no question answered by pattern detection (`unclear` when the text does not allow an answer).",
+    "properties": {
+     "category": {
+      "default": "",
+      "title": "Category",
+      "type": "string"
+     },
+     "detected": {
+      "enum": [
+       "yes",
+       "no",
+       "unclear"
+      ],
+      "title": "Detected",
+      "type": "string"
+     },
+     "evidence": {
+      "items": {
+       "$ref": "#/$defs/Excerpt"
+      },
+      "title": "Evidence",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "location": {
+      "default": "",
+      "title": "Location",
+      "type": "string"
+     },
+     "priority_hint": {
+      "default": "medium",
+      "enum": [
+       "high",
+       "medium",
+       "low"
+      ],
+      "title": "Priority Hint",
+      "type": "string"
+     },
+     "question": {
+      "title": "Question",
+      "type": "string"
+     },
+     "remediation": {
+      "default": "",
+      "title": "Remediation",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "question",
+     "detected"
+    ],
+    "title": "ChecklistItem",
+    "type": "object"
+   },
+   "Excerpt": {
+    "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
+    "properties": {
+     "origin": {
+      "default": "paper",
+      "enum": [
+       "paper",
+       "draft",
+       "reviews",
+       "web",
+       "user"
+      ],
+      "title": "Origin",
+      "type": "string"
+     },
+     "page": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Page"
+     },
+     "paper_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Paper Id"
+     },
+     "section": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Section"
+     },
+     "text": {
+      "title": "Text",
+      "type": "string"
+     },
+     "truncated": {
+      "default": false,
+      "title": "Truncated",
+      "type": "boolean"
+     },
+     "untrusted": {
+      "default": true,
+      "title": "Untrusted",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "text"
+    ],
+    "title": "Excerpt",
+    "type": "object"
+   },
+   "Rubric": {
+    "description": "How the client's model should judge: the criteria and a short instruction (`how_to_judge`).",
+    "properties": {
+     "criteria": {
+      "items": {
+       "$ref": "#/$defs/RubricCriterion"
+      },
+      "title": "Criteria",
+      "type": "array"
+     },
+     "how_to_judge": {
+      "title": "How To Judge",
+      "type": "string"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name",
+     "how_to_judge"
+    ],
+    "title": "Rubric",
+    "type": "object"
+   },
+   "RubricCriterion": {
+    "description": "One question the client's model should answer, citing excerpts.",
+    "properties": {
+     "guidance": {
+      "default": "",
+      "title": "Guidance",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "question": {
+      "title": "Question",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "question"
+    ],
+    "title": "RubricCriterion",
+    "type": "object"
+   },
+   "Signal": {
+    "description": "Something a heuristic detected. `kind` says which way it points; `priority_hint` is the heuristic's guess\nof how much it matters - the judgement is the client's.",
+    "properties": {
+     "category": {
+      "title": "Category",
+      "type": "string"
+     },
+     "description": {
+      "title": "Description",
+      "type": "string"
+     },
+     "detail": {
+      "default": "",
+      "title": "Detail",
+      "type": "string"
+     },
+     "excerpts": {
+      "items": {
+       "$ref": "#/$defs/Excerpt"
+      },
+      "title": "Excerpts",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "kind": {
+      "enum": [
+       "strength",
+       "concern",
+       "gap",
+       "neutral"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "priority_hint": {
+      "default": "medium",
+      "enum": [
+       "high",
+       "medium",
+       "low"
+      ],
+      "title": "Priority Hint",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "category",
+     "kind",
+     "description"
+    ],
+    "title": "Signal",
+    "type": "object"
+   }
+  },
+  "description": "Draft findings are `signals` (category weak_claim | notation_inconsistency | reproducibility_omission,\nexcerpts from the user's draft); `rendered_report` is Markdown or LaTeX per `output_format`.",
+  "properties": {
+   "checklist": {
+    "items": {
+     "$ref": "#/$defs/ChecklistItem"
+    },
+    "title": "Checklist",
+    "type": "array"
+   },
+   "excerpts": {
+    "items": {
+     "$ref": "#/$defs/Excerpt"
+    },
+    "title": "Excerpts",
+    "type": "array"
+   },
+   "extraction_confidence": {
+    "enum": [
+     "low",
+     "medium",
+     "high"
+    ],
+    "title": "Extraction Confidence",
+    "type": "string"
+   },
+   "limitations": {
+    "items": {
+     "type": "string"
+    },
+    "title": "Limitations",
+    "type": "array"
+   },
+   "method": {
+    "default": "heuristic",
+    "enum": [
+     "heuristic",
+     "retrieval"
+    ],
+    "title": "Method",
+    "type": "string"
+   },
+   "output_format": {
+    "default": "markdown",
+    "title": "Output Format",
+    "type": "string"
+   },
+   "rendered_markdown": {
+    "default": "",
+    "title": "Rendered Markdown",
+    "type": "string"
+   },
+   "rendered_report": {
+    "default": "",
+    "title": "Rendered Report",
+    "type": "string"
+   },
+   "rubric": {
+    "$ref": "#/$defs/Rubric"
+   },
+   "signals": {
+    "items": {
+     "$ref": "#/$defs/Signal"
+    },
+    "title": "Signals",
+    "type": "array"
+   },
+   "subject": {
+    "$ref": "#/$defs/AnalysisSubject"
+   },
+   "tool": {
+    "title": "Tool",
+    "type": "string"
+   },
+   "untrusted_fields": {
+    "items": {
+     "type": "string"
+    },
+    "title": "Untrusted Fields",
+    "type": "array"
+   },
+   "venue": {
+    "default": "general",
+    "title": "Venue",
+    "type": "string"
+   }
+  },
+  "required": [
+   "tool",
+   "subject",
+   "rubric",
+   "extraction_confidence"
+  ],
+  "title": "DraftAuditReport",
+  "type": "object"
+ },
+ "audit_submission_readiness": {
+  "$defs": {
+   "AnalysisSubject": {
+    "description": "What was analysed: a paper (id/title/domain) or the user's draft or reviews (`title` = file label).",
+    "properties": {
+     "domain": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Domain"
+     },
+     "paper_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Paper Id"
+     },
+     "source": {
+      "default": "",
+      "title": "Source",
+      "type": "string"
+     },
+     "title": {
+      "default": "",
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "title": "AnalysisSubject",
+    "type": "object"
+   },
+   "ChecklistItem": {
+    "description": "A yes/no question answered by pattern detection (`unclear` when the text does not allow an answer).",
+    "properties": {
+     "category": {
+      "default": "",
+      "title": "Category",
+      "type": "string"
+     },
+     "detected": {
+      "enum": [
+       "yes",
+       "no",
+       "unclear"
+      ],
+      "title": "Detected",
+      "type": "string"
+     },
+     "evidence": {
+      "items": {
+       "$ref": "#/$defs/Excerpt"
+      },
+      "title": "Evidence",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "location": {
+      "default": "",
+      "title": "Location",
+      "type": "string"
+     },
+     "priority_hint": {
+      "default": "medium",
+      "enum": [
+       "high",
+       "medium",
+       "low"
+      ],
+      "title": "Priority Hint",
+      "type": "string"
+     },
+     "question": {
+      "title": "Question",
+      "type": "string"
+     },
+     "remediation": {
+      "default": "",
+      "title": "Remediation",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "question",
+     "detected"
+    ],
+    "title": "ChecklistItem",
+    "type": "object"
+   },
+   "Excerpt": {
+    "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
+    "properties": {
+     "origin": {
+      "default": "paper",
+      "enum": [
+       "paper",
+       "draft",
+       "reviews",
+       "web",
+       "user"
+      ],
+      "title": "Origin",
+      "type": "string"
+     },
+     "page": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Page"
+     },
+     "paper_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Paper Id"
+     },
+     "section": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Section"
+     },
+     "text": {
+      "title": "Text",
+      "type": "string"
+     },
+     "truncated": {
+      "default": false,
+      "title": "Truncated",
+      "type": "boolean"
+     },
+     "untrusted": {
+      "default": true,
+      "title": "Untrusted",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "text"
+    ],
+    "title": "Excerpt",
+    "type": "object"
+   },
+   "Rubric": {
+    "description": "How the client's model should judge: the criteria and a short instruction (`how_to_judge`).",
+    "properties": {
+     "criteria": {
+      "items": {
+       "$ref": "#/$defs/RubricCriterion"
+      },
+      "title": "Criteria",
+      "type": "array"
+     },
+     "how_to_judge": {
+      "title": "How To Judge",
+      "type": "string"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name",
+     "how_to_judge"
+    ],
+    "title": "Rubric",
+    "type": "object"
+   },
+   "RubricCriterion": {
+    "description": "One question the client's model should answer, citing excerpts.",
+    "properties": {
+     "guidance": {
+      "default": "",
+      "title": "Guidance",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "question": {
+      "title": "Question",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "question"
+    ],
+    "title": "RubricCriterion",
+    "type": "object"
+   },
+   "Signal": {
+    "description": "Something a heuristic detected. `kind` says which way it points; `priority_hint` is the heuristic's guess\nof how much it matters - the judgement is the client's.",
+    "properties": {
+     "category": {
+      "title": "Category",
+      "type": "string"
+     },
+     "description": {
+      "title": "Description",
+      "type": "string"
+     },
+     "detail": {
+      "default": "",
+      "title": "Detail",
+      "type": "string"
+     },
+     "excerpts": {
+      "items": {
+       "$ref": "#/$defs/Excerpt"
+      },
+      "title": "Excerpts",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "kind": {
+      "enum": [
+       "strength",
+       "concern",
+       "gap",
+       "neutral"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "priority_hint": {
+      "default": "medium",
+      "enum": [
+       "high",
+       "medium",
+       "low"
+      ],
+      "title": "Priority Hint",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "category",
+     "kind",
+     "description"
+    ],
+    "title": "Signal",
+    "type": "object"
+   }
+  },
+  "description": "Pre-submission evidence: anonymity and overclaiming findings are `signals`; venue checklist and mandatory\nsections are `checklist` items (detected yes/no). No readiness score: the client judges readiness.",
+  "properties": {
+   "checklist": {
+    "items": {
+     "$ref": "#/$defs/ChecklistItem"
+    },
+    "title": "Checklist",
+    "type": "array"
+   },
+   "double_blind": {
+    "default": false,
+    "title": "Double Blind",
+    "type": "boolean"
+   },
+   "excerpts": {
+    "items": {
+     "$ref": "#/$defs/Excerpt"
+    },
+    "title": "Excerpts",
+    "type": "array"
+   },
+   "extraction_confidence": {
+    "enum": [
+     "low",
+     "medium",
+     "high"
+    ],
+    "title": "Extraction Confidence",
+    "type": "string"
+   },
+   "limitations": {
+    "items": {
+     "type": "string"
+    },
+    "title": "Limitations",
+    "type": "array"
+   },
+   "method": {
+    "default": "heuristic",
+    "enum": [
+     "heuristic",
+     "retrieval"
+    ],
+    "title": "Method",
+    "type": "string"
+   },
+   "rendered_markdown": {
+    "default": "",
+    "title": "Rendered Markdown",
+    "type": "string"
+   },
+   "rubric": {
+    "$ref": "#/$defs/Rubric"
+   },
+   "signals": {
+    "items": {
+     "$ref": "#/$defs/Signal"
+    },
+    "title": "Signals",
+    "type": "array"
+   },
+   "subject": {
+    "$ref": "#/$defs/AnalysisSubject"
+   },
+   "suggested_actions": {
+    "items": {
+     "type": "string"
+    },
+    "title": "Suggested Actions",
+    "type": "array"
+   },
+   "tool": {
+    "title": "Tool",
+    "type": "string"
+   },
+   "untrusted_fields": {
+    "items": {
+     "type": "string"
+    },
+    "title": "Untrusted Fields",
+    "type": "array"
+   },
+   "venue": {
+    "title": "Venue",
+    "type": "string"
+   }
+  },
+  "required": [
+   "tool",
+   "subject",
+   "rubric",
+   "extraction_confidence",
+   "venue"
+  ],
+  "title": "SubmissionGatekeeperReport",
+  "type": "object"
+ },
+ "detect_failure_modes": {
+  "$defs": {
+   "AnalysisSubject": {
+    "description": "What was analysed: a paper (id/title/domain) or the user's draft or reviews (`title` = file label).",
+    "properties": {
+     "domain": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Domain"
+     },
+     "paper_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Paper Id"
+     },
+     "source": {
+      "default": "",
+      "title": "Source",
+      "type": "string"
+     },
+     "title": {
+      "default": "",
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "title": "AnalysisSubject",
+    "type": "object"
+   },
+   "ChecklistItem": {
+    "description": "A yes/no question answered by pattern detection (`unclear` when the text does not allow an answer).",
+    "properties": {
+     "category": {
+      "default": "",
+      "title": "Category",
+      "type": "string"
+     },
+     "detected": {
+      "enum": [
+       "yes",
+       "no",
+       "unclear"
+      ],
+      "title": "Detected",
+      "type": "string"
+     },
+     "evidence": {
+      "items": {
+       "$ref": "#/$defs/Excerpt"
+      },
+      "title": "Evidence",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "location": {
+      "default": "",
+      "title": "Location",
+      "type": "string"
+     },
+     "priority_hint": {
+      "default": "medium",
+      "enum": [
+       "high",
+       "medium",
+       "low"
+      ],
+      "title": "Priority Hint",
+      "type": "string"
+     },
+     "question": {
+      "title": "Question",
+      "type": "string"
+     },
+     "remediation": {
+      "default": "",
+      "title": "Remediation",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "question",
+     "detected"
+    ],
+    "title": "ChecklistItem",
+    "type": "object"
+   },
+   "Excerpt": {
+    "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
+    "properties": {
+     "origin": {
+      "default": "paper",
+      "enum": [
+       "paper",
+       "draft",
+       "reviews",
+       "web",
+       "user"
+      ],
+      "title": "Origin",
+      "type": "string"
+     },
+     "page": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Page"
+     },
+     "paper_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Paper Id"
+     },
+     "section": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Section"
+     },
+     "text": {
+      "title": "Text",
+      "type": "string"
+     },
+     "truncated": {
+      "default": false,
+      "title": "Truncated",
+      "type": "boolean"
+     },
+     "untrusted": {
+      "default": true,
+      "title": "Untrusted",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "text"
+    ],
+    "title": "Excerpt",
+    "type": "object"
+   },
+   "Rubric": {
+    "description": "How the client's model should judge: the criteria and a short instruction (`how_to_judge`).",
+    "properties": {
+     "criteria": {
+      "items": {
+       "$ref": "#/$defs/RubricCriterion"
+      },
+      "title": "Criteria",
+      "type": "array"
+     },
+     "how_to_judge": {
+      "title": "How To Judge",
+      "type": "string"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name",
+     "how_to_judge"
+    ],
+    "title": "Rubric",
+    "type": "object"
+   },
+   "RubricCriterion": {
+    "description": "One question the client's model should answer, citing excerpts.",
+    "properties": {
+     "guidance": {
+      "default": "",
+      "title": "Guidance",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "question": {
+      "title": "Question",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "question"
+    ],
+    "title": "RubricCriterion",
+    "type": "object"
+   },
+   "Signal": {
+    "description": "Something a heuristic detected. `kind` says which way it points; `priority_hint` is the heuristic's guess\nof how much it matters - the judgement is the client's.",
+    "properties": {
+     "category": {
+      "title": "Category",
+      "type": "string"
+     },
+     "description": {
+      "title": "Description",
+      "type": "string"
+     },
+     "detail": {
+      "default": "",
+      "title": "Detail",
+      "type": "string"
+     },
+     "excerpts": {
+      "items": {
+       "$ref": "#/$defs/Excerpt"
+      },
+      "title": "Excerpts",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "kind": {
+      "enum": [
+       "strength",
+       "concern",
+       "gap",
+       "neutral"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "priority_hint": {
+      "default": "medium",
+      "enum": [
+       "high",
+       "medium",
+       "low"
+      ],
+      "title": "Priority Hint",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "category",
+     "kind",
+     "description"
+    ],
+    "title": "Signal",
+    "type": "object"
+   }
+  },
+  "description": "Candidate failure modes are the `signals` (category = long_context | noise_sensitivity |\nout_of_distribution | latency_or_compute | sample_or_population_bias | general_limitation), each with the\nsentence that triggered it.",
+  "properties": {
+   "baseline_superiority_scenarios": {
+    "items": {
+     "$ref": "#/$defs/Excerpt"
+    },
+    "title": "Baseline Superiority Scenarios",
+    "type": "array"
+   },
+   "checklist": {
+    "items": {
+     "$ref": "#/$defs/ChecklistItem"
+    },
+    "title": "Checklist",
+    "type": "array"
+   },
+   "critical_assumptions": {
+    "items": {
+     "$ref": "#/$defs/Excerpt"
+    },
+    "title": "Critical Assumptions",
+    "type": "array"
+   },
+   "excerpts": {
+    "items": {
+     "$ref": "#/$defs/Excerpt"
+    },
+    "title": "Excerpts",
+    "type": "array"
+   },
+   "extraction_confidence": {
+    "enum": [
+     "low",
+     "medium",
+     "high"
+    ],
+    "title": "Extraction Confidence",
+    "type": "string"
+   },
+   "limitations": {
+    "items": {
+     "type": "string"
+    },
+    "title": "Limitations",
+    "type": "array"
+   },
+   "method": {
+    "default": "heuristic",
+    "enum": [
+     "heuristic",
+     "retrieval"
+    ],
+    "title": "Method",
+    "type": "string"
+   },
+   "operational_limits": {
+    "additionalProperties": true,
+    "title": "Operational Limits",
+    "type": "object"
+   },
+   "rendered_markdown": {
+    "default": "",
+    "title": "Rendered Markdown",
+    "type": "string"
+   },
+   "rubric": {
+    "$ref": "#/$defs/Rubric"
+   },
+   "signals": {
+    "items": {
+     "$ref": "#/$defs/Signal"
+    },
+    "title": "Signals",
+    "type": "array"
+   },
+   "subject": {
+    "$ref": "#/$defs/AnalysisSubject"
+   },
+   "tool": {
+    "title": "Tool",
+    "type": "string"
+   },
+   "untrusted_fields": {
+    "items": {
+     "type": "string"
+    },
+    "title": "Untrusted Fields",
+    "type": "array"
+   }
+  },
+  "required": [
+   "tool",
+   "subject",
+   "rubric",
+   "extraction_confidence"
+  ],
+  "title": "FailureModesReport",
+  "type": "object"
+ },
+ "parse_and_draft_rebuttal": {
+  "$defs": {
+   "AnalysisSubject": {
+    "description": "What was analysed: a paper (id/title/domain) or the user's draft or reviews (`title` = file label).",
+    "properties": {
+     "domain": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Domain"
+     },
+     "paper_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Paper Id"
+     },
+     "source": {
+      "default": "",
+      "title": "Source",
+      "type": "string"
+     },
+     "title": {
+      "default": "",
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "title": "AnalysisSubject",
+    "type": "object"
+   },
+   "ChecklistItem": {
+    "description": "A yes/no question answered by pattern detection (`unclear` when the text does not allow an answer).",
+    "properties": {
+     "category": {
+      "default": "",
+      "title": "Category",
+      "type": "string"
+     },
+     "detected": {
+      "enum": [
+       "yes",
+       "no",
+       "unclear"
+      ],
+      "title": "Detected",
+      "type": "string"
+     },
+     "evidence": {
+      "items": {
+       "$ref": "#/$defs/Excerpt"
+      },
+      "title": "Evidence",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "location": {
+      "default": "",
+      "title": "Location",
+      "type": "string"
+     },
+     "priority_hint": {
+      "default": "medium",
+      "enum": [
+       "high",
+       "medium",
+       "low"
+      ],
+      "title": "Priority Hint",
+      "type": "string"
+     },
+     "question": {
+      "title": "Question",
+      "type": "string"
+     },
+     "remediation": {
+      "default": "",
+      "title": "Remediation",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "question",
+     "detected"
+    ],
+    "title": "ChecklistItem",
+    "type": "object"
+   },
+   "Excerpt": {
+    "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
+    "properties": {
+     "origin": {
+      "default": "paper",
+      "enum": [
+       "paper",
+       "draft",
+       "reviews",
+       "web",
+       "user"
+      ],
+      "title": "Origin",
+      "type": "string"
+     },
+     "page": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Page"
+     },
+     "paper_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Paper Id"
+     },
+     "section": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Section"
+     },
+     "text": {
+      "title": "Text",
+      "type": "string"
+     },
+     "truncated": {
+      "default": false,
+      "title": "Truncated",
+      "type": "boolean"
+     },
+     "untrusted": {
+      "default": true,
+      "title": "Untrusted",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "text"
+    ],
+    "title": "Excerpt",
+    "type": "object"
+   },
+   "RebuttalPoint": {
+    "properties": {
+     "category": {
+      "title": "Category",
+      "type": "string"
+     },
+     "comment": {
+      "$ref": "#/$defs/Excerpt"
+     },
+     "manuscript_action_template": {
+      "default": "",
+      "title": "Manuscript Action Template",
+      "type": "string"
+     },
+     "point_id": {
+      "title": "Point Id",
+      "type": "string"
+     },
+     "priority_hint": {
+      "default": "medium",
+      "enum": [
+       "high",
+       "medium",
+       "low"
+      ],
+      "title": "Priority Hint",
+      "type": "string"
+     },
+     "requires_new_experiment": {
+      "default": false,
+      "title": "Requires New Experiment",
+      "type": "boolean"
+     },
+     "response_template": {
+      "default": "",
+      "title": "Response Template",
+      "type": "string"
+     },
+     "reviewer_id": {
+      "title": "Reviewer Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "point_id",
+     "reviewer_id",
+     "category",
+     "comment"
+    ],
+    "title": "RebuttalPoint",
+    "type": "object"
+   },
+   "Rubric": {
+    "description": "How the client's model should judge: the criteria and a short instruction (`how_to_judge`).",
+    "properties": {
+     "criteria": {
+      "items": {
+       "$ref": "#/$defs/RubricCriterion"
+      },
+      "title": "Criteria",
+      "type": "array"
+     },
+     "how_to_judge": {
+      "title": "How To Judge",
+      "type": "string"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name",
+     "how_to_judge"
+    ],
+    "title": "Rubric",
+    "type": "object"
+   },
+   "RubricCriterion": {
+    "description": "One question the client's model should answer, citing excerpts.",
+    "properties": {
+     "guidance": {
+      "default": "",
+      "title": "Guidance",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "question": {
+      "title": "Question",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "question"
+    ],
+    "title": "RubricCriterion",
+    "type": "object"
+   },
+   "Signal": {
+    "description": "Something a heuristic detected. `kind` says which way it points; `priority_hint` is the heuristic's guess\nof how much it matters - the judgement is the client's.",
+    "properties": {
+     "category": {
+      "title": "Category",
+      "type": "string"
+     },
+     "description": {
+      "title": "Description",
+      "type": "string"
+     },
+     "detail": {
+      "default": "",
+      "title": "Detail",
+      "type": "string"
+     },
+     "excerpts": {
+      "items": {
+       "$ref": "#/$defs/Excerpt"
+      },
+      "title": "Excerpts",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "kind": {
+      "enum": [
+       "strength",
+       "concern",
+       "gap",
+       "neutral"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "priority_hint": {
+      "default": "medium",
+      "enum": [
+       "high",
+       "medium",
+       "low"
+      ],
+      "title": "Priority Hint",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "category",
+     "kind",
+     "description"
+    ],
+    "title": "Signal",
+    "type": "object"
+   }
+  },
+  "description": "Parsed reviewer points with response templates; `excerpts` hold the paper abstract / draft context.",
+  "properties": {
+   "checklist": {
+    "items": {
+     "$ref": "#/$defs/ChecklistItem"
+    },
+    "title": "Checklist",
+    "type": "array"
+   },
+   "excerpts": {
+    "items": {
+     "$ref": "#/$defs/Excerpt"
+    },
+    "title": "Excerpts",
+    "type": "array"
+   },
+   "extraction_confidence": {
+    "enum": [
+     "low",
+     "medium",
+     "high"
+    ],
+    "title": "Extraction Confidence",
+    "type": "string"
+   },
+   "latex_rebuttal": {
+    "default": "",
+    "title": "Latex Rebuttal",
+    "type": "string"
+   },
+   "limitations": {
+    "items": {
+     "type": "string"
+    },
+    "title": "Limitations",
+    "type": "array"
+   },
+   "markdown_rebuttal": {
+    "default": "",
+    "title": "Markdown Rebuttal",
+    "type": "string"
+   },
+   "method": {
+    "default": "heuristic",
+    "enum": [
+     "heuristic",
+     "retrieval"
+    ],
+    "title": "Method",
+    "type": "string"
+   },
+   "new_experiments_requested": {
+    "default": 0,
+    "title": "New Experiments Requested",
+    "type": "integer"
+   },
+   "points": {
+    "items": {
+     "$ref": "#/$defs/RebuttalPoint"
+    },
+    "title": "Points",
+    "type": "array"
+   },
+   "rendered_markdown": {
+    "default": "",
+    "title": "Rendered Markdown",
+    "type": "string"
+   },
+   "reviewers_detected": {
+    "items": {
+     "type": "string"
+    },
+    "title": "Reviewers Detected",
+    "type": "array"
+   },
+   "rubric": {
+    "$ref": "#/$defs/Rubric"
+   },
+   "signals": {
+    "items": {
+     "$ref": "#/$defs/Signal"
+    },
+    "title": "Signals",
+    "type": "array"
+   },
+   "subject": {
+    "$ref": "#/$defs/AnalysisSubject"
+   },
+   "tool": {
+    "title": "Tool",
+    "type": "string"
+   },
+   "total_points": {
+    "default": 0,
+    "title": "Total Points",
+    "type": "integer"
+   },
+   "untrusted_fields": {
+    "items": {
+     "type": "string"
+    },
+    "title": "Untrusted Fields",
+    "type": "array"
+   }
+  },
+  "required": [
+   "tool",
+   "subject",
+   "rubric",
+   "extraction_confidence"
+  ],
+  "title": "RebuttalReport",
+  "type": "object"
+ },
+ "review_paper": {
+  "$defs": {
+   "AnalysisSubject": {
+    "description": "What was analysed: a paper (id/title/domain) or the user's draft or reviews (`title` = file label).",
+    "properties": {
+     "domain": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Domain"
+     },
+     "paper_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Paper Id"
+     },
+     "source": {
+      "default": "",
+      "title": "Source",
+      "type": "string"
+     },
+     "title": {
+      "default": "",
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "title": "AnalysisSubject",
+    "type": "object"
+   },
+   "ChecklistItem": {
+    "description": "A yes/no question answered by pattern detection (`unclear` when the text does not allow an answer).",
+    "properties": {
+     "category": {
+      "default": "",
+      "title": "Category",
+      "type": "string"
+     },
+     "detected": {
+      "enum": [
+       "yes",
+       "no",
+       "unclear"
+      ],
+      "title": "Detected",
+      "type": "string"
+     },
+     "evidence": {
+      "items": {
+       "$ref": "#/$defs/Excerpt"
+      },
+      "title": "Evidence",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "location": {
+      "default": "",
+      "title": "Location",
+      "type": "string"
+     },
+     "priority_hint": {
+      "default": "medium",
+      "enum": [
+       "high",
+       "medium",
+       "low"
+      ],
+      "title": "Priority Hint",
+      "type": "string"
+     },
+     "question": {
+      "title": "Question",
+      "type": "string"
+     },
+     "remediation": {
+      "default": "",
+      "title": "Remediation",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "question",
+     "detected"
+    ],
+    "title": "ChecklistItem",
+    "type": "object"
+   },
+   "Excerpt": {
+    "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
+    "properties": {
+     "origin": {
+      "default": "paper",
+      "enum": [
+       "paper",
+       "draft",
+       "reviews",
+       "web",
+       "user"
+      ],
+      "title": "Origin",
+      "type": "string"
+     },
+     "page": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Page"
+     },
+     "paper_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Paper Id"
+     },
+     "section": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Section"
+     },
+     "text": {
+      "title": "Text",
+      "type": "string"
+     },
+     "truncated": {
+      "default": false,
+      "title": "Truncated",
+      "type": "boolean"
+     },
+     "untrusted": {
+      "default": true,
+      "title": "Untrusted",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "text"
+    ],
+    "title": "Excerpt",
+    "type": "object"
+   },
+   "ReviewPerspective": {
+    "description": "One reviewer persona of the domain rubric and the signals it produced.",
+    "properties": {
+     "focus": {
+      "default": "",
+      "title": "Focus",
+      "type": "string"
+     },
+     "questions_for_authors": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Questions For Authors",
+      "type": "array"
+     },
+     "role": {
+      "title": "Role",
+      "type": "string"
+     },
+     "signal_ids": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Signal Ids",
+      "type": "array"
+     }
+    },
+    "required": [
+     "role"
+    ],
+    "title": "ReviewPerspective",
+    "type": "object"
+   },
+   "Rubric": {
+    "description": "How the client's model should judge: the criteria and a short instruction (`how_to_judge`).",
+    "properties": {
+     "criteria": {
+      "items": {
+       "$ref": "#/$defs/RubricCriterion"
+      },
+      "title": "Criteria",
+      "type": "array"
+     },
+     "how_to_judge": {
+      "title": "How To Judge",
+      "type": "string"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name",
+     "how_to_judge"
+    ],
+    "title": "Rubric",
+    "type": "object"
+   },
+   "RubricCriterion": {
+    "description": "One question the client's model should answer, citing excerpts.",
+    "properties": {
+     "guidance": {
+      "default": "",
+      "title": "Guidance",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "question": {
+      "title": "Question",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "question"
+    ],
+    "title": "RubricCriterion",
+    "type": "object"
+   },
+   "Signal": {
+    "description": "Something a heuristic detected. `kind` says which way it points; `priority_hint` is the heuristic's guess\nof how much it matters - the judgement is the client's.",
+    "properties": {
+     "category": {
+      "title": "Category",
+      "type": "string"
+     },
+     "description": {
+      "title": "Description",
+      "type": "string"
+     },
+     "detail": {
+      "default": "",
+      "title": "Detail",
+      "type": "string"
+     },
+     "excerpts": {
+      "items": {
+       "$ref": "#/$defs/Excerpt"
+      },
+      "title": "Excerpts",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "kind": {
+      "enum": [
+       "strength",
+       "concern",
+       "gap",
+       "neutral"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "priority_hint": {
+      "default": "medium",
+      "enum": [
+       "high",
+       "medium",
+       "low"
+      ],
+      "title": "Priority Hint",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "category",
+     "kind",
+     "description"
+    ],
+    "title": "Signal",
+    "type": "object"
+   }
+  },
+  "properties": {
+   "checklist": {
+    "items": {
+     "$ref": "#/$defs/ChecklistItem"
+    },
+    "title": "Checklist",
+    "type": "array"
+   },
+   "excerpts": {
+    "items": {
+     "$ref": "#/$defs/Excerpt"
+    },
+    "title": "Excerpts",
+    "type": "array"
+   },
+   "extraction_confidence": {
+    "enum": [
+     "low",
+     "medium",
+     "high"
+    ],
+    "title": "Extraction Confidence",
+    "type": "string"
+   },
+   "limitations": {
+    "items": {
+     "type": "string"
+    },
+    "title": "Limitations",
+    "type": "array"
+   },
+   "method": {
+    "default": "heuristic",
+    "enum": [
+     "heuristic",
+     "retrieval"
+    ],
+    "title": "Method",
+    "type": "string"
+   },
+   "missing_experiments_or_controls": {
+    "items": {
+     "type": "string"
+    },
+    "title": "Missing Experiments Or Controls",
+    "type": "array"
+   },
+   "perspectives": {
+    "items": {
+     "$ref": "#/$defs/ReviewPerspective"
+    },
+    "title": "Perspectives",
+    "type": "array"
+   },
+   "questions_for_authors": {
+    "items": {
+     "type": "string"
+    },
+    "title": "Questions For Authors",
+    "type": "array"
+   },
+   "rendered_markdown": {
+    "default": "",
+    "title": "Rendered Markdown",
+    "type": "string"
+   },
+   "rubric": {
+    "$ref": "#/$defs/Rubric"
+   },
+   "rubric_applied": {
+    "title": "Rubric Applied",
+    "type": "string"
+   },
+   "signals": {
+    "items": {
+     "$ref": "#/$defs/Signal"
+    },
+    "title": "Signals",
+    "type": "array"
+   },
+   "subject": {
+    "$ref": "#/$defs/AnalysisSubject"
+   },
+   "tool": {
+    "title": "Tool",
+    "type": "string"
+   },
+   "untrusted_fields": {
+    "items": {
+     "type": "string"
+    },
+    "title": "Untrusted Fields",
+    "type": "array"
+   }
+  },
+  "required": [
+   "tool",
+   "subject",
+   "rubric",
+   "extraction_confidence",
+   "rubric_applied"
+  ],
+  "title": "PeerReviewReport",
+  "type": "object"
+ },
+ "review_paper_scientific": {
+  "$defs": {
+   "AnalysisSubject": {
+    "description": "What was analysed: a paper (id/title/domain) or the user's draft or reviews (`title` = file label).",
+    "properties": {
+     "domain": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Domain"
+     },
+     "paper_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Paper Id"
+     },
+     "source": {
+      "default": "",
+      "title": "Source",
+      "type": "string"
+     },
+     "title": {
+      "default": "",
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "title": "AnalysisSubject",
+    "type": "object"
+   },
+   "ChecklistItem": {
+    "description": "A yes/no question answered by pattern detection (`unclear` when the text does not allow an answer).",
+    "properties": {
+     "category": {
+      "default": "",
+      "title": "Category",
+      "type": "string"
+     },
+     "detected": {
+      "enum": [
+       "yes",
+       "no",
+       "unclear"
+      ],
+      "title": "Detected",
+      "type": "string"
+     },
+     "evidence": {
+      "items": {
+       "$ref": "#/$defs/Excerpt"
+      },
+      "title": "Evidence",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "location": {
+      "default": "",
+      "title": "Location",
+      "type": "string"
+     },
+     "priority_hint": {
+      "default": "medium",
+      "enum": [
+       "high",
+       "medium",
+       "low"
+      ],
+      "title": "Priority Hint",
+      "type": "string"
+     },
+     "question": {
+      "title": "Question",
+      "type": "string"
+     },
+     "remediation": {
+      "default": "",
+      "title": "Remediation",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "question",
+     "detected"
+    ],
+    "title": "ChecklistItem",
+    "type": "object"
+   },
+   "Excerpt": {
+    "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
+    "properties": {
+     "origin": {
+      "default": "paper",
+      "enum": [
+       "paper",
+       "draft",
+       "reviews",
+       "web",
+       "user"
+      ],
+      "title": "Origin",
+      "type": "string"
+     },
+     "page": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Page"
+     },
+     "paper_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Paper Id"
+     },
+     "section": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Section"
+     },
+     "text": {
+      "title": "Text",
+      "type": "string"
+     },
+     "truncated": {
+      "default": false,
+      "title": "Truncated",
+      "type": "boolean"
+     },
+     "untrusted": {
+      "default": true,
+      "title": "Untrusted",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "text"
+    ],
+    "title": "Excerpt",
+    "type": "object"
+   },
+   "ReviewPerspective": {
+    "description": "One reviewer persona of the domain rubric and the signals it produced.",
+    "properties": {
+     "focus": {
+      "default": "",
+      "title": "Focus",
+      "type": "string"
+     },
+     "questions_for_authors": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Questions For Authors",
+      "type": "array"
+     },
+     "role": {
+      "title": "Role",
+      "type": "string"
+     },
+     "signal_ids": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Signal Ids",
+      "type": "array"
+     }
+    },
+    "required": [
+     "role"
+    ],
+    "title": "ReviewPerspective",
+    "type": "object"
+   },
+   "Rubric": {
+    "description": "How the client's model should judge: the criteria and a short instruction (`how_to_judge`).",
+    "properties": {
+     "criteria": {
+      "items": {
+       "$ref": "#/$defs/RubricCriterion"
+      },
+      "title": "Criteria",
+      "type": "array"
+     },
+     "how_to_judge": {
+      "title": "How To Judge",
+      "type": "string"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name",
+     "how_to_judge"
+    ],
+    "title": "Rubric",
+    "type": "object"
+   },
+   "RubricCriterion": {
+    "description": "One question the client's model should answer, citing excerpts.",
+    "properties": {
+     "guidance": {
+      "default": "",
+      "title": "Guidance",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "question": {
+      "title": "Question",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "question"
+    ],
+    "title": "RubricCriterion",
+    "type": "object"
+   },
+   "Signal": {
+    "description": "Something a heuristic detected. `kind` says which way it points; `priority_hint` is the heuristic's guess\nof how much it matters - the judgement is the client's.",
+    "properties": {
+     "category": {
+      "title": "Category",
+      "type": "string"
+     },
+     "description": {
+      "title": "Description",
+      "type": "string"
+     },
+     "detail": {
+      "default": "",
+      "title": "Detail",
+      "type": "string"
+     },
+     "excerpts": {
+      "items": {
+       "$ref": "#/$defs/Excerpt"
+      },
+      "title": "Excerpts",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "kind": {
+      "enum": [
+       "strength",
+       "concern",
+       "gap",
+       "neutral"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "priority_hint": {
+      "default": "medium",
+      "enum": [
+       "high",
+       "medium",
+       "low"
+      ],
+      "title": "Priority Hint",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "category",
+     "kind",
+     "description"
+    ],
+    "title": "Signal",
+    "type": "object"
+   }
+  },
+  "properties": {
+   "checklist": {
+    "items": {
+     "$ref": "#/$defs/ChecklistItem"
+    },
+    "title": "Checklist",
+    "type": "array"
+   },
+   "excerpts": {
+    "items": {
+     "$ref": "#/$defs/Excerpt"
+    },
+    "title": "Excerpts",
+    "type": "array"
+   },
+   "extraction_confidence": {
+    "enum": [
+     "low",
+     "medium",
+     "high"
+    ],
+    "title": "Extraction Confidence",
+    "type": "string"
+   },
+   "limitations": {
+    "items": {
+     "type": "string"
+    },
+    "title": "Limitations",
+    "type": "array"
+   },
+   "method": {
+    "default": "heuristic",
+    "enum": [
+     "heuristic",
+     "retrieval"
+    ],
+    "title": "Method",
+    "type": "string"
+   },
+   "missing_experiments_or_controls": {
+    "items": {
+     "type": "string"
+    },
+    "title": "Missing Experiments Or Controls",
+    "type": "array"
+   },
+   "perspectives": {
+    "items": {
+     "$ref": "#/$defs/ReviewPerspective"
+    },
+    "title": "Perspectives",
+    "type": "array"
+   },
+   "questions_for_authors": {
+    "items": {
+     "type": "string"
+    },
+    "title": "Questions For Authors",
+    "type": "array"
+   },
+   "rendered_markdown": {
+    "default": "",
+    "title": "Rendered Markdown",
+    "type": "string"
+   },
+   "rubric": {
+    "$ref": "#/$defs/Rubric"
+   },
+   "rubric_applied": {
+    "title": "Rubric Applied",
+    "type": "string"
+   },
+   "signals": {
+    "items": {
+     "$ref": "#/$defs/Signal"
+    },
+    "title": "Signals",
+    "type": "array"
+   },
+   "subject": {
+    "$ref": "#/$defs/AnalysisSubject"
+   },
+   "tool": {
+    "title": "Tool",
+    "type": "string"
+   },
+   "untrusted_fields": {
+    "items": {
+     "type": "string"
+    },
+    "title": "Untrusted Fields",
+    "type": "array"
+   }
+  },
+  "required": [
+   "tool",
+   "subject",
+   "rubric",
+   "extraction_confidence",
+   "rubric_applied"
+  ],
+  "title": "PeerReviewReport",
+  "type": "object"
+ },
+ "verify_paper_claims": {
+  "$defs": {
+   "AnalysisSubject": {
+    "description": "What was analysed: a paper (id/title/domain) or the user's draft or reviews (`title` = file label).",
+    "properties": {
+     "domain": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Domain"
+     },
+     "paper_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Paper Id"
+     },
+     "source": {
+      "default": "",
+      "title": "Source",
+      "type": "string"
+     },
+     "title": {
+      "default": "",
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "title": "AnalysisSubject",
+    "type": "object"
+   },
+   "ChecklistItem": {
+    "description": "A yes/no question answered by pattern detection (`unclear` when the text does not allow an answer).",
+    "properties": {
+     "category": {
+      "default": "",
+      "title": "Category",
+      "type": "string"
+     },
+     "detected": {
+      "enum": [
+       "yes",
+       "no",
+       "unclear"
+      ],
+      "title": "Detected",
+      "type": "string"
+     },
+     "evidence": {
+      "items": {
+       "$ref": "#/$defs/Excerpt"
+      },
+      "title": "Evidence",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "location": {
+      "default": "",
+      "title": "Location",
+      "type": "string"
+     },
+     "priority_hint": {
+      "default": "medium",
+      "enum": [
+       "high",
+       "medium",
+       "low"
+      ],
+      "title": "Priority Hint",
+      "type": "string"
+     },
+     "question": {
+      "title": "Question",
+      "type": "string"
+     },
+     "remediation": {
+      "default": "",
+      "title": "Remediation",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "question",
+     "detected"
+    ],
+    "title": "ChecklistItem",
+    "type": "object"
+   },
+   "Excerpt": {
+    "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
+    "properties": {
+     "origin": {
+      "default": "paper",
+      "enum": [
+       "paper",
+       "draft",
+       "reviews",
+       "web",
+       "user"
+      ],
+      "title": "Origin",
+      "type": "string"
+     },
+     "page": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Page"
+     },
+     "paper_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Paper Id"
+     },
+     "section": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Section"
+     },
+     "text": {
+      "title": "Text",
+      "type": "string"
+     },
+     "truncated": {
+      "default": false,
+      "title": "Truncated",
+      "type": "boolean"
+     },
+     "untrusted": {
+      "default": true,
+      "title": "Untrusted",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "text"
+    ],
+    "title": "Excerpt",
+    "type": "object"
+   },
+   "GroundedClaim": {
+    "description": "Where a claim's numbers and terms appear in the paper. Lexical facts only: whether the passage *supports*\nthe claim is for the client's model to judge from `best_match` / `other_matches`.",
+    "properties": {
+     "best_match": {
+      "anyOf": [
+       {
+        "$ref": "#/$defs/Excerpt"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
+     "citation_tag": {
+      "default": "",
+      "title": "Citation Tag",
+      "type": "string"
+     },
+     "claim": {
+      "title": "Claim",
+      "type": "string"
+     },
+     "claim_untrusted": {
+      "default": false,
+      "title": "Claim Untrusted",
+      "type": "boolean"
+     },
+     "hedging_cues_missing_in_text": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Hedging Cues Missing In Text",
+      "type": "array"
+     },
+     "keyword_overlap": {
+      "default": 0.0,
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Keyword Overlap",
+      "type": "number"
+     },
+     "numbers_checked": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Numbers Checked",
+      "type": "array"
+     },
+     "numbers_found": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Numbers Found",
+      "type": "array"
+     },
+     "numbers_missing": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Numbers Missing",
+      "type": "array"
+     },
+     "other_matches": {
+      "items": {
+       "$ref": "#/$defs/Excerpt"
+      },
+      "title": "Other Matches",
+      "type": "array"
+     }
+    },
+    "required": [
+     "claim"
+    ],
+    "title": "GroundedClaim",
+    "type": "object"
+   },
+   "Rubric": {
+    "description": "How the client's model should judge: the criteria and a short instruction (`how_to_judge`).",
+    "properties": {
+     "criteria": {
+      "items": {
+       "$ref": "#/$defs/RubricCriterion"
+      },
+      "title": "Criteria",
+      "type": "array"
+     },
+     "how_to_judge": {
+      "title": "How To Judge",
+      "type": "string"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name",
+     "how_to_judge"
+    ],
+    "title": "Rubric",
+    "type": "object"
+   },
+   "RubricCriterion": {
+    "description": "One question the client's model should answer, citing excerpts.",
+    "properties": {
+     "guidance": {
+      "default": "",
+      "title": "Guidance",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "question": {
+      "title": "Question",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "question"
+    ],
+    "title": "RubricCriterion",
+    "type": "object"
+   },
+   "Signal": {
+    "description": "Something a heuristic detected. `kind` says which way it points; `priority_hint` is the heuristic's guess\nof how much it matters - the judgement is the client's.",
+    "properties": {
+     "category": {
+      "title": "Category",
+      "type": "string"
+     },
+     "description": {
+      "title": "Description",
+      "type": "string"
+     },
+     "detail": {
+      "default": "",
+      "title": "Detail",
+      "type": "string"
+     },
+     "excerpts": {
+      "items": {
+       "$ref": "#/$defs/Excerpt"
+      },
+      "title": "Excerpts",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "kind": {
+      "enum": [
+       "strength",
+       "concern",
+       "gap",
+       "neutral"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "priority_hint": {
+      "default": "medium",
+      "enum": [
+       "high",
+       "medium",
+       "low"
+      ],
+      "title": "Priority Hint",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "category",
+     "kind",
+     "description"
+    ],
+    "title": "Signal",
+    "type": "object"
+   }
+  },
+  "properties": {
+   "auto_extracted_claims": {
+    "default": false,
+    "title": "Auto Extracted Claims",
+    "type": "boolean"
+   },
+   "checklist": {
+    "items": {
+     "$ref": "#/$defs/ChecklistItem"
+    },
+    "title": "Checklist",
+    "type": "array"
+   },
+   "claims": {
+    "items": {
+     "$ref": "#/$defs/GroundedClaim"
+    },
+    "title": "Claims",
+    "type": "array"
+   },
+   "excerpts": {
+    "items": {
+     "$ref": "#/$defs/Excerpt"
+    },
+    "title": "Excerpts",
+    "type": "array"
+   },
+   "extraction_confidence": {
+    "enum": [
+     "low",
+     "medium",
+     "high"
+    ],
+    "title": "Extraction Confidence",
+    "type": "string"
+   },
+   "limitations": {
+    "items": {
+     "type": "string"
+    },
+    "title": "Limitations",
+    "type": "array"
+   },
+   "method": {
+    "default": "heuristic",
+    "enum": [
+     "heuristic",
+     "retrieval"
+    ],
+    "title": "Method",
+    "type": "string"
+   },
+   "rendered_markdown": {
+    "default": "",
+    "title": "Rendered Markdown",
+    "type": "string"
+   },
+   "rubric": {
+    "$ref": "#/$defs/Rubric"
+   },
+   "signals": {
+    "items": {
+     "$ref": "#/$defs/Signal"
+    },
+    "title": "Signals",
+    "type": "array"
+   },
+   "subject": {
+    "$ref": "#/$defs/AnalysisSubject"
+   },
+   "tool": {
+    "title": "Tool",
+    "type": "string"
+   },
+   "untrusted_fields": {
+    "items": {
+     "type": "string"
+    },
+    "title": "Untrusted Fields",
+    "type": "array"
+   }
+  },
+  "required": [
+   "tool",
+   "subject",
+   "rubric",
+   "extraction_confidence"
+  ],
+  "title": "ClaimsGroundingReport",
+  "type": "object"
+ }
+}

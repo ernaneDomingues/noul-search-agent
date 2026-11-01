@@ -3,7 +3,7 @@
 from pydantic import BaseModel as _Model
 from pydantic import Field as _field
 
-from noul.schemas.evidence import AnalysisResult, Excerpt
+from noul.schemas.evidence import AnalysisResult, Excerpt, PriorityHint
 
 
 class CitationRecommendationItem(_Model):
@@ -106,7 +106,7 @@ class RebuttalPoint(_Model):
     point_id: str
     reviewer_id: str
     category: str  # clarity_question | new_experiment_request | baseline_criticism | notation_or_formatting | methodological_or_statistical
-    priority_hint: str = "medium"  # high | medium | low (pattern-based guess)
+    priority_hint: PriorityHint = "medium"  # pattern-based guess
     requires_new_experiment: bool = False
     comment: Excerpt  # the reviewer's words (untrusted)
     response_template: str = ""  # with [TODO] placeholders: never a claim about results

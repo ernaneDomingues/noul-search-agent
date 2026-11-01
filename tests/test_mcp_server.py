@@ -150,13 +150,14 @@ class McpServerTests(unittest.TestCase):
         self.assertEqual(names, ["noul-research"])
         self.assertFalse(missing_ok)
 
-    def test_structured_content_is_dropped_when_it_would_not_match_the_output_schema(self):
+    def test_a_result_that_would_not_match_the_output_schema_becomes_an_error(self):
         from noul.schemas.tool_outputs import BibtexSanitizeReport
         from noul.server.mcp import _text_result
 
         result = _text_result({"entries_total": "many"}, output=BibtexSanitizeReport)
+        # A tool with an outputSchema must send conforming structuredContent; is_error is the conforming fallback.
+        self.assertTrue(result.is_error)
         self.assertIsNone(result.structured_content)
-        self.assertIn("many", result.content[0].text)
         ok = _text_result({"entries_total": 2}, output=BibtexSanitizeReport)
         self.assertEqual(ok.structured_content, {"entries_total": 2})
 

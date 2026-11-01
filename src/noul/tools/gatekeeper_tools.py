@@ -500,7 +500,7 @@ def audit_submission_readiness(draft_path: str, venue: str = "neurips") -> dict:
             "These are pattern-based findings, not a readiness score. Decide yourself whether the manuscript is "
             "ready: confirm each finding against the cited text, and say which items need a human check.",
         ),
-        extraction_confidence="medium" if len(text) > 2000 else "low",
+        extraction_confidence=_contract.extraction_confidence("draft", length=len(text)),
         limitations=limitations,
         venue=v,
         double_blind=is_double_blind,

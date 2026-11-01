@@ -386,7 +386,7 @@
           </article>
           <article class="tool-card" data-tool="verify_paper_claims">
             <h4 class="mono">verify_paper_claims</h4>
-            <p>Claim grounding with strict attribution: locates each claim (or, when `claims` is empty, the numeric/comparative sentences auto-extracted from the abstract/text) in the paper&#x27;s literal text, indexed by page and table/section. Per claim: numbers found/missing in the closest passage, keyword overlap, claim words absent from the text, a location tag &#x27;[p. X, Tabela Y]&#x27; and the best-matching excerpts. It does not decide whether a claim is supported: read `best_match` and decide. Use it before stating numbers from a paper. Returns evidence, not a verdict (`AnalysisResult`: signals with excerpts, checklist, rubric, extraction_confidence, limitations); you judge with the rubric and cite the excerpts.</p>
+            <p>Claim grounding with strict attribution: locates each claim (or, when `claims` is empty, the numeric/comparative sentences auto-extracted from the abstract/text) in the paper&#x27;s literal text, indexed by page and table/section. Per claim: numbers found/missing in the closest passage, keyword overlap, claim words absent from the text, a location tag &#x27;[p. X, Tabela Y]&#x27; and the best-matching excerpts. It does not decide whether a claim is supported: read `best_match` and decide. Use it before stating numbers from a paper; judge each claim with the returned rubric.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> paper_id | <strong>Optional:</strong> claims</div>
               <div><strong>CLI:</strong> <code>noul ground &lt;id&gt;</code></div>
@@ -418,7 +418,7 @@
           </article>
           <article class="tool-card" data-tool="detect_failure_modes">
             <h4 class="mono">detect_failure_modes</h4>
-            <p>Failure mode &amp; critical assumption detector: scans Limitations, Error Analysis, Failure Cases, Discussion, Threats to Validity and Appendix (plus abstract/body) to classify failure modes into long_context, noise_sensitivity, out_of_distribution, latency_or_compute, sample_or_population_bias and general_limitation (as `signals` with the triggering sentence and a priority hint), extracts critical_assumptions, baseline_superiority_scenarios (from text and from benchmark tables where a baseline beats Ours) and operational_limits. Returns evidence, not a verdict (`AnalysisResult`: signals with excerpts, checklist, rubric, extraction_confidence, limitations); you judge with the rubric and cite the excerpts.</p>
+            <p>Failure mode &amp; critical assumption detector: scans Limitations, Error Analysis, Failure Cases, Discussion, Threats to Validity and Appendix (plus abstract/body) to classify failure modes into long_context, noise_sensitivity, out_of_distribution, latency_or_compute, sample_or_population_bias and general_limitation (as `signals` with the triggering sentence and a priority hint), extracts critical_assumptions, baseline_superiority_scenarios (from text and from benchmark tables where a baseline beats Ours) and operational_limits. Candidates, not confirmed failures: check each excerpt.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> paper_id | <strong>Optional:</strong> inspect_fulltext</div>
               <div><strong>CLI:</strong> <code>noul failures &lt;id&gt;</code></div>
@@ -434,7 +434,7 @@
           </article>
           <article class="tool-card" data-tool="review_paper">
             <h4 class="mono">review_paper</h4>
-            <p>Multi-persona peer-review committee (#17, #20): detects the paper&#x27;s scientific domain (or uses `domain` override) and runs 3 specialized reviewer personas (NeurIPS/ICLR Theoretical, Skeptical Empirical, and Systems/Reproducibility for CS/AI; CONSORT/STROBE Clinical Trial Methodologist, Biostatistician, and Translational Safety Reviewer for Biomedical; Causal Identification Econometrician, Robustness Auditor, and Policy Economist for Economics). Returns each persona&#x27;s strengths, concerns and gaps as signals with excerpts, missing experiments/controls, questions for the authors and the domain rubric - no verdict or score: you write the review and the recommendation. Returns evidence, not a verdict (`AnalysisResult`: signals with excerpts, checklist, rubric, extraction_confidence, limitations); you judge with the rubric and cite the excerpts.</p>
+            <p>Multi-persona peer-review committee (#17, #20): detects the paper&#x27;s scientific domain (or uses `domain` override) and runs 3 specialized reviewer personas (NeurIPS/ICLR Theoretical, Skeptical Empirical, and Systems/Reproducibility for CS/AI; CONSORT/STROBE Clinical Trial Methodologist, Biostatistician, and Translational Safety Reviewer for Biomedical; Causal Identification Econometrician, Robustness Auditor, and Policy Economist for Economics). Returns each persona&#x27;s strengths, concerns and gaps as signals with excerpts, missing experiments/controls, questions for the authors and the domain rubric - no verdict or score: you write the review and the recommendation, citing the excerpts.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> paper_id | <strong>Optional:</strong> domain, inspect_fulltext</div>
               <div><strong>CLI:</strong> <code>noul review &lt;id&gt;</code></div>
@@ -490,7 +490,7 @@
           </article>
           <article class="tool-card" data-tool="audit_manuscript_draft">
             <h4 class="mono">audit_manuscript_draft</h4>
-            <p>Draft manuscript auditor (#23 Mode 2): audits a draft (.md/.tex in workspace or inline text) for weak or unsubstantiated claims, mathematical/terminological inconsistencies ($L$ vs $\mathcal{L}$), and reproducibility omissions (seeds, hyperparameters, sample size N, error bars, compute hardware), as signals quoting the draft with suggested rewrites. Returns evidence, not a verdict (`AnalysisResult`: signals with excerpts, checklist, rubric, extraction_confidence, limitations); you judge with the rubric and cite the excerpts.</p>
+            <p>Draft manuscript auditor (#23 Mode 2): audits a draft (.md/.tex in workspace or inline text) for weak or unsubstantiated claims, mathematical/terminological inconsistencies ($L$ vs $\mathcal{L}$), and reproducibility omissions (seeds, hyperparameters, sample size N, error bars, compute hardware), as signals quoting the draft with suggested rewrites, a checklist and a rubric; no assessment.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> draft_input | <strong>Optional:</strong> venue, output_format</div>
               <div><strong>CLI:</strong> <code>noul draft audit &lt;draft&gt;</code></div>
@@ -514,7 +514,7 @@
           </article>
           <article class="tool-card" data-tool="audit_submission_readiness">
             <h4 class="mono">audit_submission_readiness</h4>
-            <p>Pre-Submission &amp; Desk-Reject Gatekeeper (#27): runs a 4-stage audit on a `.tex`, `.md`, or `.pdf` manuscript for the target `venue` — (1) Double-Blind Anonymity Audit (non-anonymous GitHub/HF URLs, `\author` blocks, PDF metadata, first-person self-citations), (2) Venue Checklist Engine, (3) Overclaiming Scanner, and (4) Mandatory Sections Check - anonymity/overclaiming findings as signals, checklist and sections as a checklist (detected yes/no) and suggested actions; no readiness score: you judge readiness. Returns evidence, not a verdict (`AnalysisResult`: signals with excerpts, checklist, rubric, extraction_confidence, limitations); you judge with the rubric and cite the excerpts.</p>
+            <p>Pre-Submission &amp; Desk-Reject Gatekeeper (#27): runs a 4-stage audit on a `.tex`, `.md`, or `.pdf` manuscript for the target `venue` — (1) Double-Blind Anonymity Audit (non-anonymous GitHub/HF URLs, `\author` blocks, PDF metadata, first-person self-citations), (2) Venue Checklist Engine, (3) Overclaiming Scanner, and (4) Mandatory Sections Check - anonymity/overclaiming findings as signals, checklist and sections as a checklist (detected yes/no) and suggested actions; no readiness score: you judge readiness with the returned rubric.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> draft_path | <strong>Optional:</strong> venue</div>
               <div><strong>CLI:</strong> <code>noul gatekeeper audit &lt;draft&gt;</code></div>

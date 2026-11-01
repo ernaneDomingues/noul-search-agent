@@ -86,7 +86,7 @@ class DraftAuditorTests(unittest.TestCase):
         self.assertGreaterEqual(len(by_cat["reproducibility_omission"]), 4)
         quote = by_cat["weak_claim"][0]["excerpts"][0]
         self.assertEqual(quote["origin"], "draft")
-        self.assertFalse(quote["untrusted"])  # the user's own draft
+        self.assertTrue(quote["untrusted"])  # a draft may be a downloaded PDF
         self.assertEqual(by_cat["reproducibility_omission"][0]["excerpts"], [])  # an omission has no passage
         self.assertEqual({c["id"]: c["detected"] for c in res["checklist"]}["claims_anchored"], "no")
         self.assertIn("# Manuscript draft audit", res["rendered_report"])
@@ -135,7 +135,7 @@ class DraftAuditorTests(unittest.TestCase):
             rc2 = cli.main(["draft", "audit", "This method clearly proves a massive improvement.", "--pretty"])
         self.assertEqual(rc2, 0)
         self.assertIn("category: weak_claim", buf2.getvalue())
-        self.assertIn("> This method clearly proves a massive improvement.", buf2.getvalue())
+        self.assertIn("\nThis method clearly proves a massive improvement.\n</untrusted_source nonce=", buf2.getvalue())
 
 
 if __name__ == "__main__":
