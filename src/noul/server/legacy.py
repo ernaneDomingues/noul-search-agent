@@ -8,7 +8,6 @@ write tools disabled unless NOUL_HTTP_ALLOW_WRITE=1 *and* a token is set."""
 
 import argparse
 import hmac
-import ipaddress
 import json
 import os
 import socket
@@ -20,13 +19,20 @@ from noul import __version__ as VERSION
 from noul import api as t
 from noul import log as _log
 from noul import registry as _registry
+from noul.server.common import (  # noqa: F401  (re-exported for v1 callers)
+    DEFAULT_PORT,
+    MAX_BODY_BYTES,
+    openapi_spec,
+    resources_list,
+    resources_read,
+)
+from noul.server.common import env_list as _env_list
+from noul.server.common import is_loopback_host as _is_loopback_host
 
 SUPPORTED_PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
 PROTOCOL = SUPPORTED_PROTOCOLS[0]
 # Tools that write to disk or change configuration, from the registry (`writes=True`).
 WRITE_TOOLS = _registry.write_tools()
-MAX_BODY_BYTES = 1024 * 1024
-DEFAULT_PORT = 8765
 
 
 def tools_list(exclude=()):
@@ -35,68 +41,6 @@ def tools_list(exclude=()):
         for item in _registry.catalog()
         if item["name"] not in exclude
     ]
-
-
-def resources_list():
-    try:
-        dossiers = t.list_research_dossiers().get("dossiers") or []
-    except Exception as e:
-        print(f"noul: could not list research dossiers: {e}", file=sys.stderr)
-        dossiers = []
-    return [
-        {
-            "uri": f"noul://dossier/{d['slug']}",
-            "name": f"Research Dossier: {d['topic']}",
-            "description": f"Saved research synthesis and {d.get('paper_count', 0)} papers on '{d['topic']}'",
-            "mimeType": "text/markdown",
-        }
-        for d in dossiers
-    ]
-
-
-def resources_read(uri):
-    if not uri or not uri.startswith("noul://dossier/"):
-        raise ValueError(f"Unknown resource URI: {uri}")
-    slug = uri.split("noul://dossier/", 1)[1].strip("/")
-    dossier = t.get_research_dossier(slug)
-    return [
-        {
-            "uri": uri,
-            "mimeType": "text/markdown",
-            "text": dossier.get("markdown") or "",
-        }
-    ]
-
-
-def openapi_spec(host=f"http://localhost:{DEFAULT_PORT}", exclude=()):
-    paths = {}
-    for name, (desc, props, req, _) in t.TOOLS.items():
-        if name in exclude:
-            continue
-        paths[f"/tools/{name}"] = {
-            "post": {
-                "operationId": name,
-                "summary": desc[:120],
-                "description": desc,
-                "requestBody": {
-                    "required": True,
-                    "content": {
-                        "application/json": {"schema": {"type": "object", "properties": props, "required": req}}
-                    },
-                },
-                "responses": {"200": {"description": "Tool response"}},
-            }
-        }
-    return {
-        "openapi": "3.1.0",
-        "info": {
-            "title": "Noul Search Agent API",
-            "version": VERSION,
-            "description": "Scientific literature search, Evidence Meter synthesis support, PDF download, and research dossiers.",
-        },
-        "servers": [{"url": host}],
-        "paths": paths,
-    }
 
 
 def _rpc_error(mid, code, message):
@@ -157,19 +101,6 @@ def handle(msg, allow_write=True):
     except Exception as e:
         return _rpc_error(mid, -32603, f"Internal error: {type(e).__name__}: {e}")
     return {"jsonrpc": "2.0", "id": mid, "result": res}
-
-
-def _is_loopback_host(host):
-    if (host or "").lower() == "localhost":
-        return True
-    try:
-        return ipaddress.ip_address(host).is_loopback
-    except ValueError:
-        return False
-
-
-def _env_list(name):
-    return tuple(x.strip().rstrip("/") for x in os.environ.get(name, "").split(",") if x.strip())
 
 
 class NoulHTTPServer(ThreadingHTTPServer):

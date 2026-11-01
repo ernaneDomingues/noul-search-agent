@@ -24,8 +24,9 @@ def setUpModule():
     WS = Path(env["NOUL_WORKSPACE"]).resolve()
     import noul_cli as cli
     import noul_core as c
-    import noul_mcp as m
     import noul_tools as t
+
+    from noul.server import legacy as m  # v1 server tests; SDK server: test_mcp_server.py
 
 
 def frontmatter(text):

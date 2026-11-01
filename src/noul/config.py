@@ -68,10 +68,14 @@ def get_config() -> dict:
         "download_dir": cfg.get("download_dir") or "./papers",
         "research_dir": cfg.get("research_dir") or "./research",
         "config_file": str(_config_file()),
+        # The user declined the one-time contact e-mail prompt (MCP elicitation); `clear` resets it.
+        "email_prompt_declined": bool(cfg.get("email_prompt_declined")),
     }
 
 
-def set_config(email=None, workspace=None, download_dir=None, research_dir=None, clear=False) -> dict:
+def set_config(
+    email=None, workspace=None, download_dir=None, research_dir=None, clear=False, email_prompt_declined=None
+) -> dict:
     cfg_file = _config_file()
     if clear:
         if cfg_file.exists():
@@ -95,6 +99,11 @@ def set_config(email=None, workspace=None, download_dir=None, research_dir=None,
             cfg["workspace"] = str(ws_path)
         else:
             cfg.pop("workspace", None)
+    if email_prompt_declined is not None:
+        if email_prompt_declined:
+            cfg["email_prompt_declined"] = True
+        else:
+            cfg.pop("email_prompt_declined", None)
     for key, value in (("download_dir", download_dir), ("research_dir", research_dir)):
         if value is not None:
             if str(value).strip():

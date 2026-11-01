@@ -77,7 +77,7 @@ def _inline_list(payload: dict) -> str:
 
 
 def _readme_table(payload: dict) -> str:
-    rows = ["", "| Ferramenta | O que faz | Grava em disco |", "|---|---|---|"]
+    rows = ["", "| Ferramenta | O que faz | Perfil | Grava em disco |", "|---|---|---|---|"]
     flags = {t["name"]: t for t in registry.catalog()}
 
     def writes(name):
@@ -88,7 +88,12 @@ def _readme_table(payload: dict) -> str:
 
     for t in payload["tools"]:
         first = re.split(r"(?<=[.!?])\s", t["description"], maxsplit=1)[0].replace("|", "\\|")
-        rows.append(f"| `{t['name']}` | {first} | {writes(t['name'])} |")
+        profile = (
+            "research (todos)"
+            if "research" in flags[t["name"]]["profiles"]
+            else ", ".join(flags[t["name"]]["profiles"])
+        )
+        rows.append(f"| `{t['name']}` | {first} | {profile} | {writes(t['name'])} |")
     return "\n".join(rows) + "\n"
 
 

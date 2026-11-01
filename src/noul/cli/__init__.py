@@ -143,7 +143,7 @@ def _run(name, *args, **kwargs):
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
     if argv and argv[0] == "mcp":
-        from noul.server import legacy as noul_mcp
+        from noul.server import mcp as noul_mcp
 
         return noul_mcp.main(argv[1:]) or 0
     if argv and argv[0] == "install":

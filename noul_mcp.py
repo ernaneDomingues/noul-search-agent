@@ -1,4 +1,4 @@
-"""Deprecated compatibility shim: `noul_mcp` now lives in `noul.server.legacy` (entry point `noul-mcp`). Removed in 2.0.0."""
+"""Deprecated compatibility shim: `noul_mcp` now lives in `noul.server.mcp` (entry point `noul-mcp`). Removed in 2.0.0."""
 
 import importlib
 import sys
@@ -28,11 +28,11 @@ def _load(*modules):
 
 
 warnings.warn(
-    "`noul_mcp` is deprecated; use `noul.server.legacy` (entry point `noul-mcp`).", DeprecationWarning, stacklevel=2
+    "`noul_mcp` is deprecated; use `noul.server.mcp` (entry point `noul-mcp`).", DeprecationWarning, stacklevel=2
 )
 
 _MODULES = _load(
-    "noul.server.legacy",
+    "noul.server.mcp",
 )
 for _module in _MODULES:
     globals().update({k: v for k, v in vars(_module).items() if not k.startswith("__")})
