@@ -26,7 +26,8 @@ current: **Phase 2a** (MCP on the official SDK). Do not start a later PR's work 
 | `src/noul/cli/`, `src/noul/install.py` | `noul` CLI (`python -m noul`), `noul-install` |
 | `noul_core.py`, `noul_tools.py`, `noul_mcp.py`, `noul_cli.py`, `install.py` | deprecated root shims (removed in 2.0.0) |
 | `skills/`, `agents/`, `commands/`, `.claude-plugin/` | distribution to agent clients (plugin runs `uv run --project ${CLAUDE_PLUGIN_ROOT} noul-mcp`) |
-| `site/`, `scripts/build_site.py` | GitHub Pages portal; `site/tools-reference.json` is **generated** |
+| `site/`, `scripts/build_site.py` | GitHub Pages portal; `site/tools-reference.json` and `site/install.html` (from `site/config.json`) are **generated** |
+| `packaging/pyinstaller/`, `scripts/build_mcpb.py`, `scripts/smoke_mcp.py`, `.github/workflows/release.yml` | single-file `noul` executable, Claude Desktop extensions (.mcpb: `uv` universal + `binary` per OS, manifest generated from the registry) and the release pipeline (signing only when secrets exist: `docs/release/signing.md`) |
 
 Import rule: modules reference each other through module attributes (`from noul.net import http as _nhttp`, then
 `_nhttp._http_json(...)`), never `from noul.net.http import _http_json`, so every function has exactly one

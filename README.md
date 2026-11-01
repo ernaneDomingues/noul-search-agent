@@ -24,7 +24,7 @@ Zero chaves de API obrigatórias e nenhum LLM próprio: o LLM do agente que voc�
 
 ## Ferramentas MCP
 
-**Perfis de ferramentas.** Para não sobrecarregar o contexto do modelo, o servidor expõe um perfil: `research` (núcleo de busca, leitura, Evidence Meter, dossiês e downloads, 17 ferramentas), `review` (núcleo + revisão e auditoria técnica), `write` (núcleo + autoria, BibTeX e submissão) ou `all` (as 41). Padrão: `all` no uso local (stdio: plugin, CLI, `noul-install`) e `research` no servidor HTTP/remoto. Mude com `noul-mcp --profile review` ou `NOUL_TOOL_PROFILE=write`.
+**Perfis de ferramentas.** Para não sobrecarregar o contexto do modelo, o servidor expõe um perfil: `research` (núcleo de busca, leitura, Evidence Meter, dossiês e downloads, 17 ferramentas), `review` (núcleo + revisão e auditoria técnica), `write` (núcleo + autoria, BibTeX e submissão) ou `all` (as 41). Padrão: `all` no uso local (stdio: plugin, CLI, `noul-install`) e `research` no servidor HTTP/remoto. Mude com `noul-mcp --profile review` ou `NOUL_TOOL_PROFILE=write` (um valor inválido em `NOUL_TOOL_PROFILE` só gera um aviso e usa o padrão).
 
 O servidor MCP usa o SDK oficial (`mcp` 2.x): stdio e Streamable HTTP (`/mcp`), *annotations* por ferramenta (somente leitura, destrutiva, acesso à rede), `structuredContent` (com `outputSchema` nas ferramentas que já têm modelo de resultado), *prompts* (`noul-research`, `noul-review`, `noul-write`), progresso por fonte em `search_papers` e, em stdio, um pedido único do e-mail de contato (na primeira busca de texto completo ou PDF, se ainda não configurado; uma recusa é lembrada). O servidor v1 continua disponível com `noul-mcp --legacy` até a 2.0.0.
 
@@ -78,7 +78,15 @@ Gerado a partir do registro (`src/noul/registry.py`) por `scripts/build_site.py`
 
 ## Instalação
 
-Escolha **uma** das opções:
+**Sem terminal (pesquisadores):** acesse a página [**Instalar**](https://ernanedomingues.github.io/noul-search-agent/install.html) e escolha o seu ambiente:
+- **Claude.ai, Claude Desktop ou ChatGPT:** cole a URL do conector público, só de leitura e sem instalar nada.
+- **Claude Desktop, versão completa:** baixe `noul.mcpb` e dê dois cliques. O Claude Desktop pede o e-mail (opcional) e a pasta do Noul.
+- **VS Code / Cursor:** botões de instalação em um clique.
+- **Executável único** para Windows, macOS e Linux (sem Python). Para instalar em vários aplicativos de uma vez, rode `noul install`, que detecta os aplicativos e pergunta onde instalar.
+
+Os executáveis ainda não são assinados digitalmente. Veja como liberá-los no Windows e no macOS em [`docs/release/signing.md`](docs/release/signing.md).
+
+**Desenvolvedores:** escolha **uma** das opções:
 
 ```bash
 # Claude Code (plugin: skill + subagente + /noul-search-config + MCP)
@@ -119,7 +127,7 @@ Downloads e dossiês ficam **sempre dentro do workspace** (padrão: diretório a
 | Variável | Uso |
 |---|---|
 | `NOUL_EMAIL` | E-mail de contato (alternativa ao `config`) |
-| `NOUL_WORKSPACE` | Workspace onde downloads/dossiês podem ser gravados |
+| `NOUL_WORKSPACE` | Workspace onde downloads/dossiês podem ser gravados (tem prioridade sobre o `workspace` salvo por `noul config`; sem nenhum dos dois, vale a pasta atual ou, se ela for a raiz do disco, `~/Documents/Noul`) |
 | `NOUL_HOME` | Cache e `config.json` (padrão `~/.cache/noul-search-agent`) |
 | `NOUL_DB_PATH` | Caminho do banco SQLite de cache |
 | `NOUL_ALLOW_ANY_PATH=1` | Desativa o confinamento ao workspace; reservado a testes isolados |

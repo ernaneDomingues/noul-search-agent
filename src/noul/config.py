@@ -56,10 +56,20 @@ def _resolve_email(cfg=None):
     return None, "none"
 
 
+def _default_workspace() -> str:
+    cwd = Path(os.getcwd())
+    if cwd == Path(cwd.anchor):
+        return str(Path.home() / "Documents" / "Noul")
+    return str(cwd)
+
+
 def get_config() -> dict:
     cfg = _load_config_file()
     email, source = _resolve_email(cfg)
-    workspace = cfg.get("workspace") or os.environ.get("NOUL_WORKSPACE") or os.getcwd()
+    # An explicit NOUL_WORKSPACE (set by the host, e.g. the Claude Desktop extension's "Noul folder") wins over
+    # config.json, as environment variables usually do; without either, the current folder - unless that is a
+    # filesystem root (desktop apps start servers in `/` or C:\), where ~/Documents/Noul is used instead.
+    workspace = os.environ.get("NOUL_WORKSPACE") or cfg.get("workspace") or _default_workspace()
     return {
         "email": email,
         "email_source": source,

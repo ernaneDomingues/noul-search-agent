@@ -1,0 +1,8 @@
+{
+  "name": "noul-mcpb-packer",
+  "private": true,
+  "description": "Pinned MCPB CLI used by scripts/build_mcpb.py (npm ci installs it from package-lock.json).",
+  "devDependencies": {
+    "@anthropic-ai/mcpb": "2.1.2"
+  }
+}
