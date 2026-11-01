@@ -20,7 +20,7 @@ MIN_HTML_FULLTEXT_CHARS = 2500
 PDF_TEXT_FORMAT = 2
 
 
-def _stale(entry):
+def is_stale(entry):
     """A cached full text downloaded before PDF_TEXT_FORMAT 2 (it may have lost pages: see _clean_pdf_page).
     Europe PMC XML and entries without a source URL (seeded locally) are kept."""
     if entry.get("format") == PDF_TEXT_FORMAT:
@@ -116,7 +116,7 @@ def fulltext(id):
     pid = p["id"]
     cached_ft = _cache.cache_get("ft:" + pid)
     stale = None
-    if cached_ft and _stale(cached_ft):
+    if cached_ft and is_stale(cached_ft):
         stale, cached_ft = cached_ft, None  # extracted by an older, lossy cleaner: fetch and extract again
     if cached_ft and cached_ft.get("text"):
         return {

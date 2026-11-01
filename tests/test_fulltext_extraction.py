@@ -97,6 +97,23 @@ class PdfExtractionTests(unittest.TestCase):
         self.assertEqual(entry["format"], fulltext.PDF_TEXT_FORMAT)
         self.assertIn("0.98", entry["text"])
 
+    def test_analytic_tools_refresh_an_old_cached_text_before_analysing_it(self):
+        """Regression (3a plugin test): review_paper read the cached v1 text directly via get_paper_corpus."""
+        from noul.net import cache
+        from noul.providers import pdf_parser
+
+        paper = {"id": "doi:10.1/corpus", "title": "C", "pdf_url": "https://example.org/c.pdf", "open_access": True}
+        cache.cache_set("paper:" + paper["id"], paper)
+        cache.cache_set("ft:" + paper["id"], {"text": "lossy v1 text " * 30, "url": paper["pdf_url"], "source": "x"})
+        with (
+            mock.patch(_support.core_target("resolve_paper"), return_value=paper),
+            mock.patch(_support.core_target("_http_get"), return_value=_pdf(PAGES)),
+        ):
+            corpus = pdf_parser.get_paper_corpus(paper["id"])
+        self.assertIn("0.98", corpus["text"])
+        self.assertEqual(len(corpus["pages"]), 4)
+        self.assertEqual(len(corpus["sections"]), 4)
+
 
 if __name__ == "__main__":
     unittest.main()
