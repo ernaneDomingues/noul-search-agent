@@ -2,6 +2,7 @@
 
 import io
 import json
+import os
 import re
 import sqlite3
 import threading
@@ -43,7 +44,8 @@ class StoreTests(unittest.TestCase):
 
     def test_schema_is_created_and_versioned(self):
         self.store.create_project("First")
-        self.assertEqual(self.store.db_path().stat().st_mode & 0o777, 0o600)  # notes may be unpublished research
+        if os.name == "posix":  # Windows has no POSIX modes; the user's profile ACLs apply there
+            self.assertEqual(self.store.db_path().stat().st_mode & 0o777, 0o600)  # notes may be unpublished research
         with sqlite3.connect(self.store.db_path()) as conn:
             versions = [r[0] for r in conn.execute("SELECT version FROM schema_version")]
             tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
