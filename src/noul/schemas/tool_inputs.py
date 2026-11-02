@@ -499,3 +499,61 @@ INPUT_MODELS: dict[str, type[_ToolInput]] = {
     "evidence_meter": EvidenceMeterInput,
     "configure_noul": ConfigureNoulInput,
 }
+
+
+_PROJECT = Field(
+    ..., min_length=1, max_length=120, description="Project slug (from project_create / project_list) or numeric id"
+)
+_STATUS = Literal["candidate", "included", "excluded"]
+
+
+class ProjectCreateInput(_ToolInput):
+    """Arguments of `project_create`."""
+
+    title: str = Field(..., min_length=1, max_length=300, description="Short project name, e.g. the topic")
+    question: str | None = Field(None, max_length=2000, description="The research question the project answers")
+
+
+class ProjectListInput(_ToolInput):
+    """Arguments of `project_list`."""
+
+
+class ProjectGetInput(_ToolInput):
+    """Arguments of `project_get`."""
+
+    project: str = _PROJECT
+    include_papers: bool = Field(True, description="False returns the summary and notes without the paper list")
+
+
+class ProjectAddPapersInput(_ToolInput):
+    """Arguments of `project_add_papers`."""
+
+    project: str = _PROJECT
+    ids: list[str] = Field(..., min_length=1, max_length=100, description="Paper ids, DOIs, PMIDs or arXiv ids")
+    status: _STATUS | None = Field("candidate", description="Status of newly added papers")
+    reason: str | None = Field(
+        None, max_length=2000, description="Why they were added (e.g. the search that found them)"
+    )
+
+
+class ProjectSetStatusInput(_ToolInput):
+    """Arguments of `project_set_status`."""
+
+    project: str = _PROJECT
+    ids: list[str] = Field(
+        ..., min_length=1, max_length=100, description="Paper ids as returned by project_get (or the DOIs added)"
+    )
+    status: _STATUS
+    reason: str = Field(
+        ..., min_length=1, max_length=2000, description="Why (e.g. the inclusion criterion met or failed)"
+    )
+
+
+class ProjectNoteInput(_ToolInput):
+    """Arguments of `project_note`."""
+
+    project: str = _PROJECT
+    text: str = Field(..., min_length=1, max_length=20000)
+    paper_id: str | None = Field(
+        None, min_length=1, max_length=300, description="Attach the note to a paper already in the project"
+    )

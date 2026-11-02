@@ -1,6 +1,6 @@
 # noul-search-agent
 
-Agente autônomo de pesquisa científica, inteligência documental e copiloto de escrita acadêmica (*Co-Scientist*) multidisciplinar com classificação de nível de evidência, **Evidence Meter (Noul Meter)** determinístico, extração profunda de tabelas/equações/VRAM/ablação/prompts, revisão crítica *multi-persona* adaptável por domínio, geração poliglota de código e protocolos (`PyTorch`, `Statsmodels`, `R`, `CONSORT/STROBE`), copiloto de autoria e submissão (`Citation Infiller`, `Related Work Synthesizer`, `IMRaD Blueprint & Auditor`, `BibTeX Sanitizer`, `Rebuttal Copilot` e `Submission Gatekeeper`), download de PDFs Open Access e dossiês de pesquisa em Markdown. Funciona como **skill + subagente + servidor MCP (41 tools) + servidor HTTP/OpenAPI + CLI** para **Antigravity**, **Claude Code**, **Claude Desktop**, **GitHub Copilot**, **Codex CLI**, **Gemini CLI** e **ChatGPT Actions**.
+Agente autônomo de pesquisa científica, inteligência documental e copiloto de escrita acadêmica (*Co-Scientist*) multidisciplinar com classificação de nível de evidência, **Evidence Meter (Noul Meter)** determinístico, extração profunda de tabelas/equações/VRAM/ablação/prompts, revisão crítica *multi-persona* adaptável por domínio, geração poliglota de código e protocolos (`PyTorch`, `Statsmodels`, `R`, `CONSORT/STROBE`), copiloto de autoria e submissão (`Citation Infiller`, `Related Work Synthesizer`, `IMRaD Blueprint & Auditor`, `BibTeX Sanitizer`, `Rebuttal Copilot` e `Submission Gatekeeper`), download de PDFs Open Access e dossiês de pesquisa em Markdown. Funciona como **skill + subagente + servidor MCP (47 tools) + servidor HTTP/OpenAPI + CLI** para **Antigravity**, **Claude Code**, **Claude Desktop**, **GitHub Copilot**, **Codex CLI**, **Gemini CLI** e **ChatGPT Actions**.
 
 - **Portal & Documentação Pública**: [https://ernanedomingues.github.io/noul-search-agent/](https://ernanedomingues.github.io/noul-search-agent/)
 
@@ -11,20 +11,22 @@ Zero chaves de API obrigatórias e nenhum LLM próprio: o LLM do agente que voc�
 |---|---|
 | `src/noul/search/`, `src/noul/providers/` | Motor de busca (`OpenAlex`, `PubMed`, `Semantic Scholar`, `Crossref`, `arXiv`, `Europe PMC`, `Unpaywall`), um módulo por fonte, deduplicação e ranqueamento; classificador de domínio, radar de artefatos, parser de PDF/tabelas e cliente temporal do arXiv |
 | `src/noul/evidence/`, `src/noul/library/`, `src/noul/net/` | Classificação de desenho de estudo e faixas de impacto; texto completo, grafo de citações, downloads e exportação; HTTP com proteção SSRF e cache SQLite |
-| `src/noul/registry.py`, `src/noul/api.py`, `src/noul/schemas/tool_inputs.py` | **41 ferramentas MCP**: registro único (`@tool`), funções e modelos de entrada Pydantic, usados pelo MCP, pelo HTTP/OpenAPI e pela CLI (`noul tool <nome> --args '<json>'`) |
+| `src/noul/registry.py`, `src/noul/api.py`, `src/noul/schemas/tool_inputs.py` | **47 ferramentas MCP**: registro único (`@tool`), funções e modelos de entrada Pydantic, usados pelo MCP, pelo HTTP/OpenAPI e pela CLI (`noul tool <nome> --args '<json>'`) |
 | `src/noul/tools/`, `src/noul/schemas/`, `src/noul/prompts/` | Ferramentas das Fases 1 a 6, contratos Pydantic v2 e rubricas (`NeurIPS/ICLR`, `CONSORT/STROBE/PRISMA`, `Econometria Causal`) |
 | `src/noul/server/` | Servidor MCP no SDK oficial (`mcp.py`: stdio, *prompts*, progresso, *elicitation*) e servidor HTTP endurecido (`http.py`: Streamable HTTP em `/mcp`, OpenAPI em `/openapi.json`, `/healthz`, `POST /tools/<nome>`); `legacy.py` = servidor v1 (`--legacy`) |
 | `src/noul/cli/` | CLI (`noul`, ou `python -m noul`) para terminal (`--pretty`, `search --interactive`) ou agentes sem MCP; também expõe `mcp` e `install` |
 | `src/noul/install.py` | Instalador idempotente em nível de usuário (`noul-install`) |
 | `noul_core.py`, `noul_tools.py`, `noul_mcp.py`, `noul_cli.py`, `install.py` | *Shims* de compatibilidade (obsoletos; removidos na 2.0.0) |
-| `site/` & `scripts/build_site.py` | Landing Page responsiva (Modo Claro/Escuro), simulador de terminal interativo e catálogo sincronizado das 41 ferramentas MCP publicado via GitHub Pages (`.github/workflows/deploy-pages.yml`) |
+| `site/` & `scripts/build_site.py` | Landing Page responsiva (Modo Claro/Escuro), simulador de terminal interativo e catálogo sincronizado das 47 ferramentas MCP publicado via GitHub Pages (`.github/workflows/deploy-pages.yml`) |
 | `skills/noul-search/SKILL.md` | Fluxo de pesquisa, auditoria técnica, revisão por pares, autoria científica e conversa sobre os artigos |
 | `agents/`, `commands/` | Subagentes/extensões (Claude, Copilot, Codex, Gemini) e o comando `/noul-search-config` |
 | `.claude-plugin/`, `plugin.json`, `pyproject.toml`, `package.json` + `bin/noul.js`, `Dockerfile` | Distribuição: plugin do Claude Code / Antigravity, PyPI (`pip`/`pipx`/`uvx`), npm (`npx`) e contêiner (Cloud Run) |
 
 ## Ferramentas MCP
 
-**Perfis de ferramentas.** Para não sobrecarregar o contexto do modelo, o servidor expõe um perfil: `research` (núcleo de busca, leitura, Evidence Meter, dossiês e downloads, 17 ferramentas), `review` (núcleo + revisão e auditoria técnica), `write` (núcleo + autoria, BibTeX e submissão) ou `all` (as 41). Padrão: `all` no uso local (stdio: plugin, CLI, `noul-install`) e `research` no servidor HTTP/remoto. Mude com `noul-mcp --profile review` ou `NOUL_TOOL_PROFILE=write` (um valor inválido em `NOUL_TOOL_PROFILE` só gera um aviso e usa o padrão).
+**Projetos de pesquisa.** Um projeto guarda a pergunta, cada artigo considerado com o status (`candidate`, `included` ou `excluded`) e o motivo, e as notas, e persiste entre sessões e clientes (`projects.db`, na pasta de dados do Noul, ao lado do `config.json`; mude com `NOUL_PROJECTS_DB`). Ferramentas: `project_create`, `project_list`, `project_get`, `project_add_papers`, `project_set_status` e `project_note`; também pela CLI (`noul project ...`) e como *resource* MCP `noul://project/<slug>`. `save_research_dossier` exporta o projeto de mesmo nome (os artigos do dossiê entram como `included`), e os dossiês salvos antes desta versão são importados como projetos uma única vez. As ferramentas que gravam ficam bloqueadas no servidor HTTP (salvo `NOUL_HTTP_ALLOW_WRITE`) e todas ficam ocultas no conector público.
+
+**Perfis de ferramentas.** Para não sobrecarregar o contexto do modelo, o servidor expõe um perfil: `research` (núcleo de busca, leitura, Evidence Meter, projetos de pesquisa, dossiês e downloads, 23 ferramentas), `review` (núcleo + revisão e auditoria técnica), `write` (núcleo + autoria, BibTeX e submissão) ou `all` (as 47). Padrão: `all` no uso local (stdio: plugin, CLI, `noul-install`) e `research` no servidor HTTP/remoto. Mude com `noul-mcp --profile review` ou `NOUL_TOOL_PROFILE=write` (um valor inválido em `NOUL_TOOL_PROFILE` só gera um aviso e usa o padrão).
 
 O servidor MCP usa o SDK oficial (`mcp` 2.x): stdio e Streamable HTTP (`/mcp`), *annotations* por ferramenta (somente leitura, destrutiva, acesso à rede), `structuredContent` (com `outputSchema` nas ferramentas que já têm modelo de resultado), *prompts* (`noul-research`, `noul-review`, `noul-write`), progresso por fonte em `search_papers` e, em stdio, um pedido único do e-mail de contato (na primeira busca de texto completo ou PDF, se ainda não configurado; uma recusa é lembrada). O servidor v1 continua disponível com `noul-mcp --legacy` até a 2.0.0.
 
@@ -74,6 +76,12 @@ Gerado a partir do registro (`src/noul/registry.py`) por `scripts/build_site.py`
 | `get_research_dossier` | Load a saved research dossier (Markdown report and paper metadata) by slug or topic. | research (todos) | não |
 | `configure_noul` | View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, and default download/research folders. | research (todos) | sim |
 | `evidence_meter` | Compute the Evidence Meter deterministically from YOUR stance classification of each paper: raw counts and percentages plus study-design-weighted percentages (meta-analysis 1.0 … preclinical 0.2). | research (todos) | não |
+| `project_create` | Create a persistent research project for a question. | research (todos) | sim |
+| `project_list` | List the user's research projects, most recently updated first, with paper counts per status. | research (todos) | não |
+| `project_get` | Get a research project: its question, papers (included first, each with status and reason) and notes. | research (todos) | não |
+| `project_add_papers` | Add papers (ids, DOIs, PMIDs or arXiv ids from search_papers) to a research project with a status (candidate by default) and an optional reason. | research (todos) | sim |
+| `project_set_status` | Include or exclude papers of a research project, or move them back to candidate, recording why: the inclusion criterion they meet or fail. | research (todos) | sim |
+| `project_note` | Add a note to a research project, optionally attached to one of its papers. | research (todos) | sim |
 <!-- noul:tools:end -->
 
 ## Instalação

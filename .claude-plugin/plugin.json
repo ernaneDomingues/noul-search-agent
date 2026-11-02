@@ -2,7 +2,7 @@
   "name": "noul-search-agent",
   "displayName": "Noul Search",
   "version": "1.0.0",
-  "description": "Autonomous Scientific Research & Document Intelligence Agent across CS/AI, Biomedical, Economics & STEM: 41 MCP tools for literature search, Evidence Meter, technical extraction, multi-persona peer review, polyglot scaffolding, academic authoring and pre-submission gatekeeper.",
+  "description": "Autonomous Scientific Research & Document Intelligence Agent across CS/AI, Biomedical, Economics & STEM: 47 MCP tools for literature search, Evidence Meter, persistent research projects, technical extraction, multi-persona peer review, polyglot scaffolding, academic authoring and pre-submission gatekeeper.",
   "author": {
     "name": "Ernane Domingues",
     "url": "https://github.com/ernaneDomingues"

@@ -13,16 +13,34 @@ from noul import registry as _registry
 DEFAULT_PORT = 8765
 MAX_BODY_BYTES = 1024 * 1024
 DOSSIER_PREFIX = "noul://dossier/"
+PROJECT_PREFIX = "noul://project/"
 
 
 def resources_list():
-    """MCP resources: one Markdown resource per saved research dossier."""
+    """MCP resources: one Markdown resource per research project and per saved research dossier."""
+    out = []
+    try:
+        projects = _api.project_list().get("projects") or []
+    except Exception as e:
+        print(f"noul: could not list research projects: {type(e).__name__}", file=sys.stderr)
+        projects = []
+    for p in projects:
+        c = p["counts"]
+        out.append(
+            {
+                "uri": f"{PROJECT_PREFIX}{p['slug']}",
+                "name": f"Research project: {p['title']}",
+                "description": f"{c['included']} included, {c['candidate']} candidate and {c['excluded']} excluded "
+                f"papers, {p['note_count']} notes",
+                "mimeType": "text/markdown",
+            }
+        )
     try:
         dossiers = _api.list_research_dossiers().get("dossiers") or []
     except Exception as e:
         print(f"noul: could not list research dossiers: {e}", file=sys.stderr)
         dossiers = []
-    return [
+    out += [
         {
             "uri": f"{DOSSIER_PREFIX}{d['slug']}",
             "name": f"Research Dossier: {d['topic']}",
@@ -31,14 +49,19 @@ def resources_list():
         }
         for d in dossiers
     ]
+    return out
 
 
 def resources_read(uri):
-    if not uri or not str(uri).startswith(DOSSIER_PREFIX):
+    uri = str(uri or "")
+    if uri.startswith(PROJECT_PREFIX):
+        slug = uri.split(PROJECT_PREFIX, 1)[1].strip("/")
+        return [{"uri": uri, "mimeType": "text/markdown", "text": _api.project_markdown(slug)}]
+    if not uri.startswith(DOSSIER_PREFIX):
         raise ValueError(f"Unknown resource URI: {uri}")
-    slug = str(uri).split(DOSSIER_PREFIX, 1)[1].strip("/")
+    slug = uri.split(DOSSIER_PREFIX, 1)[1].strip("/")
     dossier = _api.get_research_dossier(slug)
-    return [{"uri": str(uri), "mimeType": "text/markdown", "text": dossier.get("markdown") or ""}]
+    return [{"uri": uri, "mimeType": "text/markdown", "text": dossier.get("markdown") or ""}]
 
 
 def visible_tools(profile=None, allow_write=True, public=False):
@@ -192,4 +215,4 @@ def public_caps(name):
 
 
 # Server-side dossiers are never exposed by the public connector.
-PUBLIC_HIDDEN_TOOLS = frozenset({"list_research_dossiers", "get_research_dossier"})
+PUBLIC_HIDDEN_TOOLS = frozenset({"list_research_dossiers", "get_research_dossier", "project_list", "project_get"})

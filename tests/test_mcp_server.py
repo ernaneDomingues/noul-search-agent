@@ -41,9 +41,9 @@ class McpServerTests(unittest.TestCase):
             async with self.client(build_server(profile=profile, allow_write=allow_write)) as c:
                 return {t.name for t in (await c.list_tools()).tools}
 
-        self.assertEqual(len(run(names, "all", True)), 41)
+        self.assertEqual(len(run(names, "all", True)), 47)
         research = run(names, "research", True)
-        self.assertEqual(len(research), 17)
+        self.assertEqual(len(research), 23)
         self.assertTrue({"save_research_dossier", "download_papers"} <= research)  # the research flow saves
         self.assertIn("search_papers", research)
         self.assertNotIn("review_paper", research)
@@ -170,7 +170,7 @@ class McpServerTests(unittest.TestCase):
         async def resources():
             async with self.client(build_server()) as c:
                 listed = await c.list_resources()
-                uri = str(listed.resources[0].uri)
+                uri = next(str(r.uri) for r in listed.resources if str(r.uri).startswith("noul://dossier/"))
                 return uri, await c.read_resource(uri)
 
         uri, read = run(resources)
