@@ -2,6 +2,7 @@
 
 import io
 import json
+import re
 import sqlite3
 import threading
 import unittest
@@ -159,7 +160,9 @@ class ProjectToolTests(unittest.TestCase):
         self.assertIn("notes[].text", got["untrusted_fields"])
         self.assertIn("papers[].reason", got["untrusted_fields"])
         md = api.project_markdown(slug)
-        self.assertEqual(md.count("<untrusted_source"), md.count("</untrusted_source nonce="))
+        opened = re.findall(r'<untrusted_source id="[^"]+" nonce="([0-9a-f]{8})">', md)
+        self.assertEqual(sorted(opened), sorted(re.findall(r'</untrusted_source nonce="([0-9a-f]{8})">', md)))
+        self.assertEqual(len(opened), 2)  # the question and the note
         self.assertIn('id="project-note"', md)
 
     def test_a_long_dossier_topic_does_not_break_projects(self):
@@ -168,6 +171,86 @@ class ProjectToolTests(unittest.TestCase):
         api.save_research_dossier("t" * 500, "# S", [self.a], None)
         self.assertTrue(registry.call("project_create", {"title": "Still works"})["created"])
         self.assertTrue(registry.call("project_list", {})["projects"])
+
+    def test_slugs_collisions_and_lookup(self):
+        from noul import registry
+
+        one = registry.call("project_create", {"title": "Café e memória"})
+        self.assertEqual(one["slug"], "cafe-e-memoria")
+        same = registry.call("project_create", {"title": "café  E MEMÓRIA"})  # same title, other spacing/case
+        self.assertEqual((same["slug"], same["created"]), ("cafe-e-memoria", False))
+        a = registry.call("project_create", {"title": "!!!"})
+        b = registry.call("project_create", {"title": "???"})  # same slug "project", different title
+        self.assertEqual((a["slug"], b["slug"], b["created"]), ("project", "project-2", True))
+        two = registry.call("project_create", {"title": "2"})
+        self.assertEqual(registry.call("project_get", {"project": "2"})["id"], two["id"])  # slug "2" wins
+        self.assertEqual(registry.call("project_get", {"project": f"#{one['id']}"})["slug"], "cafe-e-memoria")
+
+    def test_input_ids_dois_and_status_reasons(self):
+        from noul import errors, registry
+        from noul.net import cache
+
+        cache.cache_set("paper:10.1000/a", cache.cache_get("paper:" + self.a))  # a DOI resolved once before
+        slug = registry.call("project_create", {"title": "Ids"})["slug"]
+        added = registry.call("project_add_papers", {"project": slug, "ids": ["10.1000/a"]})
+        self.assertEqual(added["id_map"], {"10.1000/a": self.a})
+        changed = registry.call(
+            "project_set_status", {"project": slug, "ids": ["10.1000/a"], "status": "excluded", "reason": "animal"}
+        )
+        self.assertEqual(changed["updated"], [self.a])
+        with self.assertRaises(errors.HTTPError) as ctx:
+            registry.call("project_set_status", {"project": slug, "ids": [self.a], "status": "included", "reason": " "})
+        self.assertEqual(ctx.exception.code, 400)
+        with self.assertRaises(errors.HTTPError) as ctx:  # unknown project: 404 before resolving any id
+            registry.call("project_add_papers", {"project": "nope", "ids": ["doi:10.1000/never"]})
+        self.assertEqual(ctx.exception.code, 404)
+
+    def test_dossier_keeps_the_users_decisions(self):
+        from noul import api, registry
+
+        slug = registry.call("project_create", {"title": "Kept"})["slug"]
+        registry.call("project_add_papers", {"project": slug, "ids": [self.a]})
+        registry.call("project_set_status", {"project": slug, "ids": [self.a], "status": "excluded", "reason": "n=8"})
+        out = api.save_research_dossier("Kept", "# S", [self.a, self.b], None)
+        self.assertEqual((out["project"], out["project_papers_unchanged"]), (slug, [self.a]))
+        statuses = {p["id"]: p["status"] for p in registry.call("project_get", {"project": slug})["papers"]}
+        self.assertEqual(statuses, {self.a: "excluded", self.b: "included"})
+
+    def test_tools_over_mcp_send_conforming_results_and_errors(self):
+        import anyio
+        from mcp import Client
+        from mcp.client._memory import InMemoryTransport
+        from mcp.shared.exceptions import MCPError
+
+        from noul.server.mcp import RESOURCE_NOT_FOUND, build_server
+
+        async def go():
+            async with Client(InMemoryTransport(build_server())) as c:
+                created = await c.call_tool("project_create", {"title": "Over MCP", "question": "Q?"})
+                added = await c.call_tool("project_add_papers", {"project": "over-mcp", "ids": [self.a, "doi:x/none"]})
+                got = await c.call_tool("project_get", {"project": "over-mcp"})
+                missing = await c.call_tool("project_get", {"project": "missing"})
+                bad = await c.call_tool(
+                    "project_set_status", {"project": "over-mcp", "ids": [self.a], "status": "maybe", "reason": "r"}
+                )
+                try:
+                    await c.read_resource("noul://project/missing")
+                    code = None
+                except MCPError as e:
+                    code = e.code
+                return created, added, got, missing, bad, code
+
+        created, added, got, missing, bad, code = anyio.run(go)
+        for res in (created, added, got):
+            self.assertFalse(res.is_error, res.content[0].text)
+            self.assertEqual(json.loads(res.content[0].text), res.structured_content)
+        self.assertEqual(added.structured_content["not_found"], ["doi:x/none"])
+        self.assertEqual(got.structured_content["papers"][0]["id"], self.a)
+        self.assertTrue(missing.is_error)
+        self.assertTrue(missing.content[0].text.startswith("NotFound:"))
+        self.assertTrue(bad.is_error)
+        self.assertTrue(bad.content[0].text.startswith("InvalidArguments:"))
+        self.assertEqual(code, RESOURCE_NOT_FOUND)
 
     def test_errors_map_to_http_codes(self):
         from noul import errors, registry
@@ -246,7 +329,9 @@ class ProjectServerTests(unittest.TestCase):
 
         uris, read = anyio.run(go)
         self.assertIn(f"noul://project/{slug}", uris)
-        self.assertRegex(read.contents[0].text, r"\*\*Question:\*\*\n<untrusted_source id=\"project-question\" nonce=\"\w+\">\nWhy\?")
+        self.assertRegex(
+            read.contents[0].text, r"\*\*Question:\*\*\n<untrusted_source id=\"project-question\" nonce=\"\w+\">\nWhy\?"
+        )
 
     def test_writes_are_blocked_over_http_and_projects_hidden_in_public_mode(self):
         from starlette.testclient import TestClient

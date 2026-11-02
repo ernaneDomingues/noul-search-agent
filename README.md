@@ -76,11 +76,11 @@ Gerado a partir do registro (`src/noul/registry.py`) por `scripts/build_site.py`
 | `get_research_dossier` | Load a saved research dossier (Markdown report and paper metadata) by slug or topic. | research (todos) | não |
 | `configure_noul` | View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, and default download/research folders. | research (todos) | sim |
 | `evidence_meter` | Compute the Evidence Meter deterministically from YOUR stance classification of each paper: raw counts and percentages plus study-design-weighted percentages (meta-analysis 1.0 … preclinical 0.2). | research (todos) | não |
-| `project_create` | Create a persistent research project for a question (idempotent on its title's slug: an existing project is returned with created=false). | research (todos) | sim |
-| `project_list` | List the user's research projects (most recently updated first) with paper counts per status. | research (todos) | não |
-| `project_get` | A research project with its question, papers (included first, each with status and reason) and notes. | research (todos) | não |
-| `project_add_papers` | Add papers (ids, DOIs, PMIDs or arXiv ids, e.g. | research (todos) | sim |
-| `project_set_status` | Include or exclude papers of a research project (or move them back to candidate), recording why - e.g. | research (todos) | sim |
+| `project_create` | Create a persistent research project for a question. | research (todos) | sim |
+| `project_list` | List the user's research projects, most recently updated first, with paper counts per status. | research (todos) | não |
+| `project_get` | Get a research project: its question, papers (included first, each with status and reason) and notes. | research (todos) | não |
+| `project_add_papers` | Add papers (ids, DOIs, PMIDs or arXiv ids from search_papers) to a research project with a status (candidate by default) and an optional reason. | research (todos) | sim |
+| `project_set_status` | Include or exclude papers of a research project, or move them back to candidate, recording why: the inclusion criterion they meet or fail. | research (todos) | sim |
 | `project_note` | Add a note to a research project, optionally attached to one of its papers. | research (todos) | sim |
 <!-- noul:tools:end -->
 

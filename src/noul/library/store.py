@@ -13,6 +13,7 @@ import re
 import sqlite3
 import threading
 import time
+import unicodedata
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -182,9 +183,18 @@ def _now() -> int:
     return int(time.time())
 
 
+_SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+
 def slugify(text: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")
+    """ASCII slug of a title: accents transliterated ("Café" -> "cafe"), at most 60 characters."""
+    ascii_text = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode()
+    slug = re.sub(r"[^a-z0-9]+", "-", ascii_text.lower()).strip("-")
     return slug[:60].strip("-") or "project"
+
+
+def _same_title(a: str, b: str) -> bool:
+    return re.sub(r"\s+", " ", a or "").strip().casefold() == re.sub(r"\s+", " ", b or "").strip().casefold()
 
 
 def _clip(text: str | None, limit: int) -> str | None:
@@ -197,14 +207,20 @@ def _clip(text: str | None, limit: int) -> str | None:
 
 
 def _project_row(conn: sqlite3.Connection, ref: str | int) -> sqlite3.Row:
+    """By slug first (exact, then slugified), then by numeric id - so a project titled "2" never shadows id 2's
+    lookup by slug, and vice versa only when no slug matches."""
     ref_s = str(ref).strip()
-    row = conn.execute(
-        "SELECT * FROM projects WHERE slug = ? OR slug = ? OR CAST(id AS TEXT) = ?",
-        (ref_s, slugify(ref_s), ref_s),
-    ).fetchone()
-    if row is None:
-        raise ProjectNotFound(ref_s)
-    return row
+    for query, value in (
+        ("SELECT * FROM projects WHERE slug = ?", ref_s),
+        ("SELECT * FROM projects WHERE slug = ?", slugify(ref_s)),
+        ("SELECT * FROM projects WHERE id = ?", int(ref_s.lstrip("#")) if ref_s.lstrip("#").isdigit() else None),
+    ):
+        if value is None:
+            continue
+        row = conn.execute(query, (value,)).fetchone()
+        if row is not None:
+            return row
+    raise ProjectNotFound(ref_s)
 
 
 def _counts(conn: sqlite3.Connection, project_id: int) -> dict[str, int]:
@@ -243,9 +259,22 @@ def create_project(title: str, question: str | None = None, slug: str | None = N
     if not title:
         raise ValueError("title must not be empty")
     question = _clip(question, MAX_QUESTION) or None
-    slug = slugify(slug or title)
+    explicit = slug is not None
+    if explicit:
+        slug = str(slug)
+        if not _SLUG.match(slug) or len(slug) > 60:
+            raise ValueError("slug must be lowercase letters, digits and hyphens (at most 60 characters)")
+    else:
+        slug = slugify(title)
     with _conn() as conn:
         existing = conn.execute("SELECT * FROM projects WHERE slug = ?", (slug,)).fetchone()
+        if existing is not None and not explicit and not _same_title(existing["title"], title):
+            # Different titles that share a slug ("!!!" and "???", or a long common prefix) are different projects.
+            base, n = slug[:56].rstrip("-"), 2
+            while existing is not None and not _same_title(existing["title"], title):
+                slug = f"{base}-{n}"
+                existing = conn.execute("SELECT * FROM projects WHERE slug = ?", (slug,)).fetchone()
+                n += 1
         if existing is not None:
             if question and not existing["question"]:
                 conn.execute(

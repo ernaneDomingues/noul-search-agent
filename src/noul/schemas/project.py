@@ -71,6 +71,7 @@ class ProjectPapersChange(BaseModel):
     added: list[str] = Field(default_factory=list)
     already_present: list[str] = Field(default_factory=list)
     not_found: list[str] = Field(default_factory=list)
+    id_map: dict[str, str] = Field(default_factory=dict)  # input id -> id stored in the project
 
 
 class ProjectStatusChange(BaseModel):

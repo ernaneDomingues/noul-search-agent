@@ -52,6 +52,7 @@ class ContractTests(unittest.TestCase):
             "recommend_citations": "3b-1: English, non-judgemental justifications",
             "get_fulltext": "3b-1: BM25 passages with section and page",
             "query_fulltexts": "3b-1: BM25 passages with section and page",
+            "save_research_dossier": "3b-2: the dossier exports the research project with the same slug",
         }
         for name in expected:
             with self.subTest(tool=name):
