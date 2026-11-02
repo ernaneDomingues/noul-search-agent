@@ -535,7 +535,8 @@ def _passages(corpus):
                     }
                 )
             pos += len(line) + 1
-    for m in _SENTENCE.finditer(text):
+    # Sentences wrap across PDF lines: match on the same-length "flowed" view of the text.
+    for m in _SENTENCE.finditer(pdf_parser.flow_text(text, sections, corpus["captions"], spans)):
         if any(s <= m.start() < e for s, e in spans):
             continue
         quote = re.sub(r"\s+", " ", m.group(0)).strip()
@@ -567,6 +568,21 @@ def _clip_quote(quote, numbers, limit=220):
     return ("..." if start > 0 else "") + clip + ("..." if start + limit < len(quote) else "")
 
 
+# Page furniture that contains numbers but is not a claim: venue headers, arXiv stamps, author footnotes.
+_BOILERPLATE = re.compile(
+    r"(?i)\barxiv:\s*\d{4}\.\d{4,5}|\b(?:conference\s+on|proceedings\s+of|workshop\s+on|preprint|copyright|©|"
+    r"all\s+rights\s+reserved|equal\s+contribution|work\s+(?:performed|done)\s+while|corresponding\s+author|"
+    r"licen[cs]ed?\s+under|permission\s+to\s+reproduce|codebase)\b"
+)
+_NUMBERED_HEADING = re.compile(r"^\d{1,2}(?:\.\d{1,2}){0,2}\s+[A-Z][^.!?]{0,80}$")
+_CITATION_REF = re.compile(r"\[\s*\d+(?:\s*[,–-]\s*\d+)*\s*\]")
+
+
+def _claim_key(sentence):
+    """Loose identity of a sentence (the metadata abstract and the PDF text spell the same one differently)."""
+    return re.sub(r"[^a-z0-9]", "", sentence.lower())[:80]
+
+
 def _auto_claims(corpus, passages):
     """Numeric / comparative sentences: from the abstract first, then from the non-table body text."""
     comparative = re.compile(
@@ -578,18 +594,23 @@ def _auto_claims(corpus, passages):
     body = [p["quote"] for p in passages if not p["label"].startswith("Table ")]
     claims = []
     for group in (abstract, body):
+        in_body = group is body
         for s in group:
+            # "[13]" is a reference, not a result; outside the abstract a claim must carry numbers.
             if (
                 len(s.split()) >= 5
+                and not _BOILERPLATE.search(s)
+                and _claim_key(s) not in {_claim_key(c) for c in claims}
+                and not _NUMBERED_HEADING.match(s)
                 and not re.match(r"(?:Table|Tabela|Fig(?:ure|\.)|Figura)\s*\d", s, re.I)
-                and (_claim_numbers(s) or comparative.search(s))
+                and (_claim_numbers(_CITATION_REF.sub(" ", s)) or (not in_body and comparative.search(s)))
                 and s not in claims
             ):
                 claims.append(s)
                 if len(claims) >= AUTO_CLAIMS:
                     return claims
-        if len(claims) >= 3:
-            break
+        if len(claims) >= 2:
+            break  # the abstract states the paper's headline claims; body sentences only fill in when it has none
     return claims
 
 
@@ -1309,6 +1330,7 @@ def extract_paper_math(paper_id, mode="latex"):
 # --------------------------------------------------------------------------- #12 ablation tables
 
 MARGINAL_PCT = 1.0
+MAX_PLAUSIBLE_PCT = 300.0
 DOMINANT_SHARE = 0.6
 _ABL_VARIANT = re.compile(
     r"^\s*(?:w/o|w/|without|no|minus|remove[sd]?|removing|drop(?:ped)?|replace[sd]?|only|with)\b|^\s*[-+−–]\s*\S"
@@ -1406,6 +1428,8 @@ def _ablation_entries(table):
                 continue
             delta = round(v - b, 4)
             pct = round(delta / abs(b) * 100.0, 2) if b else 0.0
+            if abs(pct) > MAX_PLAUSIBLE_PCT:
+                continue  # a misaligned column (e.g. "train steps" read as a metric), not an ablation effect
             entries.append(
                 AblationEntry(
                     component=lbl,
@@ -2007,7 +2031,7 @@ _ASSUMPTION_RE = re.compile(
 
 _BASELINE_SUPERIORITY_RE = re.compile(
     r"\b(?:outperformed\s+by|baseline\s+outperforms?|outperforms?\s+(?:our|the\s+proposed)|"
-    r"underperforms?|worse\s+than|classical\s+(?:methods?|models?|baselines?)|simple\s+baselines?|"
+    r"underperforms?|(?:our|proposed)\s+(?:\w+\s+){0,2}(?:is|are|was|were|performs?|performed)\s+worse\s+than|classical\s+(?:methods?|models?|baselines?)|simple\s+baselines?|"
     r"linear\s+models?|BM25|logistic\s+regression|in\s+low[-\s]data|on\s+small\s+datasets?|"
     r"when\s+N\s+is\s+small)\b",
     re.I,
@@ -2020,12 +2044,15 @@ _OURS_ROW_RE = re.compile(
 
 def _prose_sentences(text, sections, table_spans=()):
     """Yield `(is_priority, section_title, sentence_text)` preserving document order inside each priority tier."""
-    protected = _ABBR_DOT.sub(lambda m: m.group(0).replace(".", "prd"), text or "")
+    # Same-length transforms only, so match offsets stay valid for section/page lookups: wrapped lines are joined
+    # ("flowed") and abbreviation dots become a one-character placeholder.
+    flowed = pdf_parser.flow_text(text or "", sections, spans=table_spans)
+    protected = _ABBR_DOT.sub(lambda m: m.group(0).replace(".", "\u2024"), flowed)
     items = []
     for m in _SENTENCE.finditer(protected):
         if any(s <= m.start() < e for s, e in table_spans):
             continue
-        raw = m.group(0).replace("prd", ".")
+        raw = m.group(0).replace("\u2024", ".")
         quote = re.sub(r"\s+", " ", raw).strip()
         if len(quote) < 12 or not re.search(r"[A-Za-z]{3,}", quote):
             continue

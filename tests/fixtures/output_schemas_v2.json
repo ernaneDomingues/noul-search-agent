@@ -1459,6 +1459,7 @@
      }
     ],
     "default": null,
+    "description": "Where the open-access copy was found: metadata (the paper record's own PDF link), unpaywall, europepmc_xml, ... - not the content type.",
     "title": "Source"
    },
    "title": {

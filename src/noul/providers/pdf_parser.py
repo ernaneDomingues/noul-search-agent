@@ -134,6 +134,33 @@ def find_table_captions(text):
     return sorted(out, key=lambda c: c["offset"])
 
 
+def flow_text(text, sections=None, captions=None, spans=()):
+    """`text` with the line breaks inside paragraphs turned into spaces, same length (offsets are unchanged).
+
+    PDF text keeps its line breaks (they mark headings), but sentences wrap across lines; sentence regexes run on
+    this view. Breaks after a heading or a caption, at the edges of `spans` (tables), around blank lines and around
+    page breaks are kept."""
+    text = text or ""
+    keep = set()
+    for sec in sections if sections is not None else find_sections(text):
+        nl = text.find("\n", sec["offset"])
+        if nl != -1:
+            keep.add(nl)
+    for cap in captions if captions is not None else find_table_captions(text):
+        if cap.get("kind") == "text" and cap["end"] < len(text):
+            keep.add(cap["end"] if text[cap["end"] : cap["end"] + 1] == "\n" else text.find("\n", cap["end"]))
+    for start, end in spans:
+        keep.update({start - 1, end, text.find("\n", end) if end < len(text) else -1})
+        # every line inside a table is its own row
+        keep.update(i for i in range(start, min(end, len(text))) if text[i] == "\n")
+    chars = list(text)
+    for i, ch in enumerate(chars):
+        if ch == "\n" and i not in keep and 0 < i < len(chars) - 1:
+            if chars[i - 1] not in "\n\f" and chars[i + 1] not in "\n\f":
+                chars[i] = " "
+    return "".join(chars)
+
+
 def find_sections(text):
     """Section headings (Markdown, LaTeX, numbered `3.2 Results` or well-known names) with offsets."""
     out = []

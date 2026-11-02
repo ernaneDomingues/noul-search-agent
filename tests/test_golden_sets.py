@@ -143,6 +143,16 @@ def _signal_case(case):
         if re.match(r"(?i)table\s+\d", t)
     ]
     checks.append(("no_caption_failure_modes", not captions))
+    scenarios = " ".join(_excerpt_texts(fm.get("baseline_superiority_scenarios"))).lower()
+    for phrase in exp.get("not_baselines") or []:  # comparisons of the method with itself
+        checks.append((f"not_a_baseline:{phrase}", phrase.lower() not in scenarios))
+    if exp.get("auto_claims_clean"):
+        auto = registry.call("verify_paper_claims", {"paper_id": pid})["claims"]
+        clean = all(
+            not re.search(r"(?i)arxiv:|proceedings|conference|workshop", c["claim"]) and not c["numbers_missing"]
+            for c in auto
+        )
+        checks.append(("auto_claims_clean_and_grounded", clean))
 
     prompts = registry.call("extract_prompts_and_decoding", {"paper_id": pid})
     values = {**(prompts.get("hyperparameters") or {}), **(prompts.get("training_hyperparameters") or {})}

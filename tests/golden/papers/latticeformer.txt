@@ -1,5 +1,7 @@
+Proceedings of the Workshop on Synthetic Benchmarks (SBW 2024), Lisbon, Portugal.
 LatticeFormer: Sequence Transduction with Gated Lattice Attention
 Ana Ribeiro Kenji Sato
+arXiv:2401.99999v2 [cs.CL] 3 Mar 2024
 Abstract
 We introduce LatticeFormer, an encoder-decoder built only from gated lattice attention for trans-
 lation. On the WMT14 English-

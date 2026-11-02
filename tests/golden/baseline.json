@@ -20,7 +20,7 @@
     "hyperparameters_f1": 1.0,
     "claims_located": 1.0,
     "retrieval_recall_at_1": 0.9,
-    "n_checks": 24,
+    "n_checks": 31,
     "n_hyperparameters": 18,
     "n_claims": 9,
     "n_questions": 10

@@ -16,7 +16,11 @@ class FulltextResult(BaseModel):
     id: str
     title: str | None = None
     available: bool
-    source: str | None = None
+    source: str | None = Field(
+        default=None,
+        description="Where the open-access copy was found: metadata (the paper record's own PDF link), unpaywall, "
+        "europepmc_xml, ... - not the content type.",
+    )
     url: str | None = None
     method: Literal["retrieval"] = "retrieval"
     question: str = ""
