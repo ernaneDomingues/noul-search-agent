@@ -115,5 +115,110 @@ class PdfExtractionTests(unittest.TestCase):
         self.assertEqual(len(corpus["sections"]), 4)
 
 
+class ArxivResolutionTests(unittest.TestCase):
+    ATOM = (
+        '<feed xmlns="http://www.w3.org/2005/Atom" xmlns:arxiv="http://arxiv.org/schemas/atom"><entry>'
+        "<id>http://arxiv.org/abs/1706.03762v7</id><title>Attention Is All You Need</title>"
+        "<summary>We propose the Transformer.</summary><published>2017-06-12T17:57:34Z</published>"
+        "<author><name>Ashish Vaswani</name></author><arxiv:primary_category term='cs.CL'/></entry></feed>"
+    )
+
+    def test_semantic_scholar_429_falls_back_to_openalex_then_arxiv(self):
+        from noul import errors
+        from noul.search import engine
+
+        calls = []
+
+        def json_side_effect(url, *a, **k):
+            calls.append(url)
+            raise errors.HTTPError(429, "rate limited")
+
+        with (
+            mock.patch(_support.core_target("_http_json"), side_effect=json_side_effect),
+            mock.patch(_support.core_target("_http_get"), return_value=self.ATOM.encode()),
+        ):
+            paper = engine.resolve_paper("arxiv:1706.03762")
+        self.assertEqual(paper["title"], "Attention Is All You Need")
+        self.assertEqual(paper["arxiv_id"], "1706.03762v7")
+        self.assertTrue(any("semanticscholar" in u for u in calls))
+        self.assertTrue(any("10.48550%2FarXiv.1706.03762" in u for u in calls))  # OpenAlex by arXiv DOI
+        # cached under the identifier the user typed
+        with mock.patch(_support.core_target("_http_json"), side_effect=AssertionError("no network")):
+            self.assertEqual(engine.resolve_paper("arxiv:1706.03762")["title"], "Attention Is All You Need")
+
+
+class JatsTests(unittest.TestCase):
+    def test_sections_and_captions_are_kept(self):
+        from noul.library import fulltext
+        from noul.providers import pdf_parser
+
+        xml = (
+            b"<article><front><article-meta><title-group><article-title>K2 trial</article-title></title-group>"
+            b"<abstract><p>Vitamin K2 reduced stiffness.</p></abstract></article-meta></front><body>"
+            b"<sec><label>2</label><title>Methods</title><p>We randomized 240 adults.</p>"
+            b"<sec><title>Outcomes</title><p>The primary outcome was PWV.</p></sec></sec>"
+            b"<sec><title>Results</title><table-wrap><label>Table 1</label><caption><p>Baseline.</p></caption>"
+            b"<table><tr><th>Group</th><th>PWV</th></tr><tr><td>K2</td><td>-0.3</td></tr></table>"
+            b"</table-wrap><p>PWV fell by 0.4 m/s.</p></sec></body></article>"
+        )
+        text = fulltext._jats_text(xml)
+        titles = [s["title"] for s in pdf_parser.find_sections(text)]
+        self.assertEqual(titles, ["Abstract", "2 Methods", "Outcomes", "Results"])
+        self.assertIn("Table 1: Baseline.\nGroup PWV\nK2 -0.3", text)
+
+    def test_dtd_entities_and_huge_documents_are_refused(self):
+        from noul.library import fulltext
+
+        bomb = b'<?xml version="1.0"?><!DOCTYPE a [<!ENTITY x "xxxxxxxxxx"><!ENTITY y "&x;&x;&x;">]><a>&y;</a>'
+        self.assertEqual(fulltext._jats_text(bomb), "")
+        self.assertEqual(fulltext._jats_text(b"<a>" + b"x" * (fulltext.MAX_JATS_BYTES + 1) + b"</a>"), "")
+        self.assertEqual(fulltext._jats_text(b"<a><unclosed></a>"), "")
+
+
+class RetrievalTests(unittest.TestCase):
+    def test_bm25_returns_section_and_page_and_never_crosses_them(self):
+        from noul.library import fulltext, retrieval
+
+        text = fulltext.normalize_pdf_text(
+            [
+                "1 Introduction\nTransformers are popular for translation.",
+                "5 Training\nWe use Adam with warmup over 4000 steps.\n6 Results\nBLEU is 28.4 on WMT14.",
+            ]
+        )
+        corpus = retrieval.corpus_for(text)
+        chunks = retrieval.chunk_corpus(corpus)
+        self.assertEqual(
+            [(c["section"], c["page"]) for c in chunks], [("1 Introduction", 1), ("5 Training", 2), ("6 Results", 2)]
+        )
+        top = retrieval.search(corpus, "which optimizer and warmup steps were used?", n=2, paper_id="p")
+        self.assertEqual((top[0].section, top[0].page, top[0].chunk_id), ("5 Training", 2, chunks[1]["id"]))
+        self.assertEqual(text[top[0].char_start : top[0].char_end].split()[:2], ["5", "Training"])
+        self.assertTrue(top[0].untrusted)
+        self.assertGreater(top[0].relevance, 0)
+        self.assertEqual([e.chunk_id for e in retrieval.search(corpus, "", n=2)], [c["id"] for c in chunks[:2]])
+        self.assertEqual(retrieval.tokens("The heads and the Cabeças"), ["head", "cabeça"])
+
+    def test_long_paragraphs_and_unpaged_text(self):
+        from noul.library import retrieval
+
+        para = " ".join(f"Sentence {i} talks about topic {i}." for i in range(120))  # one 4,000-char line
+        corpus = retrieval.corpus_for("## Results\n" + para + " The answer is forty-two.")
+        chunks = retrieval.chunk_corpus(corpus)
+        self.assertGreater(len(chunks), 3)
+        self.assertTrue(all(len(c["text"]) <= 1200 for c in chunks))
+        top = retrieval.search(corpus, "what is the answer", n=1)[0]
+        self.assertIn("forty-two", top.text)
+        self.assertFalse(top.truncated)
+        self.assertIsNone(top.page)  # no page breaks in the source: no page to cite
+
+    def test_dehyphenation_keeps_capitalised_compounds(self):
+        from noul.library import fulltext
+
+        out = fulltext.normalize_pdf_text(
+            ["trans-\nlation on English-\nto-German, state-\nof-the-art, self-\nattention"]
+        )
+        self.assertEqual(out, "translation on English-to-German, state-of-the-art, self-attention")
+
+
 if __name__ == "__main__":
     unittest.main()

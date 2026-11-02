@@ -169,7 +169,7 @@ def check_dossier_download_and_multi_paper_workflow():
             "text": "Methods: Subjects ingested 5 grams per day of creatine monohydrate or placebo for 42 days. No adverse renal effects.",
             "url": p1["pdf_url"],
             "source": "openalex",
-            "format": 2,
+            "format": __import__("noul.library.fulltext", fromlist=["PDF_TEXT_FORMAT"]).PDF_TEXT_FORMAT,
         },
     )
     with mock.patch(_support.core_target("_http_get"), return_value=b"Full text unavailable") as fetch:
@@ -178,7 +178,7 @@ def check_dossier_download_and_multi_paper_workflow():
     assert len(q_res["results"]) == 2
     assert q_res["results"][0]["content_source"] == "fulltext"
     assert q_res["results"][1]["content_source"] == "abstract_only"
-    assert any("5 grams" in ch for ch in q_res["results"][0]["excerpts"])
+    assert any("5 grams" in ch["text"] for ch in q_res["results"][0]["excerpts"])
 
     # 2. Test save_research_dossier, list_research_dossiers, get_research_dossier
     dos_dir = tmp_dir / "research"

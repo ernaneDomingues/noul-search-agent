@@ -37,6 +37,9 @@ class ContractTests(unittest.TestCase):
                 ),
                 "3a: evidence, not a verdict (AnalysisResult)",
             ),
+            "recommend_citations": "3b-1: English, non-judgemental justifications",
+            "get_fulltext": "3b-1: BM25 passages with section and page",
+            "query_fulltexts": "3b-1: BM25 passages with section and page",
         }
         for name in expected:
             with self.subTest(tool=name):
@@ -155,7 +158,7 @@ class ContractTests(unittest.TestCase):
         from noul import registry
 
         with_schema = {t["name"] for t in registry.catalog() if t["outputSchema"]}
-        self.assertEqual(len(with_schema), 13)
+        self.assertEqual(len(with_schema), 15)
         sample = registry.call(
             "generate_manuscript_blueprint", {"topic": "Sparse attention", "hypothesis": "It is faster"}
         )

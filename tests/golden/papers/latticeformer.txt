@@ -1,0 +1,86 @@
+Proceedings of the Workshop on Synthetic Benchmarks (SBW 2024), Lisbon, Portugal.
+LatticeFormer: Sequence Transduction with Gated Lattice Attention
+Ana Ribeiro Kenji Sato
+arXiv:2401.99999v2 [cs.CL] 3 Mar 2024
+Abstract
+We introduce LatticeFormer, an encoder-decoder built only from gated lattice attention for trans-
+lation. On the WMT14 English-
+to-German task it reaches 29.1 BLEU, and on English-to-French a single model reaches
+42.3 BLEU after training for 2.5 days on eight GPUs.
+1 Introduction
+Recurrent encoders process tokens one at a time, which limits parallelism when the sequence
+length n is much larger than the batch. Gated lattice attention relates every pair of positions
+in a constant number of sequential steps.
+
+2 Background
+Prior attention models combine attention with recurrence. We remove recurrence entirely and
+rely on lattice attention with learned gates.
+3 Model Architecture
+3.1 Gated Lattice Attention
+Given queries Q, keys K and values V, the attention is
+GLA(Q, K, V) = softmax(QK^T / sqrt(d_k)) V (1)
+The scaling factor is justified by assuming that query and key entries are uncorrelated and
+have unit spread.
+3.2 Position Encoding
+We add fixed sinusoidal encodings to the token embeddings so that the model can use
+order information.
+
+4 Why Lattice Attention
+Table 1: How the cost of one layer and its serial steps grow for each layer kind we compare, given a
+length n and a width d.
+Layer Type Complexity Sequential Operations
+Lattice attention O(n^2 d) O(1)
+Recurrent O(n d^2) O(n)
+Lattice attention costs grow quadratically with the sequence length, so very long inputs remain
+expensive.
+5 Training
+5.1 Data
+We train on the standard WMT14 English-German data with byte-pair encoding.
+5.2 Optimizer
+We use the Adam optimizer with beta1 = 0.9, beta2 = 0.97 and epsilon = 1e-9. The learning rate
+follows an inverse square-root schedule with warmup_steps = 3000.
+5.3 Regularization
+We apply dropout with rate Pdrop = 0.15 to every sub-layer, and label smoothing of value 0.1
+during training. Each batch holds about 24000 source tokens.
+
+6 Results
+6.1 Machine Translation
+Table 2: LatticeFormer obtains higher BLEU scores than previous models on the English-to-German
+and English-to-French newstest2014 sets at a lower training cost.
+Model
+BLEU Training Cost (FLOPs)
+EN-DE EN-FR EN-DE EN-FR
+ConvSeq [7] 26.4 40.5 1.5 · 1020
+RecurrentNMT [3] 24.9 39.9 2.3 · 1019 1.4 · 1020
+LatticeFormer (base) 27.8 39.2 3.3 · 1018
+LatticeFormer (big) 29.1 41.6 2.1 · 1019
+Table 2 summarizes our results against earlier translation systems.
+On the English-to-French task, our big model obtains a BLEU score of 41.6, using a learning
+rate schedule tuned on newstest2013. Training the big English-to-German model took 2.5 days on
+eight GPUs.
+
+6.2 Model Variations
+Table 3: Variations on the LatticeFormer architecture. Blank cells keep the base setting; every
+number comes from our German development split.
+N d model h dropout PPL BLEU params
+base 6 512 8 0.15 100K 4.95 25.6 60
+(A)
+1 5.30 24.8
+4 5.05 25.3
+(B) 4 5.20 25.1
+(C) 1024 4.70 26.1
+(D) 0.0 5.80 24.5
+(E) learned positional embedding instead of sinusoids 4.96 25.6
+In rows (A) we vary the number of attention heads; a single head is 0.8 BLEU worse than the
+best setting. Rows (E) show that learned position embeddings perform nearly the same.
+6.3 Parsing
+Table 4: LatticeFormer generalizes to English constituency parsing (results on Section 23 of
+the treebank).
+Parser Training F1
+Smith et al. (2016) [12] treebank only, discriminative 91.7
+Lee & Park (2015) [9] semi-supervised 92.3
+LatticeFormer (4 layers) treebank only, discriminative 92.0
+7 Conclusion
+LatticeFormer replaces recurrence with gated lattice attention. The code we used to train and
+evaluate our models is available at https://github.com/
+example-lab/latticeformer.

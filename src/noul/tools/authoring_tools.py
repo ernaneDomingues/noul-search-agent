@@ -356,10 +356,11 @@ def _build_justification(paper: dict) -> str:
         first_sent = re.split(r"(?<=[.!?])\s+", abstract)[0].strip()
         evidence = first_sent[:220]
     else:
-        evidence = paper.get("title") or "Evidência empírica direta reportada."
-    return (
-        f"Este artigo de {first_author} et al. ({year}) comprova essa afirmação "
-        f"({venue}, {citations} citações): {evidence}"
+        evidence = paper.get("title") or "Direct empirical evidence reported."
+    # Author, venue and abstract are third-party metadata: defuse delimiter look-alikes in the whole line.
+    return _untrusted.neutralize(
+        f"Candidate support: {first_author} et al. ({year}; {venue}; {citations} citations). "
+        f"Check that it backs the claim: {evidence}"
     )
 
 

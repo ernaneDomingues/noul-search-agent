@@ -99,7 +99,13 @@ class PromptExtractorTests(unittest.TestCase):
         self.assertEqual(hp["temperature"], [0.0, 0.2])
         self.assertEqual((hp["top_p"], hp["top_k"], hp["max_tokens"]), (0.9, 40, 2048))
         self.assertIn(
-            {"parameter": "top_p", "value": 0.9, "quote": "nucleus sampling p = 0.9", "page": 1},
+            {
+                "parameter": "top_p",
+                "value": 0.9,
+                "quote": "nucleus sampling p = 0.9",
+                "page": None,  # no page breaks in the text: no page number
+                "kind": "decoding",
+            },
             out["hyperparameter_evidence"],
         )
 

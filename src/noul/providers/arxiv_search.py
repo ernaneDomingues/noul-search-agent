@@ -21,7 +21,21 @@ def _search_arxiv(query, limit=15, year_min=None):
         "sortOrder": "descending",
     }
     url = "https://export.arxiv.org/api/query?" + urllib.parse.urlencode(params)
-    xml_txt = _nhttp._http_get(url)
+    return _parse_feed(_nhttp._http_get(url), year_min=year_min)
+
+
+def fetch_by_ids(arxiv_ids):
+    """Papers for explicit arXiv ids (the API's `id_list`), e.g. ["1706.03762"]; [] when none is found."""
+    ids = [str(x).strip() for x in arxiv_ids if str(x).strip()]
+    if not ids:
+        return []
+    url = "https://export.arxiv.org/api/query?" + urllib.parse.urlencode(
+        {"id_list": ",".join(ids), "max_results": len(ids)}
+    )
+    return _parse_feed(_nhttp._http_get(url))
+
+
+def _parse_feed(xml_txt, year_min=None):
     root = ET.fromstring(xml_txt)
     ns = {"a": "http://www.w3.org/2005/Atom", "arxiv": "http://arxiv.org/schemas/atom"}
     out = []

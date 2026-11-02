@@ -54,14 +54,14 @@ class GroundingTests(unittest.TestCase):
         out = self._verify("Sparse-7B scores 56.2 on GSM8K", "Sparse-7B outperforms Llama-2 7B by 33.1 points on MMLU")
         table, section = out["claims"]
         self.assertNotIn("status", table)  # evidence, not a verdict
-        self.assertEqual(table["citation_tag"], "[p. 4, Tabela 2]")
+        self.assertEqual(table["citation_tag"], "[p. 4, Table 2]")
         self.assertEqual(table["best_match"]["text"], "| Sparse-7B (ours) | 78.4% | 56.2 |")
-        self.assertEqual((table["best_match"]["page"], table["best_match"]["section"]), (4, "Tabela 2"))
+        self.assertEqual((table["best_match"]["page"], table["best_match"]["section"]), (4, "Table 2"))
         self.assertTrue(table["best_match"]["untrusted"])
         self.assertEqual((table["numbers_found"], table["numbers_missing"]), (["56.2"], []))
         self.assertFalse(table["claim_untrusted"])  # the user's own claim
         self.assertEqual(section["best_match"]["page"], 6)
-        self.assertEqual(section["best_match"]["section"], "Seção 5 Discussion")
+        self.assertEqual(section["best_match"]["section"], "Section 5 Discussion")
         self.assertIn(section["best_match"]["text"], " ".join(FULLTEXT.split()))  # verbatim
         self.assertEqual(section["numbers_found"], ["7B", "33.1"])
         self.assertEqual(out["tool"], "verify_paper_claims")
@@ -77,7 +77,7 @@ class GroundingTests(unittest.TestCase):
         invented, partial, overreach = out["claims"]
         self.assertEqual((invented["numbers_found"], invented["numbers_missing"]), ([], ["91.7%"]))
         self.assertEqual((partial["numbers_found"], partial["numbers_missing"]), (["78.4%"], ["99.9"]))
-        self.assertTrue(partial["citation_tag"].startswith("[p. 4, Tabela 2"))
+        self.assertTrue(partial["citation_tag"].startswith("[p. 4, Table 2"))
         self.assertEqual(overreach["numbers_missing"], [])
         self.assertIn("always", overreach["hedging_cues_missing_in_text"])  # "will always" is not literal
         self.assertIn("will", overreach["hedging_cues_missing_in_text"])
@@ -108,10 +108,10 @@ class GroundingTests(unittest.TestCase):
         code, out = self._cli("ground", self.pid, "--claims", "Sparse-7B scores 56.2 on GSM8K", "--pretty")
         self.assertEqual(code, 0)
         self.assertIn("> Sparse-7B scores 56.2 on GSM8K", out)
-        self.assertIn("Location: [p. 4, Tabela 2]", out)
+        self.assertIn("Location: [p. 4, Table 2]", out)
         self.assertRegex(
             out,
-            r'<untrusted_source id="doi:10.1000/ground" nonce="\w+">\n\[p. 4, Tabela 2\] \| Sparse-7B \(ours\) \| 78.4% \| 56.2 \|',
+            r'<untrusted_source id="doi:10.1000/ground" nonce="\w+">\n\[p. 4, Table 2\] \| Sparse-7B \(ours\) \| 78.4% \| 56.2 \|',
         )
 
 

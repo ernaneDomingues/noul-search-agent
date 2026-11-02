@@ -72,30 +72,49 @@ def split_pages(text, page_chars=PAGE_CHARS):
             if end < len(text):
                 cut = text.rfind("\n", pos + page_chars // 2, end)
                 end = cut + 1 if cut > pos else end
-            pages.append({"page": n, "start": pos, "end": end, "text": text[pos:end]})
+            # No page breaks in the source (HTML, JATS XML, abstracts): fixed-size blocks for internal use only.
+            pages.append({"page": n, "start": pos, "end": end, "text": text[pos:end], "synthetic": True})
             pos, n = end, n + 1
     return pages or [{"page": 1, "start": 0, "end": 0, "text": ""}]
 
 
 def page_at(pages, offset):
-    """Page number containing character `offset`."""
+    """Page number containing character `offset`, or None when the text has no real page breaks (the pages are
+    fixed-size blocks): a made-up page number must never be cited."""
+    if not pages or pages[0].get("synthetic"):
+        return None
     for pg in pages:
         if pg["start"] <= offset < max(pg["end"], pg["start"] + 1):
             return pg["page"]
-    return pages[-1]["page"] if pages else 1
+    return pages[-1]["page"]
 
 
 def find_table_captions(text):
     """Table captions (`Table 1: ...`, `Tabela 2. ...`, `\\caption{...}`) with offsets, in document order."""
     out = []
-    for m in _CAPTION.finditer(text or ""):
+    text = text or ""
+    for m in _CAPTION.finditer(text):
+        caption, end = m.group(3).strip(), m.end()
+        sep = text[m.end(2) : m.start(3)].strip()
+        if not sep and caption[:1].islower():
+            continue  # prose that starts a line ("Table 2 summarizes our results ..."), not a caption
+        line_len = m.end() - m.start()
+        # PDF captions wrap: a long first line that does not end a sentence continues on the next lines.
+        for _ in range(3):
+            if line_len < 60 or caption.endswith((".", ":")):
+                break
+            nxt_end = text.find("\n", end + 1)
+            nxt = text[end + 1 : nxt_end if nxt_end != -1 else len(text)]
+            if not nxt.strip() or "\f" in nxt or _CAPTION.match(nxt) or _SECTION.match(nxt):
+                break
+            caption, end, line_len = f"{caption} {nxt.strip()}", end + 1 + len(nxt), len(nxt)
         out.append(
             {
                 "label": f"Table {m.group(2)}",
                 "number": m.group(2),
-                "caption": m.group(3).strip(" *_"),
+                "caption": caption.strip(" *_"),
                 "offset": m.start(),
-                "end": m.end(),
+                "end": end,
                 "kind": "text",
             }
         )
@@ -115,12 +134,42 @@ def find_table_captions(text):
     return sorted(out, key=lambda c: c["offset"])
 
 
+def flow_text(text, sections=None, captions=None, spans=()):
+    """`text` with the line breaks inside paragraphs turned into spaces, same length (offsets are unchanged).
+
+    PDF text keeps its line breaks (they mark headings), but sentences wrap across lines; sentence regexes run on
+    this view. Breaks after a heading or a caption, at the edges of `spans` (tables), around blank lines and around
+    page breaks are kept."""
+    text = text or ""
+    keep = set()
+    for sec in sections if sections is not None else find_sections(text):
+        nl = text.find("\n", sec["offset"])
+        if nl != -1:
+            keep.add(nl)
+    for cap in captions if captions is not None else find_table_captions(text):
+        if cap.get("kind") == "text" and cap["end"] < len(text):
+            keep.add(cap["end"] if text[cap["end"] : cap["end"] + 1] == "\n" else text.find("\n", cap["end"]))
+    for start, end in spans:
+        keep.update({start - 1, end, text.find("\n", end) if end < len(text) else -1})
+        # every line inside a table is its own row
+        keep.update(i for i in range(start, min(end, len(text))) if text[i] == "\n")
+    chars = list(text)
+    for i, ch in enumerate(chars):
+        if ch == "\n" and i not in keep and 0 < i < len(chars) - 1:
+            if chars[i - 1] not in "\n\f" and chars[i + 1] not in "\n\f":
+                chars[i] = " "
+    return "".join(chars)
+
+
 def find_sections(text):
     """Section headings (Markdown, LaTeX, numbered `3.2 Results` or well-known names) with offsets."""
     out = []
     for m in _SECTION.finditer(text or ""):
-        if m.group("num") and len(re.findall(r"\d+(?:\.\d+)?", m.group("num"))) > 2:
+        num = m.group("num")
+        if num and len(re.findall(r"\d+(?:\.\d+)?", num)) > 2:
             continue  # a numeric table row, not a numbered heading
+        if num and (num.rstrip().endswith((".", ",", ";")) or len(num.split()) > 9):
+            continue  # a sentence that starts with a number ("42.3 BLEU after ... GPUs."), not a heading
         title = next(g for g in (m.group("md"), m.group("tex"), m.group("num"), m.group("named")) if g)
         out.append({"title": re.sub(r"\s+", " ", title).strip(" #:"), "offset": m.start()})
     return out

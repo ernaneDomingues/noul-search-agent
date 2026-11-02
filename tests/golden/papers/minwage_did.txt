@@ -1,0 +1,20 @@
+Minimum Wages and Teen Employment: Evidence from County Borders
+Abstract
+Using a difference-in-differences design across contiguous county pairs, we find that a 10%
+minimum wage increase reduces teen employment by 1.2%.
+1 Introduction
+We compare contiguous counties on either side of state borders.
+2 Empirical Strategy
+We estimate a two-way fixed effects model with county-pair by period effects. Identification
+assumes parallel trends between paired counties, and standard errors are clustered by state.
+3 Results
+Table 1: Effect of minimum wages on teen employment.
+Specification Elasticity SE
+Baseline TWFE -0.12 0.04
+Border pairs -0.11 0.05
+Table 2: Robustness checks.
+Check Elasticity SE
+Placebo (adults 35-54) 0.01 0.03
+Leads (pre-trends) 0.02 0.04
+4 Conclusion
+Replication code is available at https://github.com/example-econ/minwage-borders.

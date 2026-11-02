@@ -94,7 +94,10 @@ class CitationAndRelatedWorkTests(unittest.TestCase):
         first_rec = res["recommendations"][0]
         self.assertGreaterEqual(len(first_rec["recommended_papers"]), 1)
         self.assertTrue(
-            any("Este artigo de " in j and "comprova essa afirmação" in j for j in first_rec["justifications"])
+            any(
+                j.startswith("Candidate support: ") and "Check that it backs the claim" in j
+                for j in first_rec["justifications"]
+            )
         )
 
     def test_recommend_citations_markdown_style_and_cli(self):

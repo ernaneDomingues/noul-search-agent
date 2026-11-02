@@ -14,6 +14,7 @@ from noul.schemas.authoring import (
 )
 from noul.schemas.code import CodeScaffold
 from noul.schemas.evidence import AnalysisResult
+from noul.schemas.fulltext import FulltextResult, QueryFulltextsResult
 from noul.schemas.review import PeerReviewReport
 from noul.schemas.technical import ArxivVersionDiffReport, ClaimsGroundingReport, FailureModesReport
 
@@ -26,8 +27,10 @@ __all__ = [
     "CodeScaffold",
     "DraftAuditReport",
     "FailureModesReport",
+    "FulltextResult",
     "ManuscriptBlueprint",
     "PeerReviewReport",
+    "QueryFulltextsResult",
     "RebuttalReport",
     "RelatedWorkSynthesis",
     "SubmissionGatekeeperReport",

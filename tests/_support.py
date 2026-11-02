@@ -251,7 +251,6 @@ CORE_HOMES = {
     "export": "noul.library.export",
     "fulltext": "noul.library.fulltext",
     "get_config": "noul.config",
-    "pick_chunks": "noul.library.fulltext",
     "related_papers": "noul.library.graph",
     "resolve_paper": "noul.search.engine",
     "resolve_pdf_url": "noul.library.fulltext",

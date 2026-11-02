@@ -4,6 +4,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from noul.schemas.evidence import Excerpt
+
 
 class ComparisonDimension(BaseModel):
     paper_id: str
@@ -57,4 +59,7 @@ class ResearchGapReport(BaseModel):
     contradictions_found: list[str] = Field(default_factory=list)
     unexplored_complementarities: list[str] = Field(default_factory=list)
     hypotheses: list[ResearchHypothesis] = Field(default_factory=list)
+    # The paper sentences (assumptions, candidate failure modes) quoted inside the prose above, as excerpts.
+    evidence: list[Excerpt] = Field(default_factory=list)
+    untrusted_fields: list[str] = Field(default_factory=list)
     markdown_report: str = ""

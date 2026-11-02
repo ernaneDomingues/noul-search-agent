@@ -106,6 +106,42 @@
    "Excerpt": {
     "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
     "properties": {
+     "char_end": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Char End"
+     },
+     "char_start": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Char Start"
+     },
+     "chunk_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Chunk Id"
+     },
      "origin": {
       "default": "paper",
       "enum": [
@@ -141,6 +177,18 @@
       ],
       "default": null,
       "title": "Paper Id"
+     },
+     "relevance": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Relevance"
      },
      "section": {
       "anyOf": [
@@ -485,6 +533,42 @@
    "Excerpt": {
     "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
     "properties": {
+     "char_end": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Char End"
+     },
+     "char_start": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Char Start"
+     },
+     "chunk_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Chunk Id"
+     },
      "origin": {
       "default": "paper",
       "enum": [
@@ -520,6 +604,18 @@
       ],
       "default": null,
       "title": "Paper Id"
+     },
+     "relevance": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Relevance"
      },
      "section": {
       "anyOf": [
@@ -866,6 +962,42 @@
    "Excerpt": {
     "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
     "properties": {
+     "char_end": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Char End"
+     },
+     "char_start": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Char Start"
+     },
+     "chunk_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Chunk Id"
+     },
      "origin": {
       "default": "paper",
       "enum": [
@@ -901,6 +1033,18 @@
       ],
       "default": null,
       "title": "Paper Id"
+     },
+     "relevance": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Relevance"
      },
      "section": {
       "anyOf": [
@@ -1142,6 +1286,221 @@
   "title": "FailureModesReport",
   "type": "object"
  },
+ "get_fulltext": {
+  "$defs": {
+   "Excerpt": {
+    "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
+    "properties": {
+     "char_end": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Char End"
+     },
+     "char_start": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Char Start"
+     },
+     "chunk_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Chunk Id"
+     },
+     "origin": {
+      "default": "paper",
+      "enum": [
+       "paper",
+       "draft",
+       "reviews",
+       "web",
+       "user"
+      ],
+      "title": "Origin",
+      "type": "string"
+     },
+     "page": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Page"
+     },
+     "paper_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Paper Id"
+     },
+     "relevance": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Relevance"
+     },
+     "section": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Section"
+     },
+     "text": {
+      "title": "Text",
+      "type": "string"
+     },
+     "truncated": {
+      "default": false,
+      "title": "Truncated",
+      "type": "boolean"
+     },
+     "untrusted": {
+      "default": true,
+      "title": "Untrusted",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "text"
+    ],
+    "title": "Excerpt",
+    "type": "object"
+   }
+  },
+  "description": "`get_fulltext`: up to 6 passages relevant to `question` (or the first passages without one). When no open\nfull text is available, `abstract_fallback` holds the abstract instead.",
+  "properties": {
+   "abstract_fallback": {
+    "anyOf": [
+     {
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "Abstract Fallback"
+   },
+   "available": {
+    "title": "Available",
+    "type": "boolean"
+   },
+   "excerpts": {
+    "items": {
+     "$ref": "#/$defs/Excerpt"
+    },
+    "title": "Excerpts",
+    "type": "array"
+   },
+   "id": {
+    "title": "Id",
+    "type": "string"
+   },
+   "method": {
+    "const": "retrieval",
+    "default": "retrieval",
+    "title": "Method",
+    "type": "string"
+   },
+   "question": {
+    "default": "",
+    "title": "Question",
+    "type": "string"
+   },
+   "source": {
+    "anyOf": [
+     {
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "description": "Where the open-access copy was found: metadata (the paper record's own PDF link), unpaywall, europepmc_xml, ... - not the content type.",
+    "title": "Source"
+   },
+   "title": {
+    "anyOf": [
+     {
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "Title"
+   },
+   "untrusted_fields": {
+    "items": {
+     "type": "string"
+    },
+    "title": "Untrusted Fields",
+    "type": "array"
+   },
+   "url": {
+    "anyOf": [
+     {
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "Url"
+   }
+  },
+  "required": [
+   "id",
+   "available"
+  ],
+  "title": "FulltextResult",
+  "type": "object"
+ },
  "parse_and_draft_rebuttal": {
   "$defs": {
    "AnalysisSubject": {
@@ -1249,6 +1608,42 @@
    "Excerpt": {
     "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
     "properties": {
+     "char_end": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Char End"
+     },
+     "char_start": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Char Start"
+     },
+     "chunk_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Chunk Id"
+     },
      "origin": {
       "default": "paper",
       "enum": [
@@ -1284,6 +1679,18 @@
       ],
       "default": null,
       "title": "Paper Id"
+     },
+     "relevance": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Relevance"
      },
      "section": {
       "anyOf": [
@@ -1592,6 +1999,265 @@
   "title": "RebuttalReport",
   "type": "object"
  },
+ "query_fulltexts": {
+  "$defs": {
+   "Excerpt": {
+    "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
+    "properties": {
+     "char_end": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Char End"
+     },
+     "char_start": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Char Start"
+     },
+     "chunk_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Chunk Id"
+     },
+     "origin": {
+      "default": "paper",
+      "enum": [
+       "paper",
+       "draft",
+       "reviews",
+       "web",
+       "user"
+      ],
+      "title": "Origin",
+      "type": "string"
+     },
+     "page": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Page"
+     },
+     "paper_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Paper Id"
+     },
+     "relevance": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Relevance"
+     },
+     "section": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Section"
+     },
+     "text": {
+      "title": "Text",
+      "type": "string"
+     },
+     "truncated": {
+      "default": false,
+      "title": "Truncated",
+      "type": "boolean"
+     },
+     "untrusted": {
+      "default": true,
+      "title": "Untrusted",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "text"
+    ],
+    "title": "Excerpt",
+    "type": "object"
+   },
+   "PaperPassages": {
+    "properties": {
+     "authors": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Authors",
+      "type": "array"
+     },
+     "content_source": {
+      "anyOf": [
+       {
+        "enum": [
+         "fulltext",
+         "abstract_only"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Content Source"
+     },
+     "doi": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Doi"
+     },
+     "error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Error"
+     },
+     "evidence": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Evidence"
+     },
+     "excerpts": {
+      "items": {
+       "$ref": "#/$defs/Excerpt"
+      },
+      "title": "Excerpts",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "title": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Title"
+     },
+     "year": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Year"
+     }
+    },
+    "required": [
+     "id"
+    ],
+    "title": "PaperPassages",
+    "type": "object"
+   }
+  },
+  "description": "`query_fulltexts`: the best passages per paper for one question.",
+  "properties": {
+   "method": {
+    "const": "retrieval",
+    "default": "retrieval",
+    "title": "Method",
+    "type": "string"
+   },
+   "question": {
+    "title": "Question",
+    "type": "string"
+   },
+   "results": {
+    "items": {
+     "$ref": "#/$defs/PaperPassages"
+    },
+    "title": "Results",
+    "type": "array"
+   },
+   "untrusted_fields": {
+    "items": {
+     "type": "string"
+    },
+    "title": "Untrusted Fields",
+    "type": "array"
+   }
+  },
+  "required": [
+   "question"
+  ],
+  "title": "QueryFulltextsResult",
+  "type": "object"
+ },
  "review_paper": {
   "$defs": {
    "AnalysisSubject": {
@@ -1699,6 +2365,42 @@
    "Excerpt": {
     "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
     "properties": {
+     "char_end": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Char End"
+     },
+     "char_start": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Char Start"
+     },
+     "chunk_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Chunk Id"
+     },
      "origin": {
       "default": "paper",
       "enum": [
@@ -1734,6 +2436,18 @@
       ],
       "default": null,
       "title": "Paper Id"
+     },
+     "relevance": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Relevance"
      },
      "section": {
       "anyOf": [
@@ -2121,6 +2835,42 @@
    "Excerpt": {
     "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
     "properties": {
+     "char_end": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Char End"
+     },
+     "char_start": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Char Start"
+     },
+     "chunk_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Chunk Id"
+     },
      "origin": {
       "default": "paper",
       "enum": [
@@ -2156,6 +2906,18 @@
       ],
       "default": null,
       "title": "Paper Id"
+     },
+     "relevance": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Relevance"
      },
      "section": {
       "anyOf": [
@@ -2543,6 +3305,42 @@
    "Excerpt": {
     "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
     "properties": {
+     "char_end": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Char End"
+     },
+     "char_start": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Char Start"
+     },
+     "chunk_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Chunk Id"
+     },
      "origin": {
       "default": "paper",
       "enum": [
@@ -2578,6 +3376,18 @@
       ],
       "default": null,
       "title": "Paper Id"
+     },
+     "relevance": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Relevance"
      },
      "section": {
       "anyOf": [

@@ -1,0 +1,16 @@
+Graph Kernels for Molecule Ranking
+Abstract
+We present a graph kernel that ranks candidate molecules and reaches 0.91 AUC on the screening
+benchmark.
+1 Introduction
+Ranking candidate molecules is expensive. We propose a kernel over labelled molecular graphs.
+2 Method
+The kernel counts shared rooted subtrees up to depth three.
+3 Experiments
+Table 1: AUC on the screening benchmark.
+Method AUC
+Fingerprint baseline 0.86
+Graph kernel (ours) 0.91
+The kernel improves AUC by 0.05 over fingerprints.
+4 Conclusion
+Code and data are available from the authors upon reasonable request.
