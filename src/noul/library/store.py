@@ -98,36 +98,84 @@ class ProjectNotFound(KeyError):
     pass
 
 
+class ReadOnlyStoreMissing(FileNotFoundError):
+    """No projects.db yet (read tools return empty results instead of creating it)."""
+
+
+MAX_PROJECTS = 1000
+MAX_NOTES_PER_PROJECT = 5000
+
+
 def db_path() -> Path:
     """NOUL_PROJECTS_DB, else `projects.db` in the Noul config folder (next to config.json)."""
     raw = os.environ.get("NOUL_PROJECTS_DB")
     return Path(raw).expanduser() if raw else _config._cache_dir() / "projects.db"
 
 
-def _migrate(conn: sqlite3.Connection) -> None:
+def _version(conn: sqlite3.Connection) -> int:
     conn.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")
-    row = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()
-    current = row[0] or 0
-    for version, sql in MIGRATIONS:
-        if version > current:
-            conn.executescript(f"BEGIN;\n{sql}\nINSERT INTO schema_version (version) VALUES ({version});\nCOMMIT;")
+    return conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0] or 0
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    if _version(conn) >= SCHEMA_VERSION:
+        return
+    # BEGIN IMMEDIATE takes the write lock before re-reading the version, so two processes starting together
+    # (CLI + MCP server) apply each migration once instead of racing to create the same tables.
+    conn.commit()
+    previous = conn.isolation_level
+    conn.isolation_level = None
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        current = _version(conn)
+        for version, sql in MIGRATIONS:
+            if version > current:
+                for statement in (x.strip() for x in sql.split(";")):
+                    if statement:
+                        conn.execute(statement)
+                conn.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+        conn.execute("COMMIT")
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
+    finally:
+        conn.isolation_level = previous
 
 
 @contextmanager
-def _conn() -> Iterator[sqlite3.Connection]:
+def _conn(readonly: bool = False) -> Iterator[sqlite3.Connection]:
+    """A connection to the store. `readonly` opens the file read-only (raises ReadOnlyStoreMissing when it does
+    not exist yet), so read tools never create or migrate it."""
     path = db_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path, timeout=15)
+    if readonly:
+        if not path.is_file():
+            raise ReadOnlyStoreMissing(str(path))
+        conn = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True, timeout=15)
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        conn = sqlite3.connect(path, timeout=15)
     try:
         conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA foreign_keys=ON")
-        with _lock:  # cheap when up to date (one SELECT); a deleted file is re-created at the current version
-            _migrate(conn)
+        if not readonly:
+            conn.execute("PRAGMA journal_mode=WAL")
+            _private(path)
+            with _lock:  # cheap when up to date (one SELECT); a deleted file is re-created at the current version
+                _migrate(conn)
         yield conn
         conn.commit()
     finally:
         conn.close()
+
+
+def _private(path: Path) -> None:
+    """Notes may hold unpublished research: the database and its WAL files are readable by the user only."""
+    for f in (path, path.with_name(path.name + "-wal"), path.with_name(path.name + "-shm")):
+        try:
+            if f.exists():
+                os.chmod(f, 0o600)
+        except OSError:
+            pass
 
 
 def _now() -> int:
@@ -191,7 +239,7 @@ def _touch(conn: sqlite3.Connection, project_id: int) -> None:
 
 def create_project(title: str, question: str | None = None, slug: str | None = None) -> dict[str, Any]:
     """Create a project (idempotent on its slug: an existing one is returned with `created: False`)."""
-    title = _clip(title, MAX_TITLE) or ""
+    title = re.sub(r"\s+", " ", str(title or "")).strip()[:MAX_TITLE]  # callers may pass long dossier topics
     if not title:
         raise ValueError("title must not be empty")
     question = _clip(question, MAX_QUESTION) or None
@@ -205,6 +253,8 @@ def create_project(title: str, question: str | None = None, slug: str | None = N
                 )
                 existing = _project_row(conn, slug)
             return {**_summary(conn, existing), "created": False}
+        if conn.execute("SELECT COUNT(*) FROM projects").fetchone()[0] >= MAX_PROJECTS:
+            raise ValueError(f"at most {MAX_PROJECTS} projects")
         now = _now()
         conn.execute(
             "INSERT INTO projects (slug, title, question, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
@@ -214,6 +264,14 @@ def create_project(title: str, question: str | None = None, slug: str | None = N
 
 
 def list_projects() -> list[dict[str, Any]]:
+    try:
+        with _conn(readonly=True) as conn:
+            rows = conn.execute("SELECT * FROM projects ORDER BY updated_at DESC, id DESC").fetchall()
+            return [_summary(conn, r) for r in rows]
+    except ReadOnlyStoreMissing:
+        return []
+    except sqlite3.OperationalError:  # a store created by an older version: migrate it once
+        pass
     with _conn() as conn:
         rows = conn.execute("SELECT * FROM projects ORDER BY updated_at DESC, id DESC").fetchall()
         return [_summary(conn, r) for r in rows]
@@ -221,37 +279,47 @@ def list_projects() -> list[dict[str, Any]]:
 
 def get_project(ref: str | int, include_papers: bool = True) -> dict[str, Any]:
     """Project summary plus its papers (with status and reason) and notes."""
-    with _conn() as conn:
-        row = _project_row(conn, ref)
-        out = _summary(conn, row)
-        out["papers"] = []
-        if include_papers:
-            for r in conn.execute(
-                "SELECT pp.*, p.metadata_json FROM project_papers pp JOIN papers p ON p.id = pp.paper_id "
-                "WHERE pp.project_id = ? ORDER BY CASE pp.status WHEN 'included' THEN 0 WHEN 'candidate' THEN 1 "
-                "ELSE 2 END, pp.added_at, pp.paper_id",
-                (row["id"],),
-            ):
-                meta = json.loads(r["metadata_json"])
-                out["papers"].append(
-                    {
-                        "id": r["paper_id"],
-                        "title": meta.get("title"),
-                        "authors": meta.get("authors") or [],
-                        "year": meta.get("year"),
-                        "doi": meta.get("doi"),
-                        "evidence": meta.get("evidence"),
-                        "status": r["status"],
-                        "reason": r["reason"],
-                        "added_at": r["added_at"],
-                        "updated_at": r["updated_at"],
-                    }
-                )
-        out["notes"] = [
-            {"id": n["id"], "paper_id": n["paper_id"], "text": n["text"], "created_at": n["created_at"]}
-            for n in conn.execute("SELECT * FROM notes WHERE project_id = ? ORDER BY created_at, id", (row["id"],))
-        ]
-        return out
+    try:
+        with _conn(readonly=True) as conn:
+            return _detail(conn, ref, include_papers)
+    except ReadOnlyStoreMissing:
+        raise ProjectNotFound(str(ref)) from None
+    except sqlite3.OperationalError:  # a store created by an older version: migrate it once
+        with _conn() as conn:
+            return _detail(conn, ref, include_papers)
+
+
+def _detail(conn: sqlite3.Connection, ref: str | int, include_papers: bool) -> dict[str, Any]:
+    row = _project_row(conn, ref)
+    out = _summary(conn, row)
+    out["papers"] = []
+    if include_papers:
+        for r in conn.execute(
+            "SELECT pp.*, p.metadata_json FROM project_papers pp JOIN papers p ON p.id = pp.paper_id "
+            "WHERE pp.project_id = ? ORDER BY CASE pp.status WHEN 'included' THEN 0 WHEN 'candidate' THEN 1 "
+            "ELSE 2 END, pp.added_at, pp.paper_id",
+            (row["id"],),
+        ):
+            meta = json.loads(r["metadata_json"])
+            out["papers"].append(
+                {
+                    "id": r["paper_id"],
+                    "title": meta.get("title"),
+                    "authors": meta.get("authors") or [],
+                    "year": meta.get("year"),
+                    "doi": meta.get("doi"),
+                    "evidence": meta.get("evidence"),
+                    "status": r["status"],
+                    "reason": r["reason"],
+                    "added_at": r["added_at"],
+                    "updated_at": r["updated_at"],
+                }
+            )
+    out["notes"] = [
+        {"id": n["id"], "paper_id": n["paper_id"], "text": n["text"], "created_at": n["created_at"]}
+        for n in conn.execute("SELECT * FROM notes WHERE project_id = ? ORDER BY created_at, id", (row["id"],))
+    ]
+    return out
 
 
 def _status(status: str) -> str:
@@ -316,6 +384,9 @@ def add_note(ref: str | int, text: str, paper_id: str | None = None) -> dict:
         raise ValueError("note text must not be empty")
     with _conn() as conn:
         row = _project_row(conn, ref)
+        notes = conn.execute("SELECT COUNT(*) FROM notes WHERE project_id = ?", (row["id"],)).fetchone()[0]
+        if notes >= MAX_NOTES_PER_PROJECT:
+            raise ValueError(f"at most {MAX_NOTES_PER_PROJECT} notes per project")
         if (
             paper_id is not None
             and not conn.execute(
@@ -332,9 +403,12 @@ def add_note(ref: str | int, text: str, paper_id: str | None = None) -> dict:
 
 
 def meta_get(key: str) -> str | None:
-    with _conn() as conn:
-        row = conn.execute("SELECT v FROM meta WHERE k = ?", (key,)).fetchone()
-        return row["v"] if row else None
+    try:
+        with _conn(readonly=True) as conn:
+            row = conn.execute("SELECT v FROM meta WHERE k = ?", (key,)).fetchone()
+            return row["v"] if row else None
+    except (ReadOnlyStoreMissing, sqlite3.OperationalError):
+        return None
 
 
 def meta_set(key: str, value: str) -> None:
