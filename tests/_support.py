@@ -50,6 +50,17 @@ def isolate_environment():
     return env
 
 
+def tmp_path(name):
+    """A path named `name` inside a fresh temporary directory (removed at interpreter exit)."""
+    import atexit
+    import shutil
+    import tempfile
+
+    folder = tempfile.mkdtemp(prefix="noul-test-")
+    atexit.register(shutil.rmtree, folder, True)
+    return Path(folder) / name
+
+
 def no_network(*args, **kwargs):
     raise AssertionError(f"unexpected network access: {args[:1]}")
 

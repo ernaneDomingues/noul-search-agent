@@ -1,7 +1,7 @@
 {
   "name": "noul",
   "version": "1.0.0",
-  "description": "Noul Search: autonomous multi-disciplinary scientific research & document intelligence agent with 41 MCP tools (literature search, Evidence Meter, benchmark/VRAM/math/ablation extraction, multi-persona peer review, polyglot scaffolding, academic authoring and desk-reject gatekeeper).",
+  "description": "Noul Search: autonomous multi-disciplinary scientific research & document intelligence agent with 47 MCP tools (literature search, Evidence Meter, research projects, benchmark/VRAM/math/ablation extraction, multi-persona peer review, polyglot scaffolding, academic authoring and desk-reject gatekeeper).",
   "contextFileName": "GEMINI.md",
   "mcpServers": {
     "noul": {

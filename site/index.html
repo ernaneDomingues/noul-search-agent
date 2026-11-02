@@ -608,6 +608,54 @@
               <div><strong>CLI:</strong> <code>noul meter &#x27;&lt;json&gt;&#x27;</code></div>
             </div>
           </article>
+          <article class="tool-card" data-tool="project_create">
+            <h4 class="mono">project_create</h4>
+            <p>Create a persistent research project for a question (idempotent on its title&#x27;s slug: an existing project is returned with created=false). Projects persist across sessions and clients in the user&#x27;s Noul folder. Use them to keep the question, every paper considered with an inclusion status and the reason, and notes.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> title | <strong>Optional:</strong> question</div>
+              <div><strong>CLI:</strong> <code>noul project create &quot;Title&quot; --question ...</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="project_list">
+            <h4 class="mono">project_list</h4>
+            <p>List the user&#x27;s research projects (most recently updated first) with paper counts per status.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> none | <strong>Optional:</strong> none</div>
+              <div><strong>CLI:</strong> <code>noul project list</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="project_get">
+            <h4 class="mono">project_get</h4>
+            <p>A research project with its question, papers (included first, each with status and reason) and notes. Paper titles are third-party text.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> project | <strong>Optional:</strong> include_papers</div>
+              <div><strong>CLI:</strong> <code>noul project show PROJECT</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="project_add_papers">
+            <h4 class="mono">project_add_papers</h4>
+            <p>Add papers (ids, DOIs, PMIDs or arXiv ids, e.g. from search_papers) to a research project with a status (candidate by default) and an optional reason. Papers already in the project keep their status: use project_set_status to change it.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> project, ids | <strong>Optional:</strong> status, reason</div>
+              <div><strong>CLI:</strong> <code>noul project add PROJECT ID1,ID2 --status candidate</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="project_set_status">
+            <h4 class="mono">project_set_status</h4>
+            <p>Include or exclude papers of a research project (or move them back to candidate), recording why - e.g. the inclusion criterion they meet or fail. Use the paper ids returned by project_get.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> project, ids, status, reason | <strong>Optional:</strong> none</div>
+              <div><strong>CLI:</strong> <code>noul project status PROJECT ID1,ID2 included --reason ...</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="project_note">
+            <h4 class="mono">project_note</h4>
+            <p>Add a note to a research project, optionally attached to one of its papers.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> project, text | <strong>Optional:</strong> paper_id</div>
+              <div><strong>CLI:</strong> <code>noul project note PROJECT &quot;text&quot; --paper ID</code></div>
+            </div>
+          </article>
         </div>
         <!-- TOOLS_CATALOG_END -->
       </div>

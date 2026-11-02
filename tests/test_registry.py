@@ -16,12 +16,24 @@ def setUpModule():
 
 class ContractTests(unittest.TestCase):
     def test_tools_list_matches_the_v1_contract(self):
-        """inputSchema, descriptions and the set of tools are identical to the hand-written v1 schemas."""
+        """Every v1 tool still exists with the same inputSchema (and description, except the listed changes);
+        tools added since v1 are listed with their phase."""
         from noul.server import legacy
 
         expected = {t["name"]: t for t in json.loads(FIXTURE.read_text(encoding="utf-8"))}
         actual = {t["name"]: t for t in legacy.tools_list()}
-        self.assertEqual(sorted(actual), sorted(expected))
+        added_since_v1 = {
+            name: "3b-2: research projects"
+            for name in (
+                "project_create",
+                "project_list",
+                "project_get",
+                "project_add_papers",
+                "project_set_status",
+                "project_note",
+            )
+        }
+        self.assertEqual(sorted(actual), sorted([*expected, *added_since_v1]))
         # Intentional description changes since v1, each with the phase that made it.
         changed_descriptions = {
             "detect_paper_domain": "2a: venue signal and `method` values",
@@ -52,7 +64,7 @@ class ContractTests(unittest.TestCase):
 
         from noul import api, registry
 
-        self.assertEqual(len(registry.REGISTRY), 41)
+        self.assertEqual(len(registry.REGISTRY), 47)  # 41 v1 tools + 6 project_* tools (3b-2)
         for name, tool in registry.REGISTRY.items():
             with self.subTest(tool=name):
                 self.assertIs(getattr(api, name), tool.fn)
@@ -65,7 +77,16 @@ class ContractTests(unittest.TestCase):
 
         self.assertEqual(
             legacy.WRITE_TOOLS,
-            {"download_papers", "save_research_dossier", "export_obsidian_notes", "configure_noul"},
+            {
+                "download_papers",
+                "save_research_dossier",
+                "export_obsidian_notes",
+                "configure_noul",
+                "project_create",
+                "project_add_papers",
+                "project_set_status",
+                "project_note",
+            },
         )
         self.assertEqual(legacy.WRITE_TOOLS, registry.write_tools())
 
@@ -118,8 +139,8 @@ class ContractTests(unittest.TestCase):
         from noul import registry
 
         names = {p: {t["name"] for t in registry.catalog(p)} for p in registry.PROFILES}
-        self.assertEqual(len(names["all"]), 41)
-        self.assertEqual(len(names["research"]), 17)
+        self.assertEqual(len(names["all"]), 47)
+        self.assertEqual(len(names["research"]), 23)
         self.assertLess(names["research"], names["review"])
         self.assertLess(names["research"], names["write"])
         self.assertEqual(names["review"] | names["write"], names["all"])
@@ -158,7 +179,7 @@ class ContractTests(unittest.TestCase):
         from noul import registry
 
         with_schema = {t["name"] for t in registry.catalog() if t["outputSchema"]}
-        self.assertEqual(len(with_schema), 15)
+        self.assertEqual(len(with_schema), 21)
         sample = registry.call(
             "generate_manuscript_blueprint", {"topic": "Sparse attention", "hypothesis": "It is faster"}
         )

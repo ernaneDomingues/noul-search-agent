@@ -130,7 +130,7 @@ class HttpAppTests(unittest.TestCase):
     def test_rest_tools_and_openapi_follow_the_profile(self):
         with client() as c:
             names = {t["name"] for t in c.get("/tools", headers=AUTH).json()["tools"]}
-            self.assertEqual(len(names), 14)  # research profile (17) minus its 3 write tools
+            self.assertEqual(len(names), 16)  # research profile (23) minus its 7 write tools
             spec = c.get("/openapi.json", headers=AUTH).json()
             self.assertEqual({p.rsplit("/", 1)[1] for p in spec["paths"]}, names)
             ok = c.post("/tools/evidence_meter", json={"items": [{"stance": "supportive"}]}, headers=AUTH)
@@ -138,7 +138,7 @@ class HttpAppTests(unittest.TestCase):
             self.assertEqual(c.post("/tools/nope", json={}, headers=AUTH).status_code, 404)
             self.assertEqual(c.post("/tools/search_papers", json={"query": 3}, headers=AUTH).status_code, 400)
         with client(profile="all") as c:
-            self.assertEqual(len(c.get("/tools", headers=AUTH).json()["tools"]), 37)  # 41 minus 4 write tools
+            self.assertEqual(len(c.get("/tools", headers=AUTH).json()["tools"]), 39)  # 47 minus 8 write tools
 
     def test_writes_need_token_and_explicit_opt_in(self):
         args = {"bibtex_input": "@misc{a, title={T}}", "output_path": "out.bib"}
@@ -168,7 +168,7 @@ class HttpAppTests(unittest.TestCase):
             c.post("/mcp", json={"jsonrpc": "2.0", "method": "notifications/initialized"}, headers=headers)
             listed = c.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, headers=headers)
             tools = mcp_payloads(listed)[0]["result"]["tools"]
-            self.assertEqual(len(tools), 14)
+            self.assertEqual(len(tools), 16)
             self.assertNotIn("configure_noul", {t["name"] for t in tools})
 
 

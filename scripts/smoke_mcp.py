@@ -13,7 +13,7 @@ import threading
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--min-tools", type=int, default=41)
+    ap.add_argument("--min-tools", type=int, default=47)
     ap.add_argument("--timeout", type=float, default=120)
     ap.add_argument("command", nargs=argparse.REMAINDER)
     a = ap.parse_args(argv)

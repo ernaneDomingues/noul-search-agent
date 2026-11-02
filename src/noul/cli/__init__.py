@@ -26,6 +26,10 @@ Usage:
   noul dossier save --topic "Topic" --file report.md [--ids ID1,ID2] [--dir ./research]
   noul dossier list [--dir ./research]
   noul dossier show SLUG [--dir ./research]
+  noul project create "Title" [--question Q] | list | show PROJECT
+  noul project add PROJECT ID1,ID2 [--status candidate|included|excluded] [--reason R]
+  noul project status PROJECT ID1,ID2 included|excluded|candidate --reason R
+  noul project note PROJECT "text" [--paper ID]
   noul config [email:you@university.edu] [--email E] [--workspace W] [--download-dir D] [--research-dir R] [--clear]
   noul meter '[{"id":"doi:10.1/x","stance":"supportive"}]'   (or `-` to read the JSON list from stdin)
   noul mcp [--http [PORT]] [--host H]       (MCP server; same as noul-mcp)
@@ -408,6 +412,30 @@ def main(argv=None):
     d_show.add_argument("slug")
     d_show.add_argument("--dir", default=None, help="Inside the workspace (default: configured research_dir)")
 
+    proj = sub.add_parser("project", help="Persistent research projects (question, papers with status, notes)")
+    proj_sub = proj.add_subparsers(dest="project_cmd", required=True)
+    p_create = proj_sub.add_parser("create")
+    p_create.add_argument("title")
+    p_create.add_argument("--question", default=None)
+    proj_sub.add_parser("list")
+    p_show = proj_sub.add_parser("show")
+    p_show.add_argument("project")
+    p_show.add_argument("--pretty", action="store_true", help="Markdown summary")
+    p_add = proj_sub.add_parser("add")
+    p_add.add_argument("project")
+    p_add.add_argument("ids", help="Comma-separated paper ids / DOIs")
+    p_add.add_argument("--status", choices=("candidate", "included", "excluded"), default="candidate")
+    p_add.add_argument("--reason", default=None)
+    p_status = proj_sub.add_parser("status")
+    p_status.add_argument("project")
+    p_status.add_argument("ids", help="Comma-separated paper ids")
+    p_status.add_argument("status", choices=("candidate", "included", "excluded"))
+    p_status.add_argument("--reason", required=True)
+    p_note = proj_sub.add_parser("note")
+    p_note.add_argument("project")
+    p_note.add_argument("text")
+    p_note.add_argument("--paper", default=None)
+
     cfg_p = sub.add_parser("config", help="View or update persistent settings (no arguments = show)")
     cfg_p.add_argument(
         "pairs", nargs="*", metavar="KEY:VALUE", help="e.g. email:you@university.edu workspace:~/research"
@@ -714,6 +742,24 @@ def main(argv=None):
                 out = _run("list_research_dossiers", a.dir)
             elif a.dossier_cmd == "show":
                 out = _run("get_research_dossier", a.slug, a.dir)
+        elif a.cmd == "project":
+            if a.project_cmd == "create":
+                out = _run("project_create", a.title, a.question)
+            elif a.project_cmd == "list":
+                out = _run("project_list")
+            elif a.project_cmd == "show":
+                if a.pretty:
+                    from noul import api as _api
+
+                    print(_api.project_markdown(a.project))
+                    return 0
+                out = _run("project_get", a.project)
+            elif a.project_cmd == "add":
+                out = _run("project_add_papers", a.project, split(a.ids), a.status, a.reason)
+            elif a.project_cmd == "status":
+                out = _run("project_set_status", a.project, split(a.ids), a.status, a.reason)
+            elif a.project_cmd == "note":
+                out = _run("project_note", a.project, a.text, a.paper)
         elif a.cmd == "config":
             kwargs = _parse_config_pairs(a.pairs)
             for key in ("email", "workspace", "download_dir", "research_dir"):

@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "tool_count": 41,
+  "tool_count": 47,
   "tools": [
     {
       "name": "search_papers",
@@ -480,6 +480,72 @@
       ],
       "Optional": [],
       "cli_equivalent": "noul meter '<json>'"
+    },
+    {
+      "name": "project_create",
+      "description": "Create a persistent research project for a question (idempotent on its title's slug: an existing project is returned with created=false). Projects persist across sessions and clients in the user's Noul folder. Use them to keep the question, every paper considered with an inclusion status and the reason, and notes.",
+      "required": [
+        "title"
+      ],
+      "Optional": [
+        "question"
+      ],
+      "cli_equivalent": "noul project create \"Title\" --question ..."
+    },
+    {
+      "name": "project_list",
+      "description": "List the user's research projects (most recently updated first) with paper counts per status.",
+      "required": [],
+      "Optional": [],
+      "cli_equivalent": "noul project list"
+    },
+    {
+      "name": "project_get",
+      "description": "A research project with its question, papers (included first, each with status and reason) and notes. Paper titles are third-party text.",
+      "required": [
+        "project"
+      ],
+      "Optional": [
+        "include_papers"
+      ],
+      "cli_equivalent": "noul project show PROJECT"
+    },
+    {
+      "name": "project_add_papers",
+      "description": "Add papers (ids, DOIs, PMIDs or arXiv ids, e.g. from search_papers) to a research project with a status (candidate by default) and an optional reason. Papers already in the project keep their status: use project_set_status to change it.",
+      "required": [
+        "project",
+        "ids"
+      ],
+      "Optional": [
+        "status",
+        "reason"
+      ],
+      "cli_equivalent": "noul project add PROJECT ID1,ID2 --status candidate"
+    },
+    {
+      "name": "project_set_status",
+      "description": "Include or exclude papers of a research project (or move them back to candidate), recording why - e.g. the inclusion criterion they meet or fail. Use the paper ids returned by project_get.",
+      "required": [
+        "project",
+        "ids",
+        "status",
+        "reason"
+      ],
+      "Optional": [],
+      "cli_equivalent": "noul project status PROJECT ID1,ID2 included --reason ..."
+    },
+    {
+      "name": "project_note",
+      "description": "Add a note to a research project, optionally attached to one of its papers.",
+      "required": [
+        "project",
+        "text"
+      ],
+      "Optional": [
+        "paper_id"
+      ],
+      "cli_equivalent": "noul project note PROJECT \"text\" --paper ID"
     }
   ]
 }
