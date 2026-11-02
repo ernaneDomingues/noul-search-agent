@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: writing-related-work
+expected_outcome: |
+  A related-work paragraph produced with synthesize_related_work and checked against the papers: groups
+  (encoder-decoder attention, bidirectional pre-training, large autoregressive few-shot models), correct
+  attribution of each paper's contribution, citations for all three, no invented results.

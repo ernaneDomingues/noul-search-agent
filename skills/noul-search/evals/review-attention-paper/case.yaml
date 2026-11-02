@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: review-attention-paper
+expected_outcome: |
+  A peer review of 'Attention Is All You Need' built from Noul evidence: claims checked against passages with
+  section/page, strengths and weaknesses grounded in excerpts, heuristic signals checked (false gaps such as 'no
+  ablation' or 'no code' are verified and discarded), and a recommendation made and justified by the reviewer.

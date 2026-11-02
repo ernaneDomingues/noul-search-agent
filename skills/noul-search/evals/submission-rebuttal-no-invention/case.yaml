@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: submission-rebuttal-no-invention
+expected_outcome: |
+  parse_and_draft_rebuttal used to split the reviews into points; a point-by-point plan; responses that never
+  claim new results (the requested experiments are presented as planned or as limitations, with [TODO] or
+  questions for the author), polite and specific.
+context:
+  scaffold_script: place-files.sh

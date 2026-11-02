@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: writing-recommend-citations
+expected_outcome: |
+  Candidate citations from recommend_citations (or search) for each claim in the draft, each kept only after
+  checking that the paper supports the sentence; claims without adequate support flagged; the author's text
+  otherwise preserved.
+context:
+  scaffold_script: place-files.sh

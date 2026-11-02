@@ -237,6 +237,9 @@ def install_skill(root):
     if UNINSTALL:
         return remove(dst)
     write(dst / "SKILL.md", render(ASSETS / "skills/noul-search/SKILL.md"))
+    # The skill is layered: SKILL.md routes to one reference per journey (search, review, writing, submission).
+    for ref in sorted((ASSETS / "skills/noul-search/references").glob("*.md")):
+        write(dst / "references" / ref.name, render(ref))
 
 
 def install_agent(dst, src):

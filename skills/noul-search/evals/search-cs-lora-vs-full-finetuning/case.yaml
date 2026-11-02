@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: search-cs-lora-vs-full-finetuning
+expected_outcome: |
+  Literature search using CS sources (arXiv/Semantic Scholar/OpenAlex), per-paper stances, an Evidence Meter
+  from the tool, a synthesis that distinguishes settings where LoRA matches or falls short, and only retrieved
+  papers cited.

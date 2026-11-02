@@ -53,6 +53,7 @@ where = ["src"]
 # Templates used by `noul-install` (looked up under <prefix>/share/noul-search-agent).
 [tool.setuptools.data-files]
 "share/noul-search-agent/skills/noul-search" = ["skills/noul-search/SKILL.md"]
+"share/noul-search-agent/skills/noul-search/references" = ["skills/noul-search/references/*.md"]
 "share/noul-search-agent/agents" = [
     "agents/AGENTS.snippet.md",
     "agents/claude-noul-researcher.md",
