@@ -97,10 +97,11 @@ def main(argv=None):
     ap.add_argument("--paper", action="append", help="Only these ids (default: all known papers)")
     ap.add_argument("--keep-cache", action="store_true", help="Use your normal Noul cache instead of a temp one")
     a = ap.parse_args(argv)
+    tmp = None
     if not a.keep_cache:
-        home = tempfile.mkdtemp(prefix="noul-live-")
-        os.environ["NOUL_HOME"] = home
-        os.environ["NOUL_DB_PATH"] = str(Path(home) / "cache.db")
+        tmp = tempfile.TemporaryDirectory(prefix="noul-live-")  # removed at exit, with the downloaded PDFs
+        os.environ["NOUL_HOME"] = tmp.name
+        os.environ["NOUL_DB_PATH"] = str(Path(tmp.name) / "cache.db")
     failed = 0
     for pid in a.paper or list(PAPERS):
         result = check(
@@ -109,6 +110,8 @@ def main(argv=None):
         failed += bool(result["problems"])
         print(json.dumps({pid: result}, indent=2, ensure_ascii=False))
     print(f"\n{failed} paper(s) with problems" if failed else "\nall papers as expected")
+    if tmp:
+        tmp.cleanup()
     return 1 if failed else 0
 
 

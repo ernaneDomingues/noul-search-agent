@@ -17,15 +17,15 @@ rely on lattice attention with learned gates.
 3.1 Gated Lattice Attention
 Given queries Q, keys K and values V, the attention is
 GLA(Q, K, V) = softmax(QK^T / sqrt(d_k)) V (1)
-We assume that the components of q and k are independent random variables with mean 0 and
-variance 1, which motivates the scaling factor.
+The scaling factor is justified by assuming that query and key entries are uncorrelated and
+have unit spread.
 3.2 Position Encoding
 We add fixed sinusoidal encodings to the token embeddings so that the model can use
 order information.
 
 4 Why Lattice Attention
-Table 1: Per-layer complexity and number of sequential operations for different layer types,
-where n is the sequence length and d the representation dimension.
+Table 1: How the cost of one layer and its serial steps grow for each layer kind we compare, given a
+length n and a width d.
 Layer Type Complexity Sequential Operations
 Lattice attention O(n^2 d) O(1)
 Recurrent O(n d^2) O(n)
@@ -58,8 +58,8 @@ rate schedule tuned on newstest2013. Training the big English-to-German model to
 eight GPUs.
 
 6.2 Model Variations
-Table 3: Variations on the LatticeFormer architecture. Unlisted values are identical to those of
-the base model. All metrics are on the English-to-German development set.
+Table 3: Variations on the LatticeFormer architecture. Blank cells keep the base setting; every
+number comes from our German development split.
 N d model h dropout PPL BLEU params
 base 6 512 8 0.15 100K 4.95 25.6 60
 (A)

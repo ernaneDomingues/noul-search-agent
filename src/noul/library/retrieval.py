@@ -10,6 +10,7 @@ import re
 from collections import Counter
 
 from noul.evidence import untrusted as _untrusted
+from noul.net import cache as _cache
 from noul.providers import pdf_parser
 from noul.schemas.evidence import Excerpt
 
@@ -44,39 +45,63 @@ def tokens(text: str) -> list[str]:
 
 
 def chunk_corpus(corpus: dict, max_chars: int = CHUNK_CHARS) -> list[dict]:
-    """Split `corpus["text"]` into passages: lines are grouped up to ~`max_chars`, closing at a sentence end, and a
-    chunk never spans a section heading or a page break. Each chunk: {id, start, end, text, section, page}."""
+    """Split `corpus["text"]` into passages of ~`max_chars`, closing at a sentence end. A passage never spans a
+    section heading or a real page break, and a long paragraph is split at sentence boundaries. Each chunk:
+    {id, start, end, text, section, page}; `id` is "<start>-<end>" (character offsets into the cached text,
+    stable for a given text layout - see fulltext.PDF_TEXT_FORMAT)."""
     text = corpus.get("text") or ""
     pages, sections = corpus.get("pages") or [], corpus.get("sections") or []
-    cuts = sorted({s["offset"] for s in sections} | {p["start"] for p in pages} | {0})
+    real_pages = [p for p in pages if not p.get("synthetic")]
+    cuts = sorted({s["offset"] for s in sections} | {p["start"] for p in real_pages} | {0})
     chunks: list[dict] = []
 
     def flush(start, end):
         body = text[start:end].strip()
         if len(body) >= 20:
             lead = len(text[start:end]) - len(text[start:end].lstrip())
+            begin = start + lead
+            stop = begin + len(body)
             chunks.append(
                 {
-                    "id": f"c{len(chunks) + 1}",
-                    "start": start + lead,
-                    "end": end,
+                    "id": f"{begin}-{stop}",
+                    "start": begin,
+                    "end": stop,
                     "text": re.sub(r"\s+", " ", body),
-                    "section": pdf_parser.section_at(sections, start + lead) or None,
-                    "page": pdf_parser.page_at(pages, start + lead) if pages else None,
+                    "section": pdf_parser.section_at(sections, begin) or None,
+                    "page": pdf_parser.page_at(pages, begin) if pages else None,
                 }
             )
 
     for i, seg_start in enumerate(cuts):
         seg_end = cuts[i + 1] if i + 1 < len(cuts) else len(text)
-        start = pos = seg_start
-        for line in text[seg_start:seg_end].split("\n"):
-            pos_end = pos + len(line)
-            if pos_end - start >= max_chars and re.search(r"[.!?:]\s*$", line):
-                flush(start, pos_end)
-                start = pos_end + 1
-            pos = pos_end + 1
+        start = seg_start
+        for piece in _pieces(text, seg_start, seg_end, max_chars):
+            if piece[1] - start >= max_chars and _SENTENCE_END.search(text[piece[0] : piece[1]]):
+                flush(start, piece[1])
+                start = piece[1]
         flush(start, seg_end)
     return chunks
+
+
+_SENTENCE_END = re.compile(r"[.!?:]\s*$")
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z(\[0-9])")
+
+
+def _pieces(text, seg_start, seg_end, max_chars):
+    """(start, end) offsets of the lines of a segment; lines longer than `max_chars` (one-line paragraphs, e.g.
+    from JATS XML) are split into sentences so a passage can close inside them."""
+    pos = seg_start
+    for line in text[seg_start:seg_end].split("\n"):
+        line_end = pos + len(line)
+        if len(line) > max_chars:
+            cur = pos
+            for m in _SENTENCE_SPLIT.finditer(line):
+                yield cur, pos + m.start()
+                cur = pos + m.end()
+            yield cur, line_end
+        else:
+            yield pos, line_end
+        pos = line_end + 1
 
 
 def rank(chunks: list[dict], question: str) -> list[tuple[float, dict]]:
@@ -113,7 +138,7 @@ def to_excerpt(chunk: dict, paper_id: str | None, relevance: float | None = None
     ex = _untrusted.excerpt(
         chunk["text"], paper_id=paper_id, section=chunk.get("section"), page=chunk.get("page"), limit=limit
     )
-    ex.chunk_id = chunk["id"]
+    ex.chunk_id, ex.char_start, ex.char_end = chunk["id"], chunk["start"], chunk["end"]
     ex.relevance = relevance
     return ex
 
@@ -131,3 +156,12 @@ def search(corpus: dict, question: str, n: int = 6, paper_id: str | None = None)
 def corpus_for(text: str, source: str = "fulltext") -> dict:
     """A minimal corpus (pages + sections) for raw `text`."""
     return pdf_parser.build_corpus(text or "", source=source)
+
+
+def cached_corpus(paper_id: str) -> dict:
+    """The cached full text of `paper_id` (after `fulltext.fulltext()` ran) segmented into pages and sections, plus
+    the cache layout version (`format`), so stored passage ids can be checked against the text they point into."""
+    entry = _cache.cache_get("ft:" + paper_id) or {}
+    corpus = corpus_for(entry.get("text") or "")
+    corpus["format"] = entry.get("format")
+    return corpus

@@ -72,17 +72,21 @@ def split_pages(text, page_chars=PAGE_CHARS):
             if end < len(text):
                 cut = text.rfind("\n", pos + page_chars // 2, end)
                 end = cut + 1 if cut > pos else end
-            pages.append({"page": n, "start": pos, "end": end, "text": text[pos:end]})
+            # No page breaks in the source (HTML, JATS XML, abstracts): fixed-size blocks for internal use only.
+            pages.append({"page": n, "start": pos, "end": end, "text": text[pos:end], "synthetic": True})
             pos, n = end, n + 1
     return pages or [{"page": 1, "start": 0, "end": 0, "text": ""}]
 
 
 def page_at(pages, offset):
-    """Page number containing character `offset`."""
+    """Page number containing character `offset`, or None when the text has no real page breaks (the pages are
+    fixed-size blocks): a made-up page number must never be cited."""
+    if not pages or pages[0].get("synthetic"):
+        return None
     for pg in pages:
         if pg["start"] <= offset < max(pg["end"], pg["start"] + 1):
             return pg["page"]
-    return pages[-1]["page"] if pages else 1
+    return pages[-1]["page"]
 
 
 def find_table_captions(text):

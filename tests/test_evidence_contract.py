@@ -6,6 +6,7 @@ from unittest import mock
 
 import _support
 
+READING_TOOLS = ("get_fulltext", "query_fulltexts")
 ANALYTIC_TOOLS = (
     "review_paper",
     "review_paper_scientific",
@@ -183,7 +184,8 @@ class EvidenceContractTests(unittest.TestCase):
         self.assertGreater(top["relevance"], 0)
         self.assertTrue(all("</untrusted_source>" not in x["text"] for x in res["excerpts"]))
         whole = registry.call("get_fulltext", {"id": self.pid})
-        self.assertEqual([x["chunk_id"] for x in whole["excerpts"]][:1], ["c1"])  # no question: document order
+        first = whole["excerpts"][0]  # no question: document order
+        self.assertEqual((first["char_start"], first["chunk_id"]), (0, f"0-{first['char_end']}"))
 
     def test_paper_metadata_tools_flag_titles_and_abstracts(self):
         from noul import registry
@@ -203,10 +205,48 @@ class OutputSchemaSnapshotTests(unittest.TestCase):
 
         fixture = Path(__file__).resolve().parent / "fixtures" / "output_schemas_v2.json"
         expected = json.loads(fixture.read_text(encoding="utf-8"))
-        self.assertEqual(sorted(expected), sorted(ANALYTIC_TOOLS))
-        for name in ANALYTIC_TOOLS:
+        self.assertEqual(sorted(expected), sorted(ANALYTIC_TOOLS + READING_TOOLS))
+        for name in ANALYTIC_TOOLS + READING_TOOLS:
             with self.subTest(tool=name):
                 self.assertEqual(registry.output_schema(name), expected[name])
+
+
+class ReadingToolsOverMcpTests(unittest.TestCase):
+    """query_fulltexts with full-text, abstract-only and failing rows still sends conforming structuredContent."""
+
+    setUpClass = EvidenceContractTests.__dict__["setUpClass"]  # same seeded paper, not the contract tests
+    tearDownClass = EvidenceContractTests.__dict__["tearDownClass"]
+
+    def test_mixed_rows_validate_over_mcp(self):
+        import anyio
+        from mcp import Client
+        from mcp.client._memory import InMemoryTransport
+
+        from noul.net import cache
+        from noul.server import mcp
+
+        cache.cache_set(
+            "paper:doi:10.1000/abstract-only",
+            {
+                "id": "doi:10.1000/abstract-only",
+                "title": "A",
+                "abstract": "Long context hurts accuracy.",
+                "authors": [],
+            },
+        )
+
+        async def run():
+            async with Client(InMemoryTransport(mcp.build_server(profile="all"))) as client:
+                ids = [self.pid, "doi:10.1000/abstract-only", "doi:10.1000/missing"]
+                return await client.call_tool("query_fulltexts", {"ids": ids, "question": "long context"})
+
+        res = anyio.run(run)
+        self.assertFalse(res.is_error, res.content[0].text)
+        rows = res.structured_content["results"]
+        self.assertEqual([r.get("content_source") for r in rows], ["fulltext", "abstract_only", None])
+        self.assertTrue(rows[2]["error"])
+        self.assertEqual(rows[1]["excerpts"][0]["section"], "Abstract")
+        self.assertFalse(rows[1]["excerpts"][0]["text"].startswith("Abstract"))  # no injected heading
 
 
 if __name__ == "__main__":

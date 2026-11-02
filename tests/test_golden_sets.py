@@ -145,24 +145,35 @@ def _signal_case(case):
     checks.append(("no_caption_failure_modes", not captions))
 
     prompts = registry.call("extract_prompts_and_decoding", {"paper_id": pid})
-    found = set(prompts.get("hyperparameters") or {}) | set(prompts.get("training_hyperparameters") or {})
-    expected = set(exp["hyperparameters"])
-    hp = (len(found & expected), len(found - expected), len(expected - found))  # tp, fp, fn
+    values = {**(prompts.get("hyperparameters") or {}), **(prompts.get("training_hyperparameters") or {})}
+    found, expected = set(values), set(exp["hyperparameters"])
+    # A parameter counts as found only with the right value, when the case states it.
+    wrong = {k for k, v in (exp.get("hyperparameter_values") or {}).items() if k in found and str(values[k]) != str(v)}
+    hp = (len((found & expected) - wrong), len(found - expected) + len(wrong), len(expected - found))  # tp, fp, fn
 
     located = []
     if exp["claims"]:
         res = registry.call("verify_paper_claims", {"paper_id": pid, "claims": [c["claim"] for c in exp["claims"]]})
         for want, got in zip(exp["claims"], res["claims"], strict=True):
             best = got.get("best_match") or {}
-            section = (best.get("section") or "").lower()
-            ok = any(w["section"].lower() in section and best.get("page") == w["page"] for w in want["locations"])
+            section = (best.get("section") or "").lower().removeprefix("section ")
+            # exact section (with or without the "Section " prefix): "Table 2" must not match "Table 20"
+            ok = any(w["section"].lower() == section and best.get("page") == w["page"] for w in want["locations"])
             located.append((want["claim"], ok))
     retrieved = []
     for q in exp["questions"]:
         res = registry.call("get_fulltext", {"id": pid, "question": q["q"]})
         top = [_norm(t) for t in _excerpt_texts(res.get("excerpts"))[:1]]
         retrieved.append((q["q"], any(_norm(q["answer"]) in t for t in top)))
-    return {"checks": checks, "hp": hp, "found_hp": sorted(found), "claims": located, "retrieval": retrieved}
+    return {
+        "checks": checks,
+        "hp": hp,
+        "found_hp": sorted(found),
+        "wrong_hp_values": {k: values[k] for k in sorted(wrong)},
+        "n_hp": len(expected),
+        "claims": located,
+        "retrieval": retrieved,
+    }
 
 
 def evaluate_signals():
@@ -184,6 +195,7 @@ def evaluate_signals():
         cid: {
             "checks": [n for n, ok in r["checks"] if not ok],
             "hyperparameters_found": r["found_hp"],
+            "hyperparameter_values_wrong": r["wrong_hp_values"],
             "claims": [c for c, ok in r["claims"] if not ok],
             "questions": [q for q, ok in r["retrieval"] if not ok],
         }
@@ -195,7 +207,16 @@ def evaluate_signals():
         "hyperparameters_f1": round(2 * tp / (2 * tp + fp + fn), 4) if tp + fp + fn else 1.0,
         "claims_located": round(sum(claims) / len(claims), 4),
         "retrieval_recall_at_1": round(sum(questions) / len(questions), 4),
-        "misses": {k: v for k, v in misses.items() if any(v[x] for x in ("checks", "claims", "questions"))},
+        # Pinned sizes: dropping a hard question or claim from the set must not silently raise a metric.
+        "n_checks": len(checks),
+        "n_hyperparameters": sum(r["n_hp"] for r in per_case.values()),
+        "n_claims": len(claims),
+        "n_questions": len(questions),
+        "misses": {
+            k: v
+            for k, v in misses.items()
+            if any(v[x] for x in ("checks", "claims", "questions", "hyperparameter_values_wrong"))
+        },
     }
 
 
@@ -221,8 +242,11 @@ class GoldenSetRegressionTests(unittest.TestCase):
         for name, result in results.items():
             with self.subTest(golden_set=name):
                 base = baseline[name]
-                self.assertEqual(result["n"], base["n"], "golden set changed: refresh the baseline in the same PR")
-                for metric in [k for k in base if k != "n"]:
+                for size in [k for k in base if k == "n" or k.startswith("n_")]:
+                    self.assertEqual(
+                        result[size], base[size], "golden set changed: refresh the baseline in the same PR"
+                    )
+                for metric in [k for k in base if k != "n" and not k.startswith("n_")]:
                     self.assertGreaterEqual(
                         result[metric] + EPSILON,
                         base[metric],

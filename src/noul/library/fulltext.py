@@ -114,6 +114,11 @@ def _clean_pdf_page(text):
 
 
 _HYPHEN_BREAK = re.compile(r"(\b[A-Za-z]+)-\n(?=([a-z][\w-]*))")
+# Line-end hyphens after these prefixes are real compounds ("self-\\nattention" -> "self-attention").
+_HYPHEN_PREFIXES = frozenset(
+    "self cross multi non co pre post semi anti inter intra sub super over under out fine well low high long "
+    "short large small end state".split()
+)
 
 
 def _dehyphenate(text):
@@ -123,10 +128,34 @@ def _dehyphenate(text):
 
     def join(m):
         # Keep the hyphen for capitalised fragments and for compounds that continue with hyphens ("state-of-the-art").
-        keep = not m.group(1).islower() or "-" in m.group(2)
+        keep = not m.group(1).islower() or "-" in m.group(2) or m.group(1) in _HYPHEN_PREFIXES
         return m.group(1) + ("-" if keep else "")
 
     return _HYPHEN_BREAK.sub(join, text)
+
+
+def _xml_without_dtd(raw):
+    """True when `raw` is well-formed, ASCII-compatible XML with no DOCTYPE and no entity declaration.
+
+    The check runs inside expat itself (a byte search misses UTF-16 and other encodings), and documents that are
+    not ASCII-compatible are refused outright, so no entity can ever be expanded."""
+    import xml.parsers.expat
+
+    if raw[:2] in (b"\xff\xfe", b"\xfe\xff") or b"\x00" in raw[:1024]:
+        return False
+
+    def refuse(*_args):
+        raise ValueError("DTD or entity declaration")
+
+    parser = xml.parsers.expat.ParserCreate()
+    parser.StartDoctypeDeclHandler = refuse
+    parser.EntityDeclHandler = refuse
+    parser.UnparsedEntityDeclHandler = refuse
+    try:
+        parser.Parse(raw, True)
+    except (ValueError, xml.parsers.expat.ExpatError):
+        return False
+    return True
 
 
 def _jats_text(xml_bytes):
@@ -136,11 +165,7 @@ def _jats_text(xml_bytes):
     import xml.etree.ElementTree as ET
 
     raw = xml_bytes if isinstance(xml_bytes, bytes) else str(xml_bytes).encode("utf-8")
-    if (
-        len(raw) > MAX_JATS_BYTES
-        or re.search(rb"<!(?:DOCTYPE|ENTITY)", raw[:65536] + raw[-4096:], re.I)
-        or b"<!ENTITY" in raw
-    ):
+    if len(raw) > MAX_JATS_BYTES or not _xml_without_dtd(raw):
         return ""
     try:
         root = ET.fromstring(raw)
@@ -157,9 +182,11 @@ def _jats_text(xml_bytes):
     title = next((el for el in root.iter() if local(el.tag) == "article-title"), None)
     if title is not None:
         lines.append(flat(title))
-    for abstract in (el for el in root.iter() if local(el.tag) == "abstract"):
-        lines += ["", "Abstract", flat(abstract)]
-        break
+    abstracts = [el for el in root.iter() if local(el.tag) == "abstract"]
+    # The main abstract has no abstract-type; others are teasers, graphical or plain-language summaries.
+    main = next((a for a in abstracts if not a.get("abstract-type")), abstracts[0] if abstracts else None)
+    if main is not None:
+        lines += ["", "Abstract", flat(main)]
 
     def walk(el, depth):
         for child in el:
@@ -176,6 +203,11 @@ def _jats_text(xml_bytes):
                 label = next((flat(c) for c in child if local(c.tag) == "label"), "Table")
                 caption = next((flat(c) for c in child if local(c.tag) == "caption"), "")
                 lines.append(f"{label}: {caption}".strip())
+                # Cells as space-separated rows, the plain-text layout extract_benchmark_tables reads.
+                for row in (el for el in child.iter() if local(el.tag) == "tr"):
+                    cells = [flat(c) or "-" for c in row if local(c.tag) in ("td", "th")]
+                    if cells:
+                        lines.append(" ".join(cells))
             elif tag not in ("label", "title"):
                 walk(child, depth)
 

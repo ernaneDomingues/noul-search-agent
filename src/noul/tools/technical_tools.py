@@ -80,7 +80,8 @@ def parse_number(value):
     return float(num) if "." in num else int(num)
 
 
-_SCI = re.compile(r"(\d+(?:\.\d+)?)\s*[·×x]\s*10\s*\^?\s*([-+]?\d{1,3})\b")
+# Anchored on the left and bounded: an unanchored `\d+` here is quadratic on long digit runs (regex DoS).
+_SCI = re.compile(r"(?<![\d.])(\d{1,6}(?:\.\d{1,6})?)\s*[·×x]\s*10\s*\^?\s*([-+]?\d{1,3})\b")
 
 
 def _sci_to_e(line):
@@ -652,7 +653,7 @@ def ground_claim(claim, passages, paper_id=None, claim_untrusted=False):
         numbers_missing=[n for n in numbers if n not in found],
         keyword_overlap=round(len(shared) / len(kws), 2) if kws else 0.0,
         hedging_cues_missing_in_text=cues,
-        citation_tag=f"[p. {best['page']}, {best['label']}]",
+        citation_tag=f"[p. {best['page']}, {best['label']}]" if best["page"] else f"[{best['label']}]",
         best_match=_passage_excerpt(best, paper_id, numbers),
         other_matches=[_passage_excerpt(p, paper_id, numbers) for p in ranked[1:3]],
     ).model_dump(mode="json")
@@ -1733,8 +1734,8 @@ _TRAIN_HP = (
     (
         "warmup_steps",
         re.compile(
-            r"\bwarm[\s-]?up(?:_steps|\s+steps)?\s*(?:of|=|:|over|for)?\s*(?P<v>\d[\d,]*)\b"
-            r"|\b(?P<v2>\d[\d,]*)\s+warm[\s-]?up\s+steps\b",
+            r"\bwarm[\s-]?up(?:_steps|\s+steps)?\s*(?:of|=|:|over|for)?\s*(?P<v>\d{1,3}(?:,?\d{3}){0,3})\b"
+            r"|(?<![\d,])(?P<v2>\d{1,3}(?:,?\d{3}){0,3})\s+warm[\s-]?up\s+steps\b",
             re.I,
         ),
     ),
@@ -1758,15 +1759,18 @@ _TRAIN_HP = (
     (
         "batch_size",
         re.compile(
-            r"\bbatch\s+size\s*(?:of|=|:|is|was)?\s*(?P<v>\d[\d,]*)"
-            r"|\bbatch\w*\b[^.\n]{0,30}?(?:about|approximately|roughly|~)?\s*(?P<v2>\d[\d,]*)\s+(?:source\s+|target\s+)?tokens\b",
+            r"\bbatch\s+size\s*(?:of|=|:|is|was)?\s*(?P<v>\d{1,3}(?:,?\d{3}){0,3})"
+            r"|\bbatch\w*\b[^.\n]{0,30}?(?:about|approximately|roughly|~)?\s*(?<![\d,])(?P<v2>\d{1,3}(?:,?\d{3}){0,3})\s+(?:source\s+|target\s+)?tokens\b",
             re.I,
         ),
     ),
     ("epochs", re.compile(r"\b(?:for\s+)?(?P<v>\d{1,4})\s+(?:training\s+)?epochs\b", re.I)),
     (
         "train_steps",
-        re.compile(r"\btrain(?:ed|ing)?\s+for\s+(?P<v>\d[\d,]*(?:\.\d+)?\s*[KkM]?)\s+(?:training\s+)?steps\b", re.I),
+        re.compile(
+            r"\btrain(?:ed|ing)?\s+for\s+(?P<v>\d{1,3}(?:,?\d{3}){0,3}(?:\.\d+)?\s*[KkM]?)\s+(?:training\s+)?steps\b",
+            re.I,
+        ),
     ),
     ("weight_decay", re.compile(rf"\bweight\s+decay\s*(?:of|=|:)?\s*{_NUMTXT}", re.I)),
 )
@@ -1790,6 +1794,7 @@ def extract_training_hyperparameters(text, pages=None):
                     "value": value,
                     "quote": _untrusted.neutralize(re.sub(r"\s+", " ", m.group(0)).strip()),
                     "page": pdf_parser.page_at(pages, m.start()) if pages else None,
+                    "kind": "training",
                 }
             )
             break  # the first mention is enough to show the paper reports it
@@ -1829,6 +1834,7 @@ def extract_hyperparameters(text, pages=None):
                 "value": value,
                 "quote": re.sub(r"\s+", " ", quote).strip(),
                 "page": pdf_parser.page_at(pages, start) if pages else None,
+                "kind": "decoding",
             }
         )
     strategies = [name for name, rx in _DECODING if re.search(rx, text, re.I)]

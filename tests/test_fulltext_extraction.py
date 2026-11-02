@@ -158,12 +158,13 @@ class JatsTests(unittest.TestCase):
             b"<sec><label>2</label><title>Methods</title><p>We randomized 240 adults.</p>"
             b"<sec><title>Outcomes</title><p>The primary outcome was PWV.</p></sec></sec>"
             b"<sec><title>Results</title><table-wrap><label>Table 1</label><caption><p>Baseline.</p></caption>"
+            b"<table><tr><th>Group</th><th>PWV</th></tr><tr><td>K2</td><td>-0.3</td></tr></table>"
             b"</table-wrap><p>PWV fell by 0.4 m/s.</p></sec></body></article>"
         )
         text = fulltext._jats_text(xml)
         titles = [s["title"] for s in pdf_parser.find_sections(text)]
         self.assertEqual(titles, ["Abstract", "2 Methods", "Outcomes", "Results"])
-        self.assertIn("Table 1: Baseline.", text)
+        self.assertIn("Table 1: Baseline.\nGroup PWV\nK2 -0.3", text)
 
     def test_dtd_entities_and_huge_documents_are_refused(self):
         from noul.library import fulltext
@@ -190,17 +191,33 @@ class RetrievalTests(unittest.TestCase):
             [(c["section"], c["page"]) for c in chunks], [("1 Introduction", 1), ("5 Training", 2), ("6 Results", 2)]
         )
         top = retrieval.search(corpus, "which optimizer and warmup steps were used?", n=2, paper_id="p")
-        self.assertEqual((top[0].section, top[0].page, top[0].chunk_id), ("5 Training", 2, "c2"))
+        self.assertEqual((top[0].section, top[0].page, top[0].chunk_id), ("5 Training", 2, chunks[1]["id"]))
+        self.assertEqual(text[top[0].char_start : top[0].char_end].split()[:2], ["5", "Training"])
         self.assertTrue(top[0].untrusted)
         self.assertGreater(top[0].relevance, 0)
-        self.assertEqual([e.chunk_id for e in retrieval.search(corpus, "", n=2)], ["c1", "c2"])
+        self.assertEqual([e.chunk_id for e in retrieval.search(corpus, "", n=2)], [c["id"] for c in chunks[:2]])
         self.assertEqual(retrieval.tokens("The heads and the Cabeças"), ["head", "cabeça"])
+
+    def test_long_paragraphs_and_unpaged_text(self):
+        from noul.library import retrieval
+
+        para = " ".join(f"Sentence {i} talks about topic {i}." for i in range(120))  # one 4,000-char line
+        corpus = retrieval.corpus_for("## Results\n" + para + " The answer is forty-two.")
+        chunks = retrieval.chunk_corpus(corpus)
+        self.assertGreater(len(chunks), 3)
+        self.assertTrue(all(len(c["text"]) <= 1200 for c in chunks))
+        top = retrieval.search(corpus, "what is the answer", n=1)[0]
+        self.assertIn("forty-two", top.text)
+        self.assertFalse(top.truncated)
+        self.assertIsNone(top.page)  # no page breaks in the source: no page to cite
 
     def test_dehyphenation_keeps_capitalised_compounds(self):
         from noul.library import fulltext
 
-        out = fulltext.normalize_pdf_text(["trans-\nlation on English-\nto-German and state-\nof-the-art"])
-        self.assertEqual(out, "translation on English-to-German and state-of-the-art")
+        out = fulltext.normalize_pdf_text(
+            ["trans-\nlation on English-\nto-German, state-\nof-the-art, self-\nattention"]
+        )
+        self.assertEqual(out, "translation on English-to-German, state-of-the-art, self-attention")
 
 
 if __name__ == "__main__":
