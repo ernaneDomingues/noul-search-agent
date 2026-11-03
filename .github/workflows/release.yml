@@ -272,7 +272,9 @@ jobs:
   publish:
     name: Publish GitHub Release
     needs: [package, uv-extension]
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.package.result == 'success' && needs.uv-extension.result == 'success'
+    # `!cancelled()`: without a status function the implicit success() skips this job whenever an upstream job
+    # was skipped (sign-* are skipped without signing secrets), even though package itself succeeded.
+    if: "!cancelled() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.package.result == 'success' && needs.uv-extension.result == 'success'"
     runs-on: ubuntu-26.04
     environment: release
     permissions:
