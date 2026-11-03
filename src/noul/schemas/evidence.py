@@ -78,6 +78,16 @@ class Rubric(BaseModel):
     how_to_judge: str
 
 
+class Retraction(BaseModel):
+    """A retraction, withdrawal or removal of the paper, with where the fact comes from."""
+
+    is_retracted: bool = True
+    kind: str = "retraction"  # retraction | withdrawal | removal | partial_retraction
+    notice_doi: str | None = None
+    date: str | None = None
+    source: str = ""  # openalex | pubmed | europepmc | crossref[/retraction-watch]
+
+
 class AnalysisSubject(BaseModel):
     """What was analysed: a paper (id/title/domain) or the user's draft or reviews (`title` = file label)."""
 
@@ -85,6 +95,7 @@ class AnalysisSubject(BaseModel):
     title: str = ""
     domain: str | None = None
     source: str = ""  # fulltext | abstract | draft | reviews | ...
+    retraction: Retraction | None = None  # set when the analysed paper is known to be retracted
 
 
 class AnalysisResult(BaseModel):

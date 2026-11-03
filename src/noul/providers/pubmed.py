@@ -10,6 +10,7 @@ from noul import config as _config
 from noul import ids as _ids
 from noul.evidence import classify as _classify
 from noul.evidence import impact as _impact
+from noul.evidence import integrity as _integrity
 from noul.net import http as _nhttp
 from noul.providers import europepmc as _europepmc
 from noul.search import engine as _engine
@@ -108,6 +109,7 @@ def _parse_pubmed_xml(xml_txt):
                     "open_access": bool(pmc_id),
                     "pdf_url": pdf_url,
                     "mesh_terms": mesh_terms,
+                    **({"retraction": r} if (r := _integrity.from_pub_types(pub_types, "pubmed")) else {}),
                     "sources": ["pubmed"],
                 }
             )

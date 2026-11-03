@@ -11,6 +11,7 @@ from noul import config as _config
 from noul import errors as _errors
 from noul import ids as _ids
 from noul.evidence import contract as _contract
+from noul.evidence import integrity as _integrity
 from noul.evidence import untrusted as _untrusted
 from noul.net import cache as _cache
 from noul.providers import arxiv_client
@@ -406,6 +407,12 @@ def recommend_citations(
         marker_or_trigger = marker_m.group(1) if marker_m else (trigger_m.group(0) if trigger_m else "")
         query = _extract_search_query(sent)
         papers = _retrieve_papers_for_claim(query, max_per_claim=max_k)
+        retracted = [p for p in papers if _integrity.is_retracted(p)]
+        if retracted:
+            # Never propose a retracted paper as support; say which candidates were dropped and why.
+            papers = [p for p in papers if not _integrity.is_retracted(p)]
+            dropped = "; ".join(f"{p.get('id')} ({_integrity.describe(p)})" for p in retracted)
+            warnings.append(f"Retracted candidate(s) not proposed for claim '{sent[:60]}...': {dropped}")
 
         if not papers:
             warnings.append(f"No papers found in cache or APIs for claim: '{sent[:80]}...'")
@@ -1414,6 +1421,7 @@ def sanitize_bibtex(
 
     duplicates_removed = 0
     preprints_upgraded = 0
+    retracted_entries = 0
     dois_completed = 0
     latex_escapes_fixed = 0
     updates: list[BibtexEntryUpdate] = []
@@ -1499,6 +1507,16 @@ def sanitize_bibtex(
         canonical_key = _choose_canonical_bib_key(all_keys, merged_fields, used_keys)
         new_venue = merged_fields.get("booktitle") or merged_fields.get("journal") or etype
 
+        # Integrity: a retracted paper in the bibliography is reported (kept: citing a retraction can be legitimate).
+        facts = _integrity.crossref_facts(merged_fields.get("doi") or "") if merged_fields.get("doi") else {}
+        if facts.get("retraction"):
+            retracted_entries += 1
+            desc = _integrity.describe(facts)
+            notes.append(f"RETRACTED ({desc}): cite it only as a retracted paper, or remove it.")
+            warnings.append(f"Entry '{canonical_key}' is a retracted paper ({desc}).")
+        if facts.get("concern"):
+            notes.append("The publisher issued an expression of concern about this paper.")
+
         # Format clean BibTeX block
         ordered_keys = [
             k
@@ -1553,6 +1571,7 @@ def sanitize_bibtex(
         preprints_upgraded=preprints_upgraded,
         dois_completed=dois_completed,
         latex_escapes_fixed=latex_escapes_fixed,
+        retracted_entries=retracted_entries,
         updates=updates,
         sanitized_bibtex=sanitized_text.strip(),
         warnings=warnings,

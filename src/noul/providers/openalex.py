@@ -7,6 +7,7 @@ import urllib.request
 from noul import ids as _ids
 from noul.evidence import classify as _classify
 from noul.evidence import impact as _impact
+from noul.evidence import integrity as _integrity
 from noul.net import http as _nhttp
 from noul.search import engine as _engine
 
@@ -88,6 +89,7 @@ def _parse_openalex_work(w):
             "primary_category": primary_category,
             "fields_of_study": fields,
             "sources": ["openalex"],
+            **({"retraction": r} if (r := _integrity.from_openalex(w)) else {}),
         }
     )
 

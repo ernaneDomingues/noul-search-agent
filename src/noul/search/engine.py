@@ -108,6 +108,12 @@ def _merge_papers(lists):
                     cur[field] = _ids._unique((cur.get(field) or []) + list(p[field]))
             if p.get("open_access"):
                 cur["open_access"] = True
+            # Integrity facts from any source win: one database flagging a retraction is enough to show it.
+            for field in ("retraction", "concern"):
+                if p.get(field) and not cur.get(field):
+                    cur[field] = p[field]
+            if p.get("versions"):
+                cur["versions"] = {**p["versions"], **(cur.get("versions") or {})}
             if _classify.EV_W.get(p.get("evidence"), 0) > _classify.EV_W.get(cur.get("evidence"), 0):
                 cur["evidence"] = p["evidence"]
             by_key[dedup_key] = _annotate_paper(cur)

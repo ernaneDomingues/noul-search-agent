@@ -282,7 +282,7 @@
         <div class="tools-grid">
           <article class="tool-card" data-tool="search_papers">
             <h4 class="mono">search_papers</h4>
-            <p>Search peer-reviewed and preprint literature across all scientific disciplines (OpenAlex, PubMed, Semantic Scholar, Crossref, arXiv, Europe PMC), deduplicated and ranked by study design and citations. Returns abstracts, evidence level (meta-analysis, systematic-review, rct, review, cohort, empirical, preclinical, other) and a citation/venue band (`tier`: top, high, standard, emerging — not a JCR quartile) and scientific `domain`. YOU classify each paper&#x27;s stance and synthesize.</p>
+            <p>Search peer-reviewed and preprint literature across all scientific disciplines (OpenAlex, PubMed, Semantic Scholar, Crossref, arXiv, Europe PMC), deduplicated and ranked by study design and citations. Returns abstracts, evidence level (meta-analysis, systematic-review, rct, review, cohort, empirical, preclinical, other) and a citation/venue band (`tier`: top, high, standard, emerging — not a JCR quartile) and scientific `domain`. Papers a source indexes as retracted carry `retraction`. YOU classify each paper&#x27;s stance and synthesize.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> query | <strong>Optional:</strong> sources, year_min, study_types, min_citations, open_access, sort, limit, offset, exclude_ids, domain, clarify</div>
               <div><strong>CLI:</strong> <code>noul search &lt;query&gt;</code></div>
@@ -298,7 +298,7 @@
           </article>
           <article class="tool-card" data-tool="get_paper">
             <h4 class="mono">get_paper</h4>
-            <p>Get full record and abstract of a paper by cached ID, DOI, PMID, OpenAlex ID, arXiv ID, or Semantic Scholar ID. Includes its scientific `domain`; pass `domain` to override it.</p>
+            <p>Get full record and abstract of a paper by cached ID, DOI, PMID, OpenAlex ID, arXiv ID, or Semantic Scholar ID. Includes its scientific `domain` (pass `domain` to override it) and integrity facts with their source: `retraction` (retracted/withdrawn, notice DOI and date), `concern` (expression of concern) and `versions` (`published_as` for a preprint, `preprint` for a published paper; ids for get_paper).</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> id | <strong>Optional:</strong> domain</div>
               <div><strong>CLI:</strong> <code>noul paper &lt;id&gt;</code></div>
@@ -466,7 +466,7 @@
           </article>
           <article class="tool-card" data-tool="recommend_citations">
             <h4 class="mono">recommend_citations</h4>
-            <p>Contextual citation recommender &amp; infiller (#22): scans a draft paragraph or file (.md/.tex) for explicit `[CITATION NEEDED]` / `\cite{?}` markers and unsubstantiated empirical claims, retrieves 2-3 candidate supporting papers per claim with a justification quoting each abstract (check that it really backs the claim), inserts inline LaTeX or Markdown citations, and generates a deduplicated BibTeX block.</p>
+            <p>Contextual citation recommender &amp; infiller (#22): scans a draft paragraph or file (.md/.tex) for explicit `[CITATION NEEDED]` / `\cite{?}` markers and unsubstantiated empirical claims, retrieves up to `max_per_claim` candidate supporting papers per claim with a justification quoting each abstract (check that it really backs the claim; retracted candidates are dropped with a warning), inserts inline LaTeX or Markdown citations, and generates a deduplicated BibTeX block.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> draft_text | <strong>Optional:</strong> max_per_claim, citation_style</div>
               <div><strong>CLI:</strong> <code>noul cite &lt;text_or_file&gt;</code></div>
@@ -498,7 +498,7 @@
           </article>
           <article class="tool-card" data-tool="sanitize_bibtex">
             <h4 class="mono">sanitize_bibtex</h4>
-            <p>BibTeX sanitizer &amp; preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&amp;`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`).</p>
+            <p>BibTeX sanitizer &amp; preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&amp;`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`). Entries whose DOI is retracted are kept but flagged (`retracted_entries`, `warnings`).</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> bibtex_input | <strong>Optional:</strong> update_preprints, output_path</div>
               <div><strong>CLI:</strong> <code>noul bibtex sanitize &lt;bib&gt;</code></div>
@@ -602,7 +602,7 @@
           </article>
           <article class="tool-card" data-tool="evidence_meter">
             <h4 class="mono">evidence_meter</h4>
-            <p>Compute the Evidence Meter deterministically from YOUR stance classification of each paper: raw counts and percentages plus study-design-weighted percentages (meta-analysis 1.0 … preclinical 0.2). Use its output instead of computing percentages yourself.</p>
+            <p>Compute the Evidence Meter deterministically from YOUR stance classification of each paper: raw counts and percentages plus study-design-weighted percentages (meta-analysis 1.0 … preclinical 0.2). Papers known to be retracted (from search_papers/get_paper records) are left out and listed in `excluded` with a warning. Use its output instead of computing percentages yourself.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> items | <strong>Optional:</strong> none</div>
               <div><strong>CLI:</strong> <code>noul meter &#x27;&lt;json&gt;&#x27;</code></div>

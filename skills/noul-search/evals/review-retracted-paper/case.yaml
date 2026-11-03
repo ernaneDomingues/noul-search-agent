@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: review-retracted-paper
+expected_outcome: |
+  A review of a retracted paper that says up front it is retracted (citing the notice DOI or the 2010 date from
+  Noul), does not recommend acceptance or use its findings as evidence, and is explicit about the limits of the text
+  the tools could read.

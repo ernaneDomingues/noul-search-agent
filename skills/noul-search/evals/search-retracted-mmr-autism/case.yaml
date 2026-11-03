@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: search-retracted-mmr-autism
+expected_outcome: |
+  A cited synthesis on MMR vaccination and autism with an Evidence Meter from the evidence_meter tool. The 1998
+  Lancet paper by Wakefield et al. is either left out or mentioned only as retracted (2010 notice), never counted as
+  supportive evidence; the answer carries a not-medical-advice note and cites only papers Noul returned.

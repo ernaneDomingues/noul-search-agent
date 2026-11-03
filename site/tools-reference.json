@@ -4,7 +4,7 @@
   "tools": [
     {
       "name": "search_papers",
-      "description": "Search peer-reviewed and preprint literature across all scientific disciplines (OpenAlex, PubMed, Semantic Scholar, Crossref, arXiv, Europe PMC), deduplicated and ranked by study design and citations. Returns abstracts, evidence level (meta-analysis, systematic-review, rct, review, cohort, empirical, preclinical, other) and a citation/venue band (`tier`: top, high, standard, emerging — not a JCR quartile) and scientific `domain`. YOU classify each paper's stance and synthesize.",
+      "description": "Search peer-reviewed and preprint literature across all scientific disciplines (OpenAlex, PubMed, Semantic Scholar, Crossref, arXiv, Europe PMC), deduplicated and ranked by study design and citations. Returns abstracts, evidence level (meta-analysis, systematic-review, rct, review, cohort, empirical, preclinical, other) and a citation/venue band (`tier`: top, high, standard, emerging — not a JCR quartile) and scientific `domain`. Papers a source indexes as retracted carry `retraction`. YOU classify each paper's stance and synthesize.",
       "required": [
         "query"
       ],
@@ -37,7 +37,7 @@
     },
     {
       "name": "get_paper",
-      "description": "Get full record and abstract of a paper by cached ID, DOI, PMID, OpenAlex ID, arXiv ID, or Semantic Scholar ID. Includes its scientific `domain`; pass `domain` to override it.",
+      "description": "Get full record and abstract of a paper by cached ID, DOI, PMID, OpenAlex ID, arXiv ID, or Semantic Scholar ID. Includes its scientific `domain` (pass `domain` to override it) and integrity facts with their source: `retraction` (retracted/withdrawn, notice DOI and date), `concern` (expression of concern) and `versions` (`published_as` for a preprint, `preprint` for a published paper; ids for get_paper).",
       "required": [
         "id"
       ],
@@ -273,7 +273,7 @@
     },
     {
       "name": "recommend_citations",
-      "description": "Contextual citation recommender & infiller (#22): scans a draft paragraph or file (.md/.tex) for explicit `[CITATION NEEDED]` / `\\cite{?}` markers and unsubstantiated empirical claims, retrieves 2-3 candidate supporting papers per claim with a justification quoting each abstract (check that it really backs the claim), inserts inline LaTeX or Markdown citations, and generates a deduplicated BibTeX block.",
+      "description": "Contextual citation recommender & infiller (#22): scans a draft paragraph or file (.md/.tex) for explicit `[CITATION NEEDED]` / `\\cite{?}` markers and unsubstantiated empirical claims, retrieves up to `max_per_claim` candidate supporting papers per claim with a justification quoting each abstract (check that it really backs the claim; retracted candidates are dropped with a warning), inserts inline LaTeX or Markdown citations, and generates a deduplicated BibTeX block.",
       "required": [
         "draft_text"
       ],
@@ -324,7 +324,7 @@
     },
     {
       "name": "sanitize_bibtex",
-      "description": "BibTeX sanitizer & preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`).",
+      "description": "BibTeX sanitizer & preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`). Entries whose DOI is retracted are kept but flagged (`retracted_entries`, `warnings`).",
       "required": [
         "bibtex_input"
       ],
@@ -474,7 +474,7 @@
     },
     {
       "name": "evidence_meter",
-      "description": "Compute the Evidence Meter deterministically from YOUR stance classification of each paper: raw counts and percentages plus study-design-weighted percentages (meta-analysis 1.0 … preclinical 0.2). Use its output instead of computing percentages yourself.",
+      "description": "Compute the Evidence Meter deterministically from YOUR stance classification of each paper: raw counts and percentages plus study-design-weighted percentages (meta-analysis 1.0 … preclinical 0.2). Papers known to be retracted (from search_papers/get_paper records) are left out and listed in `excluded` with a warning. Use its output instead of computing percentages yourself.",
       "required": [
         "items"
       ],
