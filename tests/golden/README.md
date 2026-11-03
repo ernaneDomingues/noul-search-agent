@@ -6,7 +6,7 @@ therefore expected and are part of the recorded baseline.
 
 | File | Classifier | Labels |
 |---|---|---|
-| `evidence_design.jsonl` | `noul_core.classify_evidence(title, abstract, pub_types)` | `meta-analysis`, `systematic-review`, `rct`, `review`, `cohort` (any observational or quasi-experimental design), `empirical` (experiments/benchmarks outside clinical trials), `preclinical` (animal or in vitro), `other` (theory, editorials, protocols without results, position papers) |
+| `evidence_design.jsonl` | `noul.evidence.classify.classify_evidence(title, abstract, pub_types)` | `meta-analysis`, `systematic-review`, `rct`, `review`, `cohort` (any observational or quasi-experimental design), `empirical` (experiments/benchmarks outside clinical trials), `preclinical` (animal or in vitro), `other` (theory, editorials, protocols without results, position papers) |
 | `domain.jsonl` | `noul.providers.domain_classifier.resolve_domain(...)` | `computer_science`, `biomedical`, `economics`, `general_stem` |
 | `evidence_signals.jsonl` + `papers/*.txt` | the analytic tools on a full text (`analyze_ablation_tables`, `scan_paper_artifacts`, `extract_benchmark_tables`, `detect_failure_modes`, `extract_prompts_and_decoding`, `verify_paper_claims`, `get_fulltext`) | per paper: ablation yes/no, code yes/no, number of result tables, no captions reported as failure modes, hyperparameters found, where key claims are located (section/page), and the passage answering each question (recall@1) |
 

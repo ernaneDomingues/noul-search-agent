@@ -11,12 +11,12 @@ import _support
 
 
 def setUpModule():
-    global c, t, cli, WS
+    global t, cli, WS, _errors
     env = _support.isolate_environment()
     WS = Path(env["NOUL_WORKSPACE"]).resolve()
-    import noul_cli as cli
-    import noul_core as c
-    import noul_tools as t
+    from noul import api as t
+    from noul import cli
+    from noul import errors as _errors
 
 
 class DraftAuditorTests(unittest.TestCase):
@@ -98,7 +98,7 @@ class DraftAuditorTests(unittest.TestCase):
         secret_file.write_text("Secret content outside workspace", encoding="utf-8")
 
         for bad_path in (str(secret_file), "../outside_draft.md"):
-            with self.subTest(bad_path=bad_path), self.assertRaises(c.HTTPError) as ctx:
+            with self.subTest(bad_path=bad_path), self.assertRaises(_errors.HTTPError) as ctx:
                 t.audit_manuscript_draft(bad_path)
             self.assertIn(ctx.exception.code, (400, 403))
 
@@ -107,7 +107,7 @@ class DraftAuditorTests(unittest.TestCase):
             if link_path.exists() or link_path.is_symlink():
                 link_path.unlink()
             os.symlink(secret_file, link_path)
-            with self.assertRaises(c.HTTPError) as ctx:
+            with self.assertRaises(_errors.HTTPError) as ctx:
                 t.audit_manuscript_draft("symlink_draft.md")
             self.assertIn(ctx.exception.code, (400, 403))
 

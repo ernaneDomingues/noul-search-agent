@@ -13,11 +13,16 @@ from noul.schemas.paper import UnifiedPaper
 
 
 def setUpModule():
-    global c, t, cli
+    global t, cli, _errors, _net_cache, _providers_arxiv_search, _providers_openalex, _providers_s2, _search_engine
     _support.isolate_environment()
-    import noul_cli as cli
-    import noul_core as c
-    import noul_tools as t
+    from noul import api as t
+    from noul import cli
+    from noul import errors as _errors
+    from noul.net import cache as _net_cache
+    from noul.providers import arxiv_search as _providers_arxiv_search
+    from noul.providers import openalex as _providers_openalex
+    from noul.providers import s2 as _providers_s2
+    from noul.search import engine as _search_engine
 
 
 def run_cli(*argv):
@@ -181,7 +186,7 @@ PAPER = {
 
 class PipelineIntegrationTests(unittest.TestCase):
     def setUp(self):
-        c.cache_set("paper:" + PAPER["id"], PAPER)
+        _net_cache.cache_set("paper:" + PAPER["id"], PAPER)
 
     def test_arxiv_parser_extracts_categories_and_domain(self):
         atom = """<feed xmlns="http://www.w3.org/2005/Atom" xmlns:arxiv="http://arxiv.org/schemas/atom">
@@ -190,7 +195,7 @@ class PipelineIntegrationTests(unittest.TestCase):
           <author><name>Ana Lima</name></author>
           <arxiv:primary_category term="q-bio.NC"/><category term="q-bio.NC"/><category term="cs.LG"/></entry></feed>"""
         with mock.patch(_support.core_target("_http_get"), return_value=atom):
-            [paper] = c._search_arxiv("neural decoding")
+            [paper] = _providers_arxiv_search._search_arxiv("neural decoding")
         self.assertEqual(paper["primary_category"], "q-bio.NC")
         self.assertEqual(paper["categories"], ["q-bio.NC", "cs.LG"])
         self.assertEqual(paper["domain"], "biomedical")
@@ -206,11 +211,13 @@ class PipelineIntegrationTests(unittest.TestCase):
                 "subfield": {"display_name": "Finance"},
             },
         }
-        oa = c._parse_openalex_work(work)
+        oa = _providers_openalex._parse_openalex_work(work)
         self.assertEqual((oa["domain"], oa["primary_category"]), ("economics", "Finance"))
-        s2 = c._parse_s2_paper({"paperId": "abc", "title": "Inflation targeting", "fieldsOfStudy": ["Economics"]})
+        s2 = _providers_s2._parse_s2_paper(
+            {"paperId": "abc", "title": "Inflation targeting", "fieldsOfStudy": ["Economics"]}
+        )
         self.assertEqual(s2["domain"], "economics")
-        merged = c._merge_papers([oa, s2])
+        merged = _search_engine._merge_papers([oa, s2])
         self.assertEqual(len(merged), 1)
         self.assertEqual(merged[0]["domain"], "economics")
         self.assertIn("Economics", merged[0]["fields_of_study"])
@@ -223,7 +230,7 @@ class PipelineIntegrationTests(unittest.TestCase):
             self.assertEqual([p["id"] for p in out["papers"]], [PAPER["id"]])
             self.assertEqual((out["domain"], out["papers"][0]["domain"]), ("computer_science", "computer_science"))
             self.assertEqual(t.search_papers("routing")["total_found"], 2)
-            with self.assertRaises(c.HTTPError) as ctx:
+            with self.assertRaises(_errors.HTTPError) as ctx:
                 t.search_papers("routing", domain="astrology")
             self.assertEqual(ctx.exception.code, 400)
 

@@ -1,12 +1,12 @@
-"""Phase 1a layout: deprecated root shims still expose the old names, and the installer works in-process."""
+"""Package layout: no v1 root shims (removed in 2.0.0), `python -m noul`, and the installer works in-process."""
 
 import io
 import json
 import os
 import subprocess
 import sys
+import tempfile
 import unittest
-import warnings
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
@@ -22,46 +22,20 @@ def setUpModule():
 
 
 class ShimTests(unittest.TestCase):
-    def test_shims_reexport_the_package_and_warn(self):
-        for shim in ("noul_core", "noul_tools", "noul_mcp", "noul_cli", "install"):
-            sys.modules.pop(shim, None)
-            with self.subTest(shim=shim), warnings.catch_warnings(record=True) as caught:
-                warnings.simplefilter("always")
-                module = __import__(shim)
-                self.assertTrue(any(issubclass(w.category, DeprecationWarning) for w in caught))
-                self.assertTrue(module.__version__)
+    def test_v1_root_shims_and_legacy_server_are_gone(self):
+        # Removed in 2.0.0: the package `noul` is the only import path, `noul-mcp` the only server.
+        for name in ("noul_core.py", "noul_tools.py", "noul_mcp.py", "noul_cli.py", "install.py"):
+            with self.subTest(file=name):
+                self.assertFalse((ROOT / name).exists())
+        self.assertFalse((ROOT / "src/noul/server/legacy.py").exists())
+        package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
+        self.assertFalse([f for f in package.get("files", []) if f.startswith(("noul_", "install.py"))])
 
-    def test_old_public_names_point_to_the_new_modules(self):
-        import noul_core
-        import noul_tools
-
-        import noul.api
-        import noul.net.http
-        import noul.search.engine
-
-        self.assertIs(noul_core.search, noul.search.engine.search)
-        self.assertIs(noul_core._validate_public_url, noul.net.http._validate_public_url)
-        self.assertIs(noul_tools.call, noul.api.call)
-        self.assertEqual(set(noul_tools.TOOLS), set(noul.api.TOOLS))
+    def test_core_symbols_live_in_their_new_modules(self):
+        # `_support.core_target` patches these homes: every mapped name must exist there.
         for name, home in _support.CORE_HOMES.items():
             with self.subTest(name=name):
                 self.assertTrue(hasattr(sys.modules.get(home) or __import__(home, fromlist=["x"]), name))
-
-    def test_script_shim_without_dependencies_prints_guidance(self):
-        # `-S` hides site-packages, so pydantic is missing exactly as in a bare checkout run by system Python.
-        result = subprocess.run(
-            [sys.executable, "-S", str(ROOT / "noul_mcp.py"), "--help"],
-            capture_output=True,
-            text=True,
-            timeout=60,
-            cwd=ROOT,
-            env={k: v for k, v in os.environ.items() if k != "PYTHONPATH"},
-        )
-        if result.returncode == 0:
-            self.skipTest("pydantic is importable without site-packages in this interpreter")
-        self.assertIn("missing dependency", result.stderr)
-        self.assertIn("uv", result.stderr)
-        self.assertNotIn("Traceback", result.stderr)
 
     def test_python_dash_m_noul_runs_the_cli(self):
         result = subprocess.run(
@@ -115,6 +89,45 @@ class InstallerInProcessTests(unittest.TestCase):
         code, _, err = self.run_installer("claude", "--uninstall")
         self.assertEqual(code or 0, 0, err)
         self.assertFalse((home / ".claude/skills/noul-search/SKILL.md").exists())
+
+
+class LauncherTests(unittest.TestCase):
+    """noul._bin launchers: what `noul-install` registers when no console script exists (source checkouts)."""
+
+    def test_launchers_ignore_a_planted_package_in_the_project_folder(self):
+        from noul import install
+
+        with tempfile.TemporaryDirectory() as project:
+            # A cloned repository with its own `noul` package and a stdlib-named module must never be imported.
+            (Path(project) / "noul").mkdir()
+            (Path(project) / "noul/__init__.py").write_text("raise SystemExit('planted noul imported')\n")
+            (Path(project) / "json.py").write_text("raise SystemExit('planted json imported')\n")
+            for launcher, name in (("noul_cli_launcher.py", "noul-search-agent"), ("noul_mcp_launcher.py", "noul-mcp")):
+                with self.subTest(launcher=launcher):
+                    result = subprocess.run(
+                        [sys.executable, str(install._LAUNCHERS / launcher), "--version"],
+                        capture_output=True,
+                        text=True,
+                        timeout=60,
+                        cwd=project,
+                        env={k: v for k, v in os.environ.items() if k != "PYTHONPATH"},
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn(f"{name} 2.0.0", result.stdout)
+                    self.assertNotIn("planted", result.stdout + result.stderr)
+
+    def test_installer_falls_back_to_the_absolute_launchers(self):
+        from noul import install
+
+        with (
+            mock.patch.object(install, "_console_script", return_value=None),
+            mock.patch.object(install, "RUNNER", "python"),
+            mock.patch.object(install, "FROZEN", False),
+        ):
+            command, args = install.mcp_command()
+            self.assertEqual((command, args), (sys.executable, [str(install._LAUNCHERS / "noul_mcp_launcher.py")]))
+            self.assertIn("noul_cli_launcher.py", install.cli_command())
+        self.assertTrue(install._LAUNCHERS.is_absolute())
 
 
 if __name__ == "__main__":

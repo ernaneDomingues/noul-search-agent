@@ -1,5 +1,7 @@
 # Plano de refatoração completa — noul-search-agent v2.0
 
+> **Status em 02/11/2026.** Fases 0 a 3 concluídas e publicadas como 2.0.0 (ver `CHANGELOG.md`). As referências a `noul_core.py`, `noul_tools.py`, `noul_mcp.py` e demais arquivos da raiz abaixo descrevem o código anterior à refatoração; esses arquivos foram removidos na 2.0.0. Próxima: Fase 4.
+
 ## Contexto
 
 O relatório técnico (https://claude.ai/artifact/U4sd4NRRxnghxC5GpSta4C) concluiu que o projeto deve **evoluir no mesmo repositório**, não ser reescrito. Premissa confirmada: o Noul **roda no cliente do usuário, sem LLM próprio**.

@@ -1,4 +1,4 @@
-"""Research tools built on the legacy core (registered in `noul.api.TOOLS`)."""
+"""Research tools built on search, library and evidence modules (registered in `noul.api.TOOLS`)."""
 
 import json
 import re

@@ -25,9 +25,9 @@ def _load(name):
 
 
 def _predict_design(case):
-    from noul.evidence import classify as noul_core
+    from noul.evidence import classify as _classify
 
-    return noul_core.classify_evidence(case.get("title", ""), case.get("abstract", ""), case.get("pub_types"))
+    return _classify.classify_evidence(case.get("title", ""), case.get("abstract", ""), case.get("pub_types"))
 
 
 def _predict_domain(case):
@@ -265,11 +265,11 @@ class GoldenSetRegressionTests(unittest.TestCase):
                     )
 
     def test_labels_are_in_the_taxonomy(self):
-        from noul.evidence import classify as noul_core
+        from noul.evidence import classify as _classify
         from noul.schemas.domain import ScientificDomain
 
         allowed = {
-            "evidence_design": set(noul_core.EV_W),
+            "evidence_design": set(_classify.EV_W),
             "domain": {d.value for d in ScientificDomain},
             "domain_holdout": {d.value for d in ScientificDomain},
         }

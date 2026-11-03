@@ -450,18 +450,9 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="With --http: public read-only connector (no token, writes off, rate limits); also NOUL_PUBLIC=1",
     )
-    ap.add_argument("--legacy", action="store_true", help="Run the v1 hand-written server (removed in 2.0.0)")
     ap.add_argument("--version", action="version", version=f"noul-mcp {__version__}")
     a = ap.parse_args(argv)
     _log.configure()
-    if a.legacy:
-        from noul.server import legacy
-
-        if a.profile:
-            print("noul-mcp: --profile is ignored with --legacy (the v1 server exposes every tool).", file=sys.stderr)
-
-        legacy_argv = (["--http", str(a.http)] if a.http is not None else []) + (["--host", a.host] if a.host else [])
-        return legacy.main(legacy_argv) or 0
     if a.http is not None:
         from noul.server import http as http_server
 

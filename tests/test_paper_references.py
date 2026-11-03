@@ -11,11 +11,13 @@ import _support
 
 
 def setUpModule():
-    global c, t, cli
+    global t, cli, _errors, _ids, _net_cache
     _support.isolate_environment()
-    import noul_cli as cli
-    import noul_core as c
-    import noul_tools as t
+    from noul import api as t
+    from noul import cli
+    from noul import errors as _errors
+    from noul import ids as _ids
+    from noul.net import cache as _net_cache
 
 
 ANCHOR = {
@@ -72,7 +74,7 @@ def s2_router(url, headers=None, timeout=15):
 
 class ReferencesTests(unittest.TestCase):
     def setUp(self):
-        c.cache_set("paper:" + ANCHOR["id"], dict(ANCHOR))
+        _net_cache.cache_set("paper:" + ANCHOR["id"], dict(ANCHOR))
 
     def refs(self, **kw):
         with mock.patch(_support.core_target("_http_json"), side_effect=s2_router) as m:
@@ -90,7 +92,7 @@ class ReferencesTests(unittest.TestCase):
         first = back[0]
         self.assertEqual(
             (first["paper_id"], first["year"], first["citation_count"], first["is_influential"]),
-            (c._paper_id(doi="10.1000/key"), 2015, 300, True),
+            (_ids._paper_id(doi="10.1000/key"), 2015, 300, True),
         )
         self.assertEqual(first["url"], "https://doi.org/10.1000/key")
         # Chained navigation: the reference is cached and works with the other tools.
@@ -106,13 +108,13 @@ class ReferencesTests(unittest.TestCase):
 
     def test_invalid_arguments(self):
         for kw in ({"limit": 0}, {"limit": 51}, {"direction": "sideways"}, {"sort_by": "random"}):
-            with self.subTest(kw=kw), self.assertRaises(c.HTTPError) as ctx:
+            with self.subTest(kw=kw), self.assertRaises(_errors.HTTPError) as ctx:
                 t.call("get_paper_references", {"paper_id": ANCHOR["id"], **kw})
             self.assertEqual(ctx.exception.code, 400)
 
     def test_chained_cache_does_not_overwrite_richer_record(self):
         rich = {
-            "id": c._paper_id(doi="10.1000/key"),
+            "id": _ids._paper_id(doi="10.1000/key"),
             "title": "Key method",
             "abstract": "Full abstract",
             "doi": "10.1000/key",
@@ -120,9 +122,9 @@ class ReferencesTests(unittest.TestCase):
             "journal": "Nature",
             "sources": ["openalex"],
         }
-        c.cache_set("paper:" + rich["id"], rich)
+        _net_cache.cache_set("paper:" + rich["id"], rich)
         self.refs()
-        cached = c.cache_get("paper:" + rich["id"])
+        cached = _net_cache.cache_get("paper:" + rich["id"])
         self.assertEqual((cached["abstract"], cached["journal"]), ("Full abstract", "Nature"))
         self.assertEqual(cached["s2_id"], "b" * 40)
         self.assertEqual(set(cached["sources"]), {"openalex", "s2"})
@@ -152,7 +154,7 @@ class ReferencesTests(unittest.TestCase):
             [(r["title"], r["is_influential"]) for r in out["backward_citations"]], [("Major", True), ("Minor", False)]
         )
         self.assertEqual(out["forward_citations"][0]["paper_id"], "oa:W4")
-        self.assertIsNotNone(c.cache_get("paper:oa:W3"))
+        self.assertIsNotNone(_net_cache.cache_get("paper:oa:W3"))
 
     def test_cli(self):
         buf = io.StringIO()

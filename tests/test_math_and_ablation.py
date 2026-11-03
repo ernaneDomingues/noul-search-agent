@@ -48,11 +48,11 @@ Table 3: Ablation study of our components.
 
 
 def setUpModule():
-    global c, t, cli
+    global t, cli, _errors
     _support.isolate_environment()
-    import noul_cli as cli
-    import noul_core as c
-    import noul_tools as t
+    from noul import api as t
+    from noul import cli
+    from noul import errors as _errors
 
 
 class _Offline(unittest.TestCase):
@@ -73,7 +73,7 @@ class _Offline(unittest.TestCase):
 class MathExtractionTests(_Offline):
     def setUp(self):
         super().setUp()
-        self.pid = _support.seed_fulltext_paper(c, "doi:10.1000/math", MATH_TEXT, title="Math paper")
+        self.pid = _support.seed_fulltext_paper("doi:10.1000/math", MATH_TEXT, title="Math paper")
 
     def test_latex_mode_returns_clean_delimited_equations_and_algorithms(self):
         out = t.call("extract_paper_math", {"paper_id": self.pid})
@@ -119,7 +119,7 @@ class MathExtractionTests(_Offline):
         self.assertTrue(all(it["latex"] and it["python_code"] for it in out["items"]))
 
     def test_invalid_mode_is_rejected_with_400(self):
-        with self.assertRaises(c.HTTPError) as ctx:
+        with self.assertRaises(_errors.HTTPError) as ctx:
             t.call("extract_paper_math", {"paper_id": self.pid, "mode": "markdown"})
         self.assertEqual(ctx.exception.code, 400)
 
@@ -136,7 +136,7 @@ class MathExtractionTests(_Offline):
 class AblationTests(_Offline):
     def setUp(self):
         super().setUp()
-        self.pid = _support.seed_fulltext_paper(c, "doi:10.1000/ablation", ABLATION_TEXT, title="Ablation paper")
+        self.pid = _support.seed_fulltext_paper("doi:10.1000/ablation", ABLATION_TEXT, title="Ablation paper")
 
     def test_entries_are_ranked_by_percentual_impact_with_deltas(self):
         out = t.call("analyze_ablation_tables", {"paper_id": self.pid})
@@ -174,7 +174,6 @@ class AblationTests(_Offline):
 
     def test_text_list_ablation_uses_sum_of_deltas_for_dominance(self):
         pid = _support.seed_fulltext_paper(
-            c,
             "doi:10.1000/ablation-list",
             ("Ablation results (accuracy):\nFull model: 75.3\nw/o adapter: 71.2\nno warmup: 75.1\n"),
             title="List",
@@ -186,7 +185,7 @@ class AblationTests(_Offline):
         self.assertTrue(any("'w/o adapter'" in a and "95%" in a for a in out["warnings_and_alerts"]))
 
     def test_paper_without_ablation_warns(self):
-        pid = _support.seed_fulltext_paper(c, "doi:10.1000/none", "We study transformers.\n", title="None")
+        pid = _support.seed_fulltext_paper("doi:10.1000/none", "We study transformers.\n", title="None")
         out = t.call("analyze_ablation_tables", {"paper_id": pid})
         self.assertEqual(out["ablations"], [])
         self.assertTrue(any("No ablation" in w for w in out["warnings"]))

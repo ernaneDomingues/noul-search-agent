@@ -9,12 +9,11 @@ import _support
 
 
 def setUpModule():
-    global c, t, cli, WS
+    global t, cli, WS
     env = _support.isolate_environment()
     WS = Path(env["NOUL_WORKSPACE"]).resolve()
-    import noul_cli as cli
-    import noul_core as c
-    import noul_tools as t
+    from noul import api as t
+    from noul import cli
 
 
 class RebuttalAndGatekeeperTests(unittest.TestCase):

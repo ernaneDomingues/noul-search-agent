@@ -44,7 +44,6 @@ def _keys(obj, path=""):
 class EvidenceContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from noul.net import cache
 
         cls.patchers = [
             mock.patch(_support.core_target(n), side_effect=_support.no_network) for n in ("_http_json", "_http_get")
@@ -52,7 +51,6 @@ class EvidenceContractTests(unittest.TestCase):
         for p in cls.patchers:
             p.start()
         cls.pid = _support.seed_fulltext_paper(
-            cache,
             "doi:10.1000/contract",
             FULLTEXT,
             title="FastNet",

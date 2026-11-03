@@ -14,16 +14,17 @@ AXES = ("consolidated_consensuses", "methodological_tensions", "emerging_future_
 
 
 def setUpModule():
-    global c, t, cli
+    global t, cli, _errors, _net_cache
     _support.isolate_environment()
-    import noul_cli as cli
-    import noul_core as c
-    import noul_tools as t
+    from noul import api as t
+    from noul import cli
+    from noul import errors as _errors
+    from noul.net import cache as _net_cache
 
 
 class InsightsTests(unittest.TestCase):
     def setUp(self):
-        self.ids = _support.seed_phase2_papers(c)
+        self.ids = _support.seed_phase2_papers()
         patcher = mock.patch(_support.core_target("_http_json"), side_effect=_support.no_network)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -72,12 +73,12 @@ class InsightsTests(unittest.TestCase):
         self.assertEqual(out["topic"], "quantization / bdnf")
 
     def test_single_paper_and_missing_metadata_still_cited(self):
-        c.cache_set("paper:oa:W9", {"id": "oa:W9", "title": "Untitled note", "abstract": "", "authors": []})
+        _net_cache.cache_set("paper:oa:W9", {"id": "oa:W9", "title": "Untitled note", "abstract": "", "authors": []})
         out = t.get_thematic_insights(["oa:W9"])
         self.assertEqual(out["citations_map"], {"[Anon., n.d.]": ["oa:W9"]})
         for axis in AXES:
             self.assertTrue(out[axis] and all(CITATION.search(x) for x in out[axis]), axis)
-        with self.assertRaises(c.HTTPError) as ctx:
+        with self.assertRaises(_errors.HTTPError) as ctx:
             t.get_thematic_insights([])
         self.assertEqual(ctx.exception.code, 400)
 

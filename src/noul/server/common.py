@@ -1,4 +1,4 @@
-"""Pieces shared by the MCP servers (SDK-based `noul.server.mcp`/`noul.server.http` and the legacy server)."""
+"""Pieces shared by the MCP server (`noul.server.mcp`) and its HTTP transport (`noul.server.http`)."""
 
 import copy
 import ipaddress

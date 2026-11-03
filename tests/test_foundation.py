@@ -11,7 +11,6 @@ except ImportError:  # Python 3.10
     tomllib = None
 
 
-import noul_core
 import pydantic
 
 import noul
@@ -49,7 +48,6 @@ class SchemaTests(unittest.TestCase):
 class PackagingTests(unittest.TestCase):
     @unittest.skipIf(tomllib is None, "tomllib requires Python 3.11+")
     def test_versions_and_manifests_in_sync(self):
-        self.assertEqual(noul.__version__, noul_core.__version__)
         pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
         self.assertEqual(pyproject["project"]["dynamic"], ["version"])
         setuptools_cfg = pyproject["tool"]["setuptools"]
@@ -61,18 +59,16 @@ class PackagingTests(unittest.TestCase):
         for script, target in pyproject["project"]["scripts"].items():
             self.assertTrue(target.startswith("noul."), (script, target))
         plugin = json.loads((ROOT / "plugin.json").read_text(encoding="utf-8"))
-        self.assertEqual(plugin["version"], noul_core.__version__)
+        self.assertEqual(plugin["version"], noul.__version__)
         for key in ("name", "displayName", "description", "suggestedPrompts"):
             self.assertTrue(plugin.get(key), key)
 
-    def test_legacy_core_shim_reexports_the_package(self):
-        import noul.config
-        import noul.errors
-        import noul.search.engine
-
-        self.assertIs(noul.config.get_config, noul_core.get_config)
-        self.assertIs(noul.search.engine.search, noul_core.search)
-        self.assertIs(noul.errors.HTTPError, noul_core.HTTPError)
+    def test_every_manifest_carries_the_package_version(self):
+        self.assertEqual(noul.__version__, "2.0.0")
+        for manifest in ("package.json", "plugin.json", ".claude-plugin/plugin.json", "agents/gemini-extension.json"):
+            with self.subTest(manifest=manifest):
+                data = json.loads((ROOT / manifest).read_text(encoding="utf-8"))
+                self.assertEqual(data["version"], noul.__version__)
 
 
 if __name__ == "__main__":

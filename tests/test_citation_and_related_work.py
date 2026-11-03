@@ -10,11 +10,12 @@ import _support
 
 
 def setUpModule():
-    global c, t, cli
+    global t, cli, _errors, _net_cache
     _support.isolate_environment()
-    import noul_cli as cli
-    import noul_core as c
-    import noul_tools as t
+    from noul import api as t
+    from noul import cli
+    from noul import errors as _errors
+    from noul.net import cache as _net_cache
 
 
 class CitationAndRelatedWorkTests(unittest.TestCase):
@@ -68,7 +69,7 @@ class CitationAndRelatedWorkTests(unittest.TestCase):
             ),
         }
         for p in (self.p1, self.p2, self.p3):
-            c.cache_set("paper:" + p["id"], p)
+            _net_cache.cache_set("paper:" + p["id"], p)
 
     def test_recommend_citations_markers_and_declarative_claims(self):
         draft = (
@@ -139,7 +140,7 @@ class CitationAndRelatedWorkTests(unittest.TestCase):
             authors=["Liam O'Connor", "Mei Lin"],
             year=2025,
         )
-        c.cache_set("paper:" + p1_extra["id"], p1_extra)
+        _net_cache.cache_set("paper:" + p1_extra["id"], p1_extra)
         res_md = t.synthesize_related_work(
             [self.p1["id"], p1_extra["id"], self.p2["id"], self.p3["id"]],
             proposal=proposal,
@@ -169,7 +170,7 @@ class CitationAndRelatedWorkTests(unittest.TestCase):
         self.assertIn("## Related Work", out)
         self.assertIn("```bibtex", out)
 
-        with self.assertRaises(c.HTTPError) as ctx:
+        with self.assertRaises(_errors.HTTPError) as ctx:
             t.synthesize_related_work([], proposal="Valid proposal")
         self.assertEqual(ctx.exception.code, 400)
 

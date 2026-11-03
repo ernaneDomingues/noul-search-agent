@@ -57,8 +57,8 @@ class SearchPapersInput(_ToolInput):
     sort: Literal["relevance", "date", "citations"] | None = Field(
         None, json_schema_extra={"enum_order": ["relevance", "date", "citations"]}
     )
-    limit: int | None = 15
-    offset: int | None = 0
+    limit: int | None = Field(15, ge=1, le=40, description="Papers per page (1-40)")
+    offset: int | None = Field(0, ge=0)
     exclude_ids: list[str] | None = None
     domain: str | None = Field(
         None,
@@ -140,7 +140,7 @@ class GenerateResearchHypothesesInput(_ToolInput):
 
     paper_ids: list[str]
     topic: str | None = None
-    max_hypotheses: int | None = 3
+    max_hypotheses: int | None = Field(3, ge=1, le=10)
 
 
 class ExportObsidianNotesInput(_ToolInput):
@@ -344,9 +344,9 @@ class GetFulltextInput(_ToolInput):
 class QueryFulltextsInput(_ToolInput):
     """Arguments of `query_fulltexts`."""
 
-    ids: list[str]
-    question: str
-    max_chunks_per_paper: int | None = 4
+    ids: list[str] = Field(..., min_length=1, max_length=20, description="Paper ids (1-20)")
+    question: str = Field(..., min_length=1, pattern=r"\S", description="The question to answer from the papers")
+    max_chunks_per_paper: int | None = Field(4, ge=1, le=10, description="Passages per paper (1-10)")
 
 
 class CitationGraphInput(_ToolInput):
@@ -385,7 +385,7 @@ class RelatedPapersInput(_ToolInput):
         },
     )
     year_min: int | None = None
-    limit: int | None = 15
+    limit: int | None = Field(15, ge=1, le=40)
 
 
 class DownloadPapersInput(_ToolInput):
