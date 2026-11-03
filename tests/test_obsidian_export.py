@@ -19,14 +19,13 @@ except ImportError:  # optional: a minimal parser is used otherwise
 
 
 def setUpModule():
-    global c, t, cli, m, WS
+    global t, cli, WS, _errors, _net_cache
     env = _support.isolate_environment()
     WS = Path(env["NOUL_WORKSPACE"]).resolve()
-    import noul_cli as cli
-    import noul_core as c
-    import noul_tools as t
-
-    from noul.server import legacy as m  # v1 server tests; SDK server: test_mcp_server.py
+    from noul import api as t
+    from noul import cli
+    from noul import errors as _errors
+    from noul.net import cache as _net_cache
 
 
 def frontmatter(text):
@@ -47,7 +46,7 @@ def frontmatter(text):
 
 class ObsidianExportTests(unittest.TestCase):
     def setUp(self):
-        self.ids = _support.seed_phase2_papers(c, ["llm_a", "rct", "mice"])
+        self.ids = _support.seed_phase2_papers(["llm_a", "rct", "mice"])
         patcher = mock.patch(_support.core_target("_http_json"), side_effect=_support.no_network)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -102,7 +101,7 @@ class ObsidianExportTests(unittest.TestCase):
         self.assertIn("Evasive availability statement", mice)
 
     def test_filename_sanitized_and_wikilinks_optional(self):
-        c.cache_set(
+        _net_cache.cache_set(
             "paper:oa:W7",
             {"id": "oa:W7", "title": 'What? A/B: "tests" <x> | y*', "authors": [], "abstract": "", "year": None},
         )
@@ -125,7 +124,7 @@ class ObsidianExportTests(unittest.TestCase):
             os.symlink(WS / "real", WS / "in-link")
             cases += ["out-link", "in-link/vault"]
         for vault in cases:
-            with self.subTest(vault=vault), self.assertRaises(c.HTTPError) as ctx:
+            with self.subTest(vault=vault), self.assertRaises(_errors.HTTPError) as ctx:
                 t.export_obsidian_notes(self.ids[:1], vault_dir=vault)
             self.assertEqual(ctx.exception.code, 403)
         self.assertEqual(os.listdir(outside), [])
@@ -133,25 +132,27 @@ class ObsidianExportTests(unittest.TestCase):
             (WS / "v3").mkdir()
             target = Path(outside) / "victim.md"
             os.symlink(target, WS / "v3" / "2023 - Smith - Efficient 4-bit Quantization for LLM Fine-Tuning.md")
-            with self.assertRaises(c.HTTPError) as ctx:
+            with self.assertRaises(_errors.HTTPError) as ctx:
                 t.export_obsidian_notes(self.ids[:1], vault_dir="v3")
             self.assertEqual((ctx.exception.code, target.exists()), (403, False))
 
     def test_is_write_tool_for_http_mcp(self):
-        self.assertIn("export_obsidian_notes", m.WRITE_TOOLS)
-        res = m.handle(
-            {
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "tools/call",
-                "params": {
-                    "name": "export_obsidian_notes",
-                    "arguments": {"paper_ids": self.ids, "vault_dir": "vault-http"},
-                },
-            },
-            allow_write=False,
-        )
-        self.assertTrue(res["result"]["isError"])
+        import anyio
+        from mcp import Client
+        from mcp.client._memory import InMemoryTransport
+
+        from noul import registry
+        from noul.server.mcp import build_server
+
+        self.assertIn("export_obsidian_notes", registry.write_tools())
+
+        async def call():
+            async with Client(InMemoryTransport(build_server(allow_write=False))) as client:
+                args = {"paper_ids": self.ids, "vault_dir": "vault-http"}
+                return await client.call_tool("export_obsidian_notes", args)
+
+        res = anyio.run(call)
+        self.assertTrue(res.is_error)
         self.assertFalse((WS / "vault-http").exists())
 
     def _cli(self, *argv):

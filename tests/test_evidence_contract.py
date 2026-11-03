@@ -44,7 +44,6 @@ def _keys(obj, path=""):
 class EvidenceContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from noul.net import cache
 
         cls.patchers = [
             mock.patch(_support.core_target(n), side_effect=_support.no_network) for n in ("_http_json", "_http_get")
@@ -52,7 +51,6 @@ class EvidenceContractTests(unittest.TestCase):
         for p in cls.patchers:
             p.start()
         cls.pid = _support.seed_fulltext_paper(
-            cache,
             "doi:10.1000/contract",
             FULLTEXT,
             title="FastNet",
@@ -199,11 +197,17 @@ class OutputSchemaSnapshotTests(unittest.TestCase):
     def test_analytic_output_schemas_match_the_v2_contract(self):
         """The 2.0 result contract is pinned like the v1 inputSchema: regenerate the fixture only for intended
         changes (see the fixture name in the failure)."""
+        import os
         from pathlib import Path
 
         from noul import registry
 
         fixture = Path(__file__).resolve().parent / "fixtures" / "output_schemas_v2.json"
+        if os.environ.get("UPDATE_CONTRACT_FIXTURES") == "1":
+            current = {name: registry.output_schema(name) for name in ANALYTIC_TOOLS + READING_TOOLS}
+            fixture.write_text(
+                json.dumps(current, indent=1, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8"
+            )
         expected = json.loads(fixture.read_text(encoding="utf-8"))
         self.assertEqual(sorted(expected), sorted(ANALYTIC_TOOLS + READING_TOOLS))
         for name in ANALYTIC_TOOLS + READING_TOOLS:

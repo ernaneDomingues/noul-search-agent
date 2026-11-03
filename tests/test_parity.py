@@ -1,4 +1,4 @@
-"""Phase 1b: the CLI (`noul tool`) and the MCP server expose the same tools with the same results and errors."""
+"""The CLI (`noul tool`) and the MCP server (SDK, in memory) expose the same tools with the same results and errors."""
 
 import io
 import json
@@ -31,12 +31,18 @@ def run_cli(name, args):
 
 
 def run_mcp(name, args):
-    from noul.server import legacy
+    import anyio
+    from mcp import Client
+    from mcp.client._memory import InMemoryTransport
 
-    reply = legacy.handle(
-        {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": name, "arguments": args}}
-    )
-    return reply["result"]
+    from noul.server.mcp import build_server
+
+    async def call():
+        async with Client(InMemoryTransport(build_server())) as client:
+            return await client.call_tool(name, args)
+
+    result = anyio.run(call)
+    return {"isError": result.is_error, "content": [{"text": result.content[0].text}]}
 
 
 class ParityTests(unittest.TestCase):

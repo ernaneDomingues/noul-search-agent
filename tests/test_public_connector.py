@@ -198,13 +198,16 @@ class PublicAppTests(unittest.TestCase):
 
         tool = registry.REGISTRY["search_papers"]
         with mock.patch.dict(registry.REGISTRY, {"search_papers": dataclasses.replace(tool, fn=fake)}):
-            for raw in (1000, "1000", 1000.0, "1_000"):
+            for raw in (40, "40", 40.0):
                 with self.subTest(limit=raw):
                     out = registry.call(
                         "search_papers", {"query": "q", "limit": raw}, caps=public_caps("search_papers")
                     )
                     self.assertEqual(seen["limit"], 25)
-                    self.assertIn("lowered from 1000 to 25", out["notice"])
+                    self.assertIn("lowered from 40 to 25", out["notice"])
+            # Above the schema maximum (40) the call is refused before any cap applies (2.0 input contract).
+            with self.assertRaises(HTTPError):
+                registry.call("search_papers", {"query": "q", "limit": 1000}, caps=public_caps("search_papers"))
         with self.assertRaises(HTTPError) as ctx:
             registry.call(
                 "evidence_meter", {"items": [{"stance": "supportive"}] * 101}, caps=public_caps("evidence_meter")

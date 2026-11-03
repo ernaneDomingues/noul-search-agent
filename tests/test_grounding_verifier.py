@@ -32,11 +32,11 @@ Sparse-7B outperforms Llama-2 7B by 33.1 points on MMLU while cutting latency 3.
 
 
 def setUpModule():
-    global c, t, cli
+    global t, cli, _errors
     _support.isolate_environment()
-    import noul_cli as cli
-    import noul_core as c
-    import noul_tools as t
+    from noul import api as t
+    from noul import cli
+    from noul import errors as _errors
 
 
 class GroundingTests(unittest.TestCase):
@@ -45,7 +45,7 @@ class GroundingTests(unittest.TestCase):
             patcher = mock.patch(_support.core_target(name), side_effect=_support.no_network)
             patcher.start()
             self.addCleanup(patcher.stop)
-        self.pid = _support.seed_fulltext_paper(c, "doi:10.1000/ground", FULLTEXT, title="Sparse-7B", abstract=ABSTRACT)
+        self.pid = _support.seed_fulltext_paper("doi:10.1000/ground", FULLTEXT, title="Sparse-7B", abstract=ABSTRACT)
 
     def _verify(self, *claims):
         return t.call("verify_paper_claims", {"paper_id": self.pid, "claims": list(claims)})
@@ -90,7 +90,7 @@ class GroundingTests(unittest.TestCase):
         self.assertEqual(out["claims"][0]["numbers_missing"], [])
         self.assertTrue(all(not cl["claim"].startswith(("Table", "|")) for cl in out["claims"]))
         for bad in ({"paper_id": self.pid, "claims": "x"}, {"paper_id": self.pid, "claims": [1]}, {"claims": []}):
-            with self.subTest(bad=bad), self.assertRaises(c.HTTPError) as ctx:
+            with self.subTest(bad=bad), self.assertRaises(_errors.HTTPError) as ctx:
                 t.call("verify_paper_claims", bad)
             self.assertEqual(ctx.exception.code, 400)
 

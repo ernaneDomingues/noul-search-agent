@@ -170,6 +170,17 @@ class HttpAppTests(unittest.TestCase):
             tools = mcp_payloads(listed)[0]["result"]["tools"]
             self.assertEqual(len(tools), 16)
             self.assertNotIn("configure_noul", {t["name"] for t in tools})
+            # Writes off (no NOUL_HTTP_ALLOW_WRITE): a direct tools/call over /mcp is refused, not just hidden.
+            call = {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {"name": "download_papers", "arguments": {"ids": ["doi:10.1000/x"], "output_dir": "pdfs"}},
+            }
+            blocked = mcp_payloads(c.post("/mcp", json=call, headers=headers))[0]
+            self.assertTrue(blocked["result"]["isError"], blocked)
+            self.assertIn("writes are disabled", blocked["result"]["content"][0]["text"])
+            self.assertFalse(os.path.exists(os.path.join(ENV["NOUL_WORKSPACE"], "pdfs")))
 
 
 if __name__ == "__main__":

@@ -4,9 +4,9 @@ import io
 import unittest
 from contextlib import redirect_stdout
 
-import noul_cli
-import noul_core
-import noul_tools
+from noul import api, cli
+from noul import errors as _errors
+from noul.net import cache as _net_cache
 
 
 class ResearchGapEngineTests(unittest.TestCase):
@@ -15,7 +15,7 @@ class ResearchGapEngineTests(unittest.TestCase):
         self.id2 = "arxiv:2503.10002"
         self.id3 = "arxiv:2503.10003"
 
-        noul_core.cache_set(
+        _net_cache.cache_set(
             "paper:" + self.id1,
             {
                 "id": self.id1,
@@ -34,7 +34,7 @@ class ResearchGapEngineTests(unittest.TestCase):
                 ),
             },
         )
-        noul_core.cache_set(
+        _net_cache.cache_set(
             "paper:" + self.id2,
             {
                 "id": self.id2,
@@ -54,7 +54,7 @@ class ResearchGapEngineTests(unittest.TestCase):
                 ),
             },
         )
-        noul_core.cache_set(
+        _net_cache.cache_set(
             "paper:" + self.id3,
             {
                 "id": self.id3,
@@ -75,7 +75,7 @@ class ResearchGapEngineTests(unittest.TestCase):
         )
 
     def test_cross_analyzes_contradictions_complementarities_and_hypotheses(self):
-        res = noul_tools.call(
+        res = api.call(
             "generate_research_hypotheses",
             {
                 "paper_ids": [self.id1, self.id2, self.id3],
@@ -104,18 +104,18 @@ class ResearchGapEngineTests(unittest.TestCase):
         self.assertIn("# Autonomous Research Gap & Hypothesis Report:", res["markdown_report"])
 
     def test_rejects_single_paper_with_400(self):
-        with self.assertRaises(noul_core.HTTPError) as ctx:
-            noul_tools.generate_research_hypotheses([self.id1])
+        with self.assertRaises(_errors.HTTPError) as ctx:
+            api.generate_research_hypotheses([self.id1])
         self.assertEqual(ctx.exception.code, 400)
 
-        with self.assertRaises(noul_core.HTTPError) as ctx2:
-            noul_tools.generate_research_hypotheses([self.id1, self.id1])
+        with self.assertRaises(_errors.HTTPError) as ctx2:
+            api.generate_research_hypotheses([self.id1, self.id1])
         self.assertEqual(ctx2.exception.code, 400)
 
     def test_cli_hypotheses_pretty(self):
         buf = io.StringIO()
         with redirect_stdout(buf):
-            rc = noul_cli.main(["hypotheses", self.id1, self.id2, "--max", "2", "--pretty"])
+            rc = cli.main(["hypotheses", self.id1, self.id2, "--max", "2", "--pretty"])
         self.assertEqual(rc, 0)
         out = buf.getvalue()
         self.assertIn("# Autonomous Research Gap & Hypothesis Report:", out)

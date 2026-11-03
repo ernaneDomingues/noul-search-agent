@@ -1,8 +1,8 @@
 {
   "name": "noul-search-agent",
   "displayName": "Noul Search",
-  "version": "1.0.0",
-  "description": "Autonomous Scientific Research & Document Intelligence Agent across CS/AI, Biomedical, Economics & STEM: 6-source literature search, Evidence Meter, artifact radar, benchmark/VRAM/math/ablation/prompt extraction, arXiv version diffs, multi-persona peer review, polyglot code/protocol scaffolding, academic authoring copilot, BibTeX sanitizer, rebuttal copilot and pre-submission desk-reject gatekeeper.",
+  "version": "2.0.0",
+  "description": "Scientific research co-assistant across CS/AI, Biomedical, Economics & STEM: 47 MCP tools for 6-source literature search, Evidence Meter, persistent research projects, full-text passages with section and page, technical extraction (benchmarks, VRAM, math, ablations, prompts), arXiv version diffs, peer-review evidence, code/protocol scaffolding, academic writing support, BibTeX sanitizer, rebuttal and pre-submission checks. Tools return evidence; your model gives the verdicts.",
   "author": {
     "name": "Ernane Domingues",
     "url": "https://github.com/ernaneDomingues"

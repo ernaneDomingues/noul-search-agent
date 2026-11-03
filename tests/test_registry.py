@@ -1,64 +1,54 @@
 """Phase 1b: the tool registry is the single source of truth and keeps the v1 MCP contract."""
 
 import json
+import os
 import unittest
 from pathlib import Path
 from unittest import mock
 
 import _support
 
-FIXTURE = Path(__file__).resolve().parent / "fixtures" / "tools_list_v1.json"
+FIXTURE = Path(__file__).resolve().parent / "fixtures" / "tools_list_v2.json"
 
 
 def setUpModule():
     _support.isolate_environment()
 
 
-class ContractTests(unittest.TestCase):
-    def test_tools_list_matches_the_v1_contract(self):
-        """Every v1 tool still exists with the same inputSchema (and description, except the listed changes);
-        tools added since v1 are listed with their phase."""
-        from noul.server import legacy
+def _contract():
+    from noul import registry
 
-        expected = {t["name"]: t for t in json.loads(FIXTURE.read_text(encoding="utf-8"))}
-        actual = {t["name"]: t for t in legacy.tools_list()}
-        added_since_v1 = {
-            name: "3b-2: research projects"
-            for name in (
-                "project_create",
-                "project_list",
-                "project_get",
-                "project_add_papers",
-                "project_set_status",
-                "project_note",
+    return [
+        {
+            k: t[k]
+            for k in (
+                "name",
+                "title",
+                "description",
+                "inputSchema",
+                "outputSchema",
+                "annotations",
+                "profiles",
+                "write_args",
             )
         }
-        self.assertEqual(sorted(actual), sorted([*expected, *added_since_v1]))
-        # Intentional description changes since v1, each with the phase that made it.
-        changed_descriptions = {
-            "detect_paper_domain": "2a: venue signal and `method` values",
-            **dict.fromkeys(
-                (
-                    "review_paper",
-                    "review_paper_scientific",
-                    "verify_paper_claims",
-                    "detect_failure_modes",
-                    "audit_manuscript_draft",
-                    "parse_and_draft_rebuttal",
-                    "audit_submission_readiness",
-                ),
-                "3a: evidence, not a verdict (AnalysisResult)",
-            ),
-            "recommend_citations": "3b-1: English, non-judgemental justifications",
-            "get_fulltext": "3b-1: BM25 passages with section and page",
-            "query_fulltexts": "3b-1: BM25 passages with section and page",
-            "save_research_dossier": "3b-2: the dossier exports the research project with the same slug",
-        }
-        for name in expected:
-            with self.subTest(tool=name):
-                if name not in changed_descriptions:
-                    self.assertEqual(actual[name]["description"], expected[name]["description"])
-                self.assertEqual(actual[name]["inputSchema"], expected[name]["inputSchema"])
+        for t in registry.catalog()
+    ]
+
+
+class ContractTests(unittest.TestCase):
+    def test_tools_list_matches_the_v2_contract(self):
+        """The 2.0 contract of every tool (name, title, description, input and output schemas, annotations, profiles
+        and write arguments) is pinned. For an intended change, regenerate it with
+        `UPDATE_CONTRACT_FIXTURES=1 python -m pytest tests/test_registry.py -k v2_contract` and explain it in the PR."""
+        actual = _contract()
+        if os.environ.get("UPDATE_CONTRACT_FIXTURES") == "1":
+            FIXTURE.write_text(json.dumps(actual, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        expected = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        self.assertEqual([t["name"] for t in actual], [t["name"] for t in expected])
+        for want, got in zip(expected, actual, strict=True):
+            with self.subTest(tool=want["name"]):
+                self.assertEqual(got, want)
 
     def test_every_tool_function_is_registered_once_with_a_matching_signature(self):
         import inspect
@@ -74,10 +64,9 @@ class ContractTests(unittest.TestCase):
 
     def test_write_tools_come_from_the_registry(self):
         from noul import registry
-        from noul.server import legacy
 
         self.assertEqual(
-            legacy.WRITE_TOOLS,
+            registry.write_tools(),
             {
                 "download_papers",
                 "save_research_dossier",
@@ -89,12 +78,15 @@ class ContractTests(unittest.TestCase):
                 "project_note",
             },
         )
-        self.assertEqual(legacy.WRITE_TOOLS, registry.write_tools())
 
     def test_write_arguments_are_blocked_over_http_without_write_permission(self):
-        """sanitize_bibtex is read-only unless `output_path` is set; with it, HTTP without write access refuses."""
+        """sanitize_bibtex is read-only unless `output_path` is set; with it, a server without write access refuses."""
+        import anyio
+        from mcp import Client
+        from mcp.client._memory import InMemoryTransport
+
         from noul import registry
-        from noul.server import legacy
+        from noul.server.mcp import build_server
 
         self.assertTrue(registry.call_writes("sanitize_bibtex", {"bibtex_input": "x", "output_path": "out.bib"}))
         self.assertFalse(registry.call_writes("sanitize_bibtex", {"bibtex_input": "x"}))
@@ -102,19 +94,17 @@ class ContractTests(unittest.TestCase):
         self.assertTrue(registry.call_writes("download_papers", {"ids": ["a"]}))
         self.assertFalse(registry.call_writes("no_such_tool", {}))
 
-        def call(args, allow_write):
-            msg = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "sanitize_bibtex"}}
-            msg["params"]["arguments"] = args
-            return legacy.handle(msg, allow_write=allow_write)["result"]
+        async def session():
+            async with Client(InMemoryTransport(build_server(allow_write=False))) as client:
+                listed = {t.name for t in (await client.list_tools()).tools}
+                args = {"bibtex_input": "@article{a, title={T}}", "output_path": "clean.bib"}
+                return listed, await client.call_tool("sanitize_bibtex", args)
 
-        blocked = call({"bibtex_input": "@article{a, title={T}}", "output_path": "clean.bib"}, allow_write=False)
-        self.assertTrue(blocked["isError"])
-        self.assertIn("PermissionError", blocked["content"][0]["text"])
-        listed = {
-            t["name"]
-            for t in legacy.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, False)["result"]["tools"]
-        }
+        listed, blocked = anyio.run(session)
+        self.assertTrue(blocked.is_error)
+        self.assertIn("PermissionError", blocked.content[0].text)
         self.assertIn("sanitize_bibtex", listed)  # the read-only form stays available over HTTP
+        self.assertFalse(listed & registry.write_tools())
 
     def test_error_logs_do_not_echo_exception_messages(self):
         import io

@@ -2,7 +2,7 @@
 """Install the Noul Search skill, subagent, /noul-search-config command and MCP server into coding & desktop agents.
 Usage: noul-install [claude] [claude-desktop] [copilot] [codex] [gemini] [antigravity] [--all]
                     [--runner python|uvx|npx] [--dry-run] [--uninstall]
-       (from a checkout: python install.py ...)
+       (from a checkout: uv run noul-install ...)
 Everything is user-level (~/.claude, ~/.config/Claude, ~/.copilot, ~/.codex, ~/.gemini). Idempotent; an existing
 config file gets a one-time `.bak` copy before it is first modified."""
 
@@ -28,11 +28,10 @@ MARK = ("<!-- noul-search-agent:start -->", "<!-- noul-search-agent:end -->")
 TOML_MARK = ("# noul-search-agent:start", "# noul-search-agent:end")
 RUNNERS = ("python", "uvx", "npx")
 SKILL_REFS = ("__NOUL_DIR__/skills/noul-search/SKILL.md", "${CLAUDE_PLUGIN_ROOT}/skills/noul-search/SKILL.md")
-CLI_REFS = (
-    "uv run --project ${CLAUDE_PLUGIN_ROOT} noul",
-    "python3 __NOUL_DIR__/noul_cli.py",
-    "python3 ${CLAUDE_PLUGIN_ROOT}/noul_cli.py",
-)
+CLI_REFS = ("uv run --project ${CLAUDE_PLUGIN_ROOT} noul",)
+
+# Absolute-path launchers for when no console script is installed (see noul._bin).
+_LAUNCHERS = Path(__file__).resolve().parent / "_bin"
 
 DRY = False
 UNINSTALL = False
@@ -97,7 +96,7 @@ def mcp_command():
     script = _console_script("noul-mcp")
     if script:
         return str(script), []
-    return sys.executable, [str(REPO / "noul_mcp.py")]
+    return sys.executable, [str(_LAUNCHERS / "noul_mcp_launcher.py")]
 
 
 def cli_command():
@@ -110,7 +109,7 @@ def cli_command():
     script = _console_script("noul")
     if script:
         return _q(script)
-    return f"{_q(sys.executable)} {_q(REPO / 'noul_cli.py')}"
+    return f"{_q(sys.executable)} {_q(_LAUNCHERS / 'noul_cli_launcher.py')}"
 
 
 def _console_script(name):

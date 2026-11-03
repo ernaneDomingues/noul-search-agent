@@ -172,8 +172,17 @@ def _field_schema(field: Any, owner: type[BaseModel]) -> dict[str, Any]:
         schema["description"] = field.description
     if not field.is_required() and field.default is not None:
         schema["default"] = field.default
+    # Advertise every bound Pydantic enforces, so clients see the same limits the server applies.
+    is_array = schema.get("type") == "array"
+    bounds = (
+        ("ge", "minimum"),
+        ("le", "maximum"),
+        ("min_length", "minItems" if is_array else "minLength"),
+        ("max_length", "maxItems" if is_array else "maxLength"),
+        ("pattern", "pattern"),
+    )
     for meta in field.metadata:
-        for attr, key in (("ge", "minimum"), ("le", "maximum")):
+        for attr, key in bounds:
             if getattr(meta, attr, None) is not None:
                 schema[key] = getattr(meta, attr)
     return schema

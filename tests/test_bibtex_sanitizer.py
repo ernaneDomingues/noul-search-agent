@@ -9,12 +9,13 @@ import _support
 
 
 def setUpModule():
-    global c, t, cli, WS
+    global t, cli, WS, _errors, _net_cache
     env = _support.isolate_environment()
     WS = Path(env["NOUL_WORKSPACE"]).resolve()
-    import noul_cli as cli
-    import noul_core as c
-    import noul_tools as t
+    from noul import api as t
+    from noul import cli
+    from noul import errors as _errors
+    from noul.net import cache as _net_cache
 
 
 class BibtexSanitizerTests(unittest.TestCase):
@@ -32,7 +33,7 @@ class BibtexSanitizerTests(unittest.TestCase):
             "evidence": "empirical",
             "open_access": True,
         }
-        c.cache_set("paper:" + self.published_paper["id"], self.published_paper)
+        _net_cache.cache_set("paper:" + self.published_paper["id"], self.published_paper)
 
     def test_upgrades_arxiv_preprint_deduplicates_and_fixes_latex_escapes(self):
         raw_bib = """
@@ -113,7 +114,7 @@ class BibtexSanitizerTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("@inproceedings{", buf.getvalue())
 
-        with self.assertRaises(c.HTTPError) as ctx:
+        with self.assertRaises(_errors.HTTPError) as ctx:
             t.sanitize_bibtex("cli_test.bib", output_path="../escape_clean.bib")
         self.assertIn(ctx.exception.code, (400, 403))
 

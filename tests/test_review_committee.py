@@ -4,15 +4,14 @@ import io
 import unittest
 from contextlib import redirect_stdout
 
-import noul_cli
-import noul_core
-import noul_tools
+from noul import api, cli
+from noul.net import cache as _net_cache
 
 
 class ReviewCommitteeTests(unittest.TestCase):
     def setUp(self):
         self.cs_id = "arxiv:2501.90001"
-        noul_core.cache_set(
+        _net_cache.cache_set(
             "paper:" + self.cs_id,
             {
                 "id": self.cs_id,
@@ -33,7 +32,7 @@ class ReviewCommitteeTests(unittest.TestCase):
                 ),
             },
         )
-        noul_core.cache_set(
+        _net_cache.cache_set(
             "ft:" + self.cs_id,
             {
                 "text": (
@@ -48,7 +47,7 @@ class ReviewCommitteeTests(unittest.TestCase):
         )
 
         self.bio_id = "pmid:39000111"
-        noul_core.cache_set(
+        _net_cache.cache_set(
             "paper:" + self.bio_id,
             {
                 "id": self.bio_id,
@@ -70,7 +69,7 @@ class ReviewCommitteeTests(unittest.TestCase):
         )
 
         self.econ_id = "doi:10.1257/aer.20250099"
-        noul_core.cache_set(
+        _net_cache.cache_set(
             "paper:" + self.econ_id,
             {
                 "id": self.econ_id,
@@ -97,7 +96,7 @@ class ReviewCommitteeTests(unittest.TestCase):
         return " ".join(sig["description"] for sig in res["signals"] if sig["kind"] in ("concern", "gap")).lower()
 
     def test_cs_neurips_iclr_personas_and_omitted_controls(self):
-        res = noul_tools.call("review_paper", {"paper_id": self.cs_id})
+        res = api.call("review_paper", {"paper_id": self.cs_id})
         self.assertEqual(res["tool"], "review_paper")
         self.assertEqual(res["subject"]["domain"], "computer_science")
         self.assertIn("NeurIPS / ICLR", res["rubric_applied"])
@@ -125,9 +124,9 @@ class ReviewCommitteeTests(unittest.TestCase):
         self.assertIn(res["extraction_confidence"], ("low", "medium", "high"))
 
     def test_domain_switching_changes_rubric_personas_flaws_and_questions(self):
-        cs_res = noul_tools.review_paper(self.cs_id)
-        bio_res = noul_tools.review_paper(self.bio_id)
-        econ_res = noul_tools.review_paper(self.econ_id)
+        cs_res = api.review_paper(self.cs_id)
+        bio_res = api.review_paper(self.bio_id)
+        econ_res = api.review_paper(self.econ_id)
 
         self.assertEqual(bio_res["subject"]["domain"], "biomedical")
         self.assertEqual(econ_res["subject"]["domain"], "economics")
@@ -159,14 +158,14 @@ class ReviewCommitteeTests(unittest.TestCase):
         self.assertNotEqual(bio_res["questions_for_authors"], econ_res["questions_for_authors"])
 
     def test_alias_and_cli_pretty(self):
-        alias_res = noul_tools.call("review_paper_scientific", {"paper_id": self.econ_id, "inspect_fulltext": False})
+        alias_res = api.call("review_paper_scientific", {"paper_id": self.econ_id, "inspect_fulltext": False})
         self.assertEqual(alias_res["subject"]["domain"], "economics")
         self.assertEqual(alias_res["extraction_confidence"], "low")
         self.assertIn("# Peer-review evidence", alias_res["rendered_markdown"])
 
         buf = io.StringIO()
         with redirect_stdout(buf):
-            rc = noul_cli.main(["review", self.cs_id, "--pretty"])
+            rc = cli.main(["review", self.cs_id, "--pretty"])
         self.assertEqual(rc, 0)
         out = buf.getvalue()
         self.assertIn("# Peer-review evidence", out)

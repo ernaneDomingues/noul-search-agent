@@ -42,11 +42,10 @@ The model must answer in JSON:
 
 
 def setUpModule():
-    global c, t, cli
+    global t, cli
     _support.isolate_environment()
-    import noul_cli as cli
-    import noul_core as c
-    import noul_tools as t
+    from noul import api as t
+    from noul import cli
 
 
 class PromptExtractorTests(unittest.TestCase):
@@ -55,7 +54,7 @@ class PromptExtractorTests(unittest.TestCase):
             patcher = mock.patch(_support.core_target(name), side_effect=_support.no_network)
             patcher.start()
             self.addCleanup(patcher.stop)
-        self.pid = _support.seed_fulltext_paper(c, "doi:10.1000/prompts", FULLTEXT, title="Prompting paper")
+        self.pid = _support.seed_fulltext_paper("doi:10.1000/prompts", FULLTEXT, title="Prompting paper")
 
     def _extract(self, pid=None):
         return t.call("extract_prompts_and_decoding", {"paper_id": pid or self.pid})
@@ -86,7 +85,6 @@ class PromptExtractorTests(unittest.TestCase):
 
     def test_alternative_hyperparameter_phrasings(self):
         pid = _support.seed_fulltext_paper(
-            c,
             "doi:10.1000/prompts-alt",
             (
                 "We decode with a temp of 0.0. Sampling baselines use T = 0.2, nucleus sampling p = 0.9, top_k=40 and "
@@ -113,9 +111,7 @@ class PromptExtractorTests(unittest.TestCase):
         self.assertEqual(self._extract()["json_schemas"], ['{"answer": "<string>", "confidence": 0.0}'])
 
     def test_paper_without_prompts_warns(self):
-        pid = _support.seed_fulltext_paper(
-            c, "doi:10.1000/prompts-none", "We study sparse transformers.\n", title="None"
-        )
+        pid = _support.seed_fulltext_paper("doi:10.1000/prompts-none", "We study sparse transformers.\n", title="None")
         out = self._extract(pid)
         self.assertEqual((out["prompts"], out["hyperparameters"], out["json_schemas"]), ([], {}, []))
         self.assertTrue(any("No prompt templates" in w for w in out["warnings"]))
