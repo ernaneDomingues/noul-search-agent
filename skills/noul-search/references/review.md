@@ -9,7 +9,7 @@ failure modes or its reproducibility. Noul gathers the evidence; the review and 
 2. **Collect the evidence** (call what fits the paper and the request):
    - `review_paper(paper_id)` - the domain's reviewer personas (CS/AI, biomedical, economics, general STEM) with
      `signals` (strengths, concerns, gaps), `perspectives`, `questions_for_authors`, `missing_experiments_or_controls`
-     and the domain `rubric`;
+     and the domain `rubric` (pass `domain=` when `get_paper`/`detect_paper_domain` shows the detected domain is wrong);
    - `verify_paper_claims(paper_id, claims=[...])` - where each claim's numbers and wording appear: `best_match` and
      `other_matches` with section/page, `numbers_found` / `numbers_missing`, `hedging_cues_missing_in_text`. Without
      `claims`, it checks the headline claims of the abstract;

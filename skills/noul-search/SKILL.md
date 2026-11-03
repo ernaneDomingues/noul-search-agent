@@ -10,11 +10,14 @@ section and page), heuristic signals, checklists and rubrics - never verdicts. Y
 grounded in what the tools returned.
 
 Tools: MCP server `noul` (<!-- noul:tools:start -->`search_papers`, `clarify_search_scope`, `get_paper`, `detect_paper_domain`, `scan_paper_artifacts`, `get_paper_references`, `compare_papers`, `get_thematic_insights`, `generate_research_hypotheses`, `export_obsidian_notes`, `suggest_boolean_queries`, `extract_benchmark_tables`, `estimate_hardware_specs`, `verify_paper_claims`, `extract_paper_math`, `analyze_ablation_tables`, `extract_prompts_and_decoding`, `detect_failure_modes`, `diff_arxiv_versions`, `review_paper`, `review_paper_scientific`, `scaffold_implementation`, `scaffold_paper_code`, `recommend_citations`, `synthesize_related_work`, `generate_manuscript_blueprint`, `audit_manuscript_draft`, `sanitize_bibtex`, `parse_and_draft_rebuttal`, `audit_submission_readiness`, `get_fulltext`, `query_fulltexts`, `citation_graph`, `related_papers`, `download_papers`, `export_papers`, `save_research_dossier`, `list_research_dossiers`, `get_research_dossier`, `configure_noul`, `evidence_meter`, `project_create`, `project_list`, `project_get`, `project_add_papers`, `project_set_status`, `project_note`<!-- noul:tools:end -->).
-If MCP is unavailable, use the CLI: `uv run --project ${CLAUDE_PLUGIN_ROOT} noul search "<query>"` (also `clarify`, `domain`, `references`, `artifacts`, `compare`, `insights`, `hypotheses`, `expand`, `benchmarks`, `hardware`, `ground`, `math`, `ablation`, `prompts`, `failures`, `diff`, `review`, `scaffold`, `cite`, `related-work`, `draft`, `bibtex`, `rebuttal`, `gatekeeper`, `paper`, `fulltext`, `ask`, `graph`, `related`, `download`, `export`, `dossier`, `project`, `meter`, `config`).
+If MCP is unavailable, use the CLI: `uv run --project ${CLAUDE_PLUGIN_ROOT} noul search "<query>"` (also `clarify`, `domain`, `references`, `artifacts`, `compare`, `insights`, `hypotheses`, `expand`, `benchmarks`, `hardware`, `ground`, `math`, `ablation`, `prompts`, `failures`, `diff`, `review`, `scaffold`, `cite`, `related-work`, `draft`, `bibtex`, `rebuttal`, `gatekeeper`, `paper`, `fulltext`, `ask`, `graph`, `related`, `download`, `export`, `dossier`, `project`, `meter`, `config`). Run `noul <subcommand> --help` for arguments; some group subcommands
+(`noul project create|list|show|add|status|note`, `noul gatekeeper audit`).
 
 Some clients expose only a tool profile (`research` by default over HTTP): if a tool you need is missing, tell the
 user it is in the `review` or `write` profile (`NOUL_TOOL_PROFILE` / `noul-mcp --profile`). The MCP prompts
-`noul-research`, `noul-review` and `noul-write` summarise the same workflows.
+`noul-research`, `noul-review` and `noul-write` summarise the same workflows. Over HTTP the tools that write
+(projects, dossiers, downloads, configuration) are off unless the server enables them, and the public connector is
+read-only `research`: say so and give the result inline instead of a saved project or file.
 
 ## Pick the journey, then read its reference
 | The user wants to... | Read |

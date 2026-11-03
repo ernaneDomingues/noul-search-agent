@@ -20,7 +20,7 @@ finding related or cited papers, downloading PDFs and keeping a research project
    - Use `query_fulltexts` or `get_fulltext` to check exact methods, sample sizes, dosages, or benchmarks across key papers: they return the best passages with their section (and page, for PDFs); quote them and cite the location.
    - Use `related_papers` (`relation: "all" | "similar" | "references" | "citing"`) to find landmark studies, semantically close papers, or contradicting evidence.
    - Use `get_paper_references(paper_id, direction, sort_by="influential")` to walk the citation graph by influence; every returned `paper_id` can be chained into `get_paper`, `get_paper_references` or `download_papers`.
-   - For CS/AI (reproducibility), use `scan_paper_artifacts(id)` to check for live code, weights and datasets; report `evasive_availability_statement` ("available on request") as a reproducibility limitation.
+   - For CS/AI (reproducibility), use `scan_paper_artifacts(id)` (`review` profile) to check for live code, weights and datasets; report `evasive_availability_statement` ("available on request") as a reproducibility limitation.
 6. **Compute the meter** (yes/no questions): call `evidence_meter(items=[{"id": "<paper_id>", "stance": "supportive|inconclusive|contrary"}, ...])` with your classifications. Report its `raw_percentages` and `weighted_percentages`; do not compute percentages yourself.
 7. **Answer** in the user's language using this structure:
    - **Evidence Meter (Noul Meter)**: `Supportive N% · Inconclusive N% · Contrary N%` from `evidence_meter` (state total classified papers $N$ and whether the design-weighted percentages agree with the raw count). Note that it is a literature heuristic, not a pooled meta-analysis.

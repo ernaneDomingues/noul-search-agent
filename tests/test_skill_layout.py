@@ -47,6 +47,38 @@ class SkillLayoutTests(unittest.TestCase):
                 with self.subTest(file=path.name, tool=called):
                     self.assertIn(called, names)
 
+    def test_tool_calls_use_real_parameters(self):
+        # `tool(a, b=..., c?)` in the skill: every named argument must be a field of the tool's input model.
+        from noul import registry
+
+        tools = registry._loaded()
+        for path in [SKILL / "SKILL.md", *sorted((SKILL / "references").glob("*.md"))]:
+            text = path.read_text(encoding="utf-8")
+            for name, args in re.findall(r"`([a-z][a-z_]{3,})\(([^`]*)\)`", text):
+                fields = set(tools[name].input.model_fields)
+                # Drop nested literals ([...], {...}, "...") before splitting on commas.
+                flat = re.sub(r"\[[^\]]*\]|\{[^}]*\}|\"[^\"]*\"", "", args)
+                for arg in filter(None, (a.strip() for a in flat.split(","))):
+                    param = re.split(r"[=?\s]", arg, maxsplit=1)[0]
+                    if param in {"", "..."}:
+                        continue
+                    with self.subTest(file=path.name, tool=name, param=param):
+                        self.assertIn(param, fields)
+
+    def test_cli_subcommands_listed_in_the_skill_exist(self):
+        from noul import cli
+
+        out = io.StringIO()
+        with redirect_stdout(out), self.assertRaises(SystemExit):
+            cli.main(["--help"])
+        choices = set(re.search(r"\{([a-z,-]+)\}", out.getvalue()).group(1).split(","))
+        router = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+        listed = re.search(r"If MCP is unavailable.*?\(also (.*?)\)", router, re.S)
+        self.assertIsNotNone(listed)
+        for sub in re.findall(r"`([a-z-]+)`", listed.group(1)):
+            with self.subTest(subcommand=sub):
+                self.assertIn(sub, choices)
+
     def test_installer_copies_the_references(self):
         from noul import install
 
@@ -57,6 +89,11 @@ class SkillLayoutTests(unittest.TestCase):
         installed = home / ".claude/skills/noul-search"
         self.assertTrue((installed / "SKILL.md").is_file())
         self.assertEqual(sorted(p.stem for p in (installed / "references").glob("*.md")), sorted(JOURNEYS))
+
+    def test_single_file_executable_bundles_the_references(self):
+        # The frozen installer reads templates from sys._MEIPASS: the spec must ship references/ with SKILL.md.
+        spec = (_support.ROOT / "packaging/pyinstaller/noul.spec").read_text(encoding="utf-8")
+        self.assertIn('"skills/noul-search/references"', spec)
 
 
 class EvalCaseTests(unittest.TestCase):

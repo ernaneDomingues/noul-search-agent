@@ -40,6 +40,8 @@ MCPB_CLI = "@anthropic-ai/mcpb@2.1.2"
 PLATFORMS = ("darwin", "linux", "win32")
 UV_FILES = ("pyproject.toml", "uv.lock", "README.md", "LICENSE")
 UV_DIRS = ("src", "skills", "agents", "commands")  # skills/agents/commands are wheel data-files
+# Skill eval cases are for developers (`claude plugin eval`), not for the installed extension.
+UV_EXCLUDE = (":(exclude)skills/*/evals/*",)
 # Root-level launcher for hosts that run `uv run --directory <bundle> <entry_point>` themselves. Running
 # src/noul/server/mcp.py directly would put src/noul/server/ first on sys.path, where mcp.py shadows the `mcp` SDK
 # and http.py the stdlib `http`.
@@ -163,7 +165,7 @@ def tracked_files():
     """Files of the uv bundle: UV_FILES plus everything git tracks under UV_DIRS (an allow-list, so untracked
     secrets, caches or build output in a working copy never end up in the extension)."""
     out = subprocess.run(
-        ["git", "-C", str(ROOT), "ls-files", "-z", "--", *UV_DIRS],
+        ["git", "-C", str(ROOT), "ls-files", "-z", "--", *UV_DIRS, *UV_EXCLUDE],
         check=True,
         capture_output=True,
     ).stdout.decode("utf-8")
