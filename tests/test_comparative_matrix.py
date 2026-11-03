@@ -10,16 +10,17 @@ import _support
 
 
 def setUpModule():
-    global c, t, cli
+    global t, cli, _errors, _net_cache
     _support.isolate_environment()
-    import noul_cli as cli
-    import noul_core as c
-    import noul_tools as t
+    from noul import api as t
+    from noul import cli
+    from noul import errors as _errors
+    from noul.net import cache as _net_cache
 
 
 class CompareTests(unittest.TestCase):
     def setUp(self):
-        self.ids = _support.seed_phase2_papers(c, ["llm_a", "rct", "mice"])
+        self.ids = _support.seed_phase2_papers(["llm_a", "rct", "mice"])
         patcher = mock.patch(_support.core_target("_http_json"), side_effect=_support.no_network)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -55,7 +56,7 @@ class CompareTests(unittest.TestCase):
         self.assertIn("Evasive availability statement", lims)
 
     def test_markdown_table_and_summaries(self):
-        c.cache_set(
+        _net_cache.cache_set(
             "paper:doi:10.1000/pipe",
             {
                 **_support.PHASE2_PAPERS["llm_a"],
@@ -88,10 +89,10 @@ class CompareTests(unittest.TestCase):
 
     def test_validation_errors(self):
         for bad in ([], ["  "], [1, 2], ["x"] * 0 + [f"id{i}" for i in range(11)]):
-            with self.subTest(bad=bad), self.assertRaises(c.HTTPError) as ctx:
+            with self.subTest(bad=bad), self.assertRaises(_errors.HTTPError) as ctx:
                 t.compare_papers(bad)
             self.assertEqual(ctx.exception.code, 400)
-        with self.assertRaises(c.HTTPError) as ctx:
+        with self.assertRaises(_errors.HTTPError) as ctx:
             t.call("compare_papers", {"paper_ids": "doi:10.1000/rct"})
         self.assertEqual(ctx.exception.code, 400)
 

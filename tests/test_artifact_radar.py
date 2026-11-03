@@ -12,11 +12,12 @@ from noul.providers import artifact_radar as ar
 
 
 def setUpModule():
-    global c, t, cli
+    global t, cli, _net_cache, _providers_s2
     _support.isolate_environment()
-    import noul_cli as cli
-    import noul_core as c
-    import noul_tools as t
+    from noul import api as t
+    from noul import cli
+    from noul.net import cache as _net_cache
+    from noul.providers import s2 as _providers_s2
 
 
 class FakeResp:
@@ -178,10 +179,10 @@ PAPER = {
 
 class PipelineToolCliTests(unittest.TestCase):
     def setUp(self):
-        c.cache_set("paper:" + PAPER["id"], dict(PAPER))
+        _net_cache.cache_set("paper:" + PAPER["id"], dict(PAPER))
 
     def test_parsers_flag_artifacts_offline(self):
-        p = c._parse_s2_paper({"paperId": "s1", "title": "X", "abstract": "Data: https://osf.io/xyz12"})
+        p = _providers_s2._parse_s2_paper({"paperId": "s1", "title": "X", "abstract": "Data: https://osf.io/xyz12"})
         self.assertTrue(p["has_dataset"])
         self.assertFalse(p["artifacts"]["dataset_verified"])
         self.assertTrue(t._slim(p)["has_dataset"])
@@ -195,7 +196,7 @@ class PipelineToolCliTests(unittest.TestCase):
             (True, "https://github.com/acme/fastlm", True),
         )
         self.assertEqual(len(calls), 1)
-        self.assertTrue(c.cache_get("paper:" + PAPER["id"])["artifacts"]["code_verified"])
+        self.assertTrue(_net_cache.cache_get("paper:" + PAPER["id"])["artifacts"]["code_verified"])
 
     def test_cli_no_verify(self):
         buf = io.StringIO()

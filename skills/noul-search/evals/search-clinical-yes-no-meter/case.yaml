@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: search-clinical-yes-no-meter
+expected_outcome: |
+  A cited synthesis of studies on creatine and memory in healthy adults with an Evidence Meter computed by the
+  evidence_meter tool from per-paper stances, a key-studies table, limitations and a not-medical-advice note;
+  only papers returned by Noul are cited.

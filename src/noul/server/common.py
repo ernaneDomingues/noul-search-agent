@@ -1,4 +1,4 @@
-"""Pieces shared by the MCP servers (SDK-based `noul.server.mcp`/`noul.server.http` and the legacy server)."""
+"""Pieces shared by the MCP server (`noul.server.mcp`) and its HTTP transport (`noul.server.http`)."""
 
 import copy
 import ipaddress
@@ -86,7 +86,7 @@ def _with_public_bounds(tool):
         if prop is None:
             continue
         if prop.get("type") == "array":
-            prop["maxItems"] = cap
+            prop["maxItems"] = min(cap, prop.get("maxItems", cap))  # a public cap only ever lowers the limit
         else:
             prop["maximum"] = min(cap, prop.get("maximum", cap))
     return {**tool, "inputSchema": schema}
@@ -155,7 +155,7 @@ def openapi_spec(host=f"http://localhost:{DEFAULT_PORT}", exclude=(), profile=No
         "info": {
             "title": "Noul Search Agent API",
             "version": __version__,
-            "description": "Scientific literature search, Evidence Meter synthesis support, PDF download, and research dossiers.",
+            "description": "Scientific literature search, Evidence Meter synthesis support, full-text passages, PDF download and research projects.",
         },
         "servers": [{"url": host}],
         "paths": paths,

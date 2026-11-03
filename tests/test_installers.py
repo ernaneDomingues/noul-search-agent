@@ -207,8 +207,17 @@ class McpbManifestTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             staged = build_mcpb.stage("uv", tmp)
-            for name in ("manifest.json", "pyproject.toml", "uv.lock", "icon.png", "src/noul/server/mcp.py"):
+            for name in (
+                "manifest.json",
+                "pyproject.toml",
+                "uv.lock",
+                "icon.png",
+                "src/noul/server/mcp.py",
+                "skills/noul-search/SKILL.md",
+                "skills/noul-search/references/review.md",
+            ):
                 self.assertTrue((staged / name).exists(), name)
+            self.assertFalse((staged / "skills/noul-search/evals").exists())  # developer-only eval cases
             self.assertIn("from noul.server.mcp import main", (staged / build_mcpb.UV_ENTRY).read_text())
             self.assertFalse(list(staged.rglob("__pycache__")))
         # Allow-list: only files git tracks under the bundled folders.

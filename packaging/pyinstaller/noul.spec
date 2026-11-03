@@ -9,6 +9,7 @@ ROOT = Path(SPECPATH).resolve().parent.parent  # noqa: F821 (SPECPATH is provide
 
 datas = [
     (str(ROOT / "skills/noul-search/SKILL.md"), "skills/noul-search"),
+    (str(ROOT / "skills/noul-search/references"), "skills/noul-search/references"),
     (str(ROOT / "agents"), "agents"),
     (str(ROOT / "commands"), "commands"),
 ]

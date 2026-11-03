@@ -147,20 +147,24 @@ PHASE2_PAPERS = {
 }
 
 
-def seed_phase2_papers(core, keys=None):
+def seed_phase2_papers(keys=None):
     """Cache the Phase 2 fixture papers and return their ids (in `keys` order)."""
     import copy
+
+    from noul.net import cache as _cache
 
     ids = []
     for key in keys or PHASE2_PAPERS:
         p = copy.deepcopy(PHASE2_PAPERS[key])
-        core.cache_set("paper:" + p["id"], p)
+        _cache.cache_set("paper:" + p["id"], p)
         ids.append(p["id"])
     return ids
 
 
-def seed_fulltext_paper(core, pid, text, **meta):
+def seed_fulltext_paper(pid, text, **meta):
     """Phase 3: cache a paper plus its open-access full text (`ft:<id>`) so tools never hit the network."""
+    from noul.net import cache as _cache
+
     paper = {
         "id": pid,
         "doi": pid.split(":", 1)[-1],
@@ -176,14 +180,14 @@ def seed_fulltext_paper(core, pid, text, **meta):
         "sources": ["arxiv"],
         **meta,
     }
-    core.cache_set("paper:" + pid, paper)
+    _cache.cache_set("paper:" + pid, paper)
     if text is not None:
-        core.cache_set("ft:" + pid, {"text": text, "source": "test", "url": None})
+        _cache.cache_set("ft:" + pid, {"text": text, "source": "test", "url": None})
     return pid
 
 
-# Where each former `noul_core` symbol lives now (Phase 1a split). Patch the new home: the `noul_core`
-# shim only re-exports objects, so patching the shim no longer reaches the code that uses them.
+# Where each former v1 `noul_core` symbol lives (Phase 1a split; the shim was removed in 2.0.0). Tests patch
+# these homes through `core_target`.
 CORE_HOMES = {
     "ARXIV_RE": "noul.ids",
     "DEFAULT_SOURCES": "noul.search.engine",

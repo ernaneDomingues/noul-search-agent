@@ -25,6 +25,7 @@ on:
       - "scripts/build_mcpb.py"
       - "scripts/smoke_mcp.py"
       - "src/noul/install.py"
+      - "src/noul/_bin/**"
       - "uv.lock"
       - ".github/workflows/release.yml"
 

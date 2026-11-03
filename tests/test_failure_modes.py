@@ -38,11 +38,10 @@ Under the condition of parallel trends and no unmeasured confounding, the estima
 
 
 def setUpModule():
-    global c, t, cli
+    global t, cli
     _support.isolate_environment()
-    import noul_cli as cli
-    import noul_core as c
-    import noul_tools as t
+    from noul import api as t
+    from noul import cli
 
 
 class FailureModesTests(unittest.TestCase):
@@ -52,7 +51,6 @@ class FailureModesTests(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
         self.pid = _support.seed_fulltext_paper(
-            c,
             "doi:10.1000/failure-modes",
             FULLTEXT,
             title="NoulReasoner: Multi-step Reasoning",

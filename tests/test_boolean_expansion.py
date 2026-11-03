@@ -12,16 +12,16 @@ STRATEGIES = ["precision_deepening", "synonym_and_method_expansion", "noise_excl
 
 
 def setUpModule():
-    global c, t, cli
+    global t, cli, _errors
     _support.isolate_environment()
-    import noul_cli as cli
-    import noul_core as c
-    import noul_tools as t
+    from noul import api as t
+    from noul import cli
+    from noul import errors as _errors
 
 
 class BooleanExpansionTests(unittest.TestCase):
     def setUp(self):
-        self.ids = _support.seed_phase2_papers(c)
+        self.ids = _support.seed_phase2_papers()
         self.llm_ids = [i for i in self.ids if i.endswith(("qlora", "gptq"))]
         patcher = mock.patch(_support.core_target("_http_json"), side_effect=_support.no_network)
         patcher.start()
@@ -75,7 +75,7 @@ class BooleanExpansionTests(unittest.TestCase):
         self.assertEqual(len(out["suggestions"]), 3)
 
         for bad in ({}, {"query": "  ", "paper_ids": []}, {"paper_ids": "doi:10.1000/x"}):
-            with self.assertRaises(c.HTTPError) as ctx:
+            with self.assertRaises(_errors.HTTPError) as ctx:
                 t.call("suggest_boolean_queries", bad)
             self.assertEqual(ctx.exception.code, 400)
 

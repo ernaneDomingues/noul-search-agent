@@ -13,12 +13,11 @@ Zero chaves de API obrigatórias e nenhum LLM próprio: o LLM do agente que voc�
 | `src/noul/evidence/`, `src/noul/library/`, `src/noul/net/` | Classificação de desenho de estudo e faixas de impacto; texto completo, grafo de citações, downloads e exportação; HTTP com proteção SSRF e cache SQLite |
 | `src/noul/registry.py`, `src/noul/api.py`, `src/noul/schemas/tool_inputs.py` | **47 ferramentas MCP**: registro único (`@tool`), funções e modelos de entrada Pydantic, usados pelo MCP, pelo HTTP/OpenAPI e pela CLI (`noul tool <nome> --args '<json>'`) |
 | `src/noul/tools/`, `src/noul/schemas/`, `src/noul/prompts/` | Ferramentas das Fases 1 a 6, contratos Pydantic v2 e rubricas (`NeurIPS/ICLR`, `CONSORT/STROBE/PRISMA`, `Econometria Causal`) |
-| `src/noul/server/` | Servidor MCP no SDK oficial (`mcp.py`: stdio, *prompts*, progresso, *elicitation*) e servidor HTTP endurecido (`http.py`: Streamable HTTP em `/mcp`, OpenAPI em `/openapi.json`, `/healthz`, `POST /tools/<nome>`); `legacy.py` = servidor v1 (`--legacy`) |
+| `src/noul/server/` | Servidor MCP no SDK oficial (`mcp.py`: stdio, *prompts*, progresso, *elicitation*) e servidor HTTP endurecido (`http.py`: Streamable HTTP em `/mcp`, OpenAPI em `/openapi.json`, `/healthz`, `POST /tools/<nome>`) |
 | `src/noul/cli/` | CLI (`noul`, ou `python -m noul`) para terminal (`--pretty`, `search --interactive`) ou agentes sem MCP; também expõe `mcp` e `install` |
-| `src/noul/install.py` | Instalador idempotente em nível de usuário (`noul-install`) |
-| `noul_core.py`, `noul_tools.py`, `noul_mcp.py`, `noul_cli.py`, `install.py` | *Shims* de compatibilidade (obsoletos; removidos na 2.0.0) |
+| `src/noul/install.py`, `src/noul/_bin/` | Instalador idempotente em nível de usuário (`noul-install`) e os *launchers* de caminho absoluto que ele usa quando não há *console script* (checkout do código-fonte) |
 | `site/` & `scripts/build_site.py` | Landing Page responsiva (Modo Claro/Escuro), simulador de terminal interativo e catálogo sincronizado das 47 ferramentas MCP publicado via GitHub Pages (`.github/workflows/deploy-pages.yml`) |
-| `skills/noul-search/SKILL.md` | Fluxo de pesquisa, auditoria técnica, revisão por pares, autoria científica e conversa sobre os artigos |
+| `skills/noul-search/` | Skill em camadas: `SKILL.md` (roteador e regras comuns), `references/` (busca, revisão, escrita, submissão) e `evals/` (12 casos no formato do `claude plugin eval`) |
 | `agents/`, `commands/` | Subagentes/extensões (Claude, Copilot, Codex, Gemini) e o comando `/noul-search-config` |
 | `.claude-plugin/`, `plugin.json`, `pyproject.toml`, `package.json` + `bin/noul.js`, `Dockerfile` | Distribuição: plugin do Claude Code / Antigravity, PyPI (`pip`/`pipx`/`uvx`), npm (`npx`) e contêiner (Cloud Run) |
 
@@ -28,7 +27,7 @@ Zero chaves de API obrigatórias e nenhum LLM próprio: o LLM do agente que voc�
 
 **Perfis de ferramentas.** Para não sobrecarregar o contexto do modelo, o servidor expõe um perfil: `research` (núcleo de busca, leitura, Evidence Meter, projetos de pesquisa, dossiês e downloads, 23 ferramentas), `review` (núcleo + revisão e auditoria técnica), `write` (núcleo + autoria, BibTeX e submissão) ou `all` (as 47). Padrão: `all` no uso local (stdio: plugin, CLI, `noul-install`) e `research` no servidor HTTP/remoto. Mude com `noul-mcp --profile review` ou `NOUL_TOOL_PROFILE=write` (um valor inválido em `NOUL_TOOL_PROFILE` só gera um aviso e usa o padrão).
 
-O servidor MCP usa o SDK oficial (`mcp` 2.x): stdio e Streamable HTTP (`/mcp`), *annotations* por ferramenta (somente leitura, destrutiva, acesso à rede), `structuredContent` (com `outputSchema` nas ferramentas que já têm modelo de resultado), *prompts* (`noul-research`, `noul-review`, `noul-write`), progresso por fonte em `search_papers` e, em stdio, um pedido único do e-mail de contato (na primeira busca de texto completo ou PDF, se ainda não configurado; uma recusa é lembrada). O servidor v1 continua disponível com `noul-mcp --legacy` até a 2.0.0.
+O servidor MCP usa o SDK oficial (`mcp` 2.x): stdio e Streamable HTTP (`/mcp`), *annotations* por ferramenta (somente leitura, destrutiva, acesso à rede), `structuredContent` (com `outputSchema` nas ferramentas que já têm modelo de resultado), *prompts* (`noul-research`, `noul-review`, `noul-write`), progresso por fonte em `search_papers` e, em stdio, um pedido único do e-mail de contato (na primeira busca de texto completo ou PDF, se ainda não configurado; uma recusa é lembrada).
 
 Gerado a partir do registro (`src/noul/registry.py`) por `scripts/build_site.py`; não edite à mão.
 

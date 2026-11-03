@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: submission-neurips-anonymity
+expected_outcome: |
+  audit_submission_readiness findings confirmed against the manuscript: the author block, the identifying GitHub
+  URL and the first-person self-citation flagged as blocking for a double-blind venue; missing mandatory
+  sections/checklist items listed; an explicit readiness judgement made by the model with an ordered fix list;
+  no numeric readiness score invented.
+context:
+  scaffold_script: place-files.sh

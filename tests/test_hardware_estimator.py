@@ -29,11 +29,11 @@ MOE = (
 
 
 def setUpModule():
-    global c, t, cli
+    global t, cli, _errors
     _support.isolate_environment()
-    import noul_cli as cli
-    import noul_core as c
-    import noul_tools as t
+    from noul import api as t
+    from noul import cli
+    from noul import errors as _errors
 
 
 class HardwareEstimatorTests(unittest.TestCase):
@@ -42,9 +42,9 @@ class HardwareEstimatorTests(unittest.TestCase):
             patcher = mock.patch(_support.core_target(name), side_effect=_support.no_network)
             patcher.start()
             self.addCleanup(patcher.stop)
-        self.small = _support.seed_fulltext_paper(c, "doi:10.1000/atlas7b", SMALL, title="Atlas-7B: an open model")
-        self.large = _support.seed_fulltext_paper(c, "doi:10.1000/titan", LARGE[1], title=LARGE[0])
-        self.moe = _support.seed_fulltext_paper(c, "doi:10.1000/mixtral", MOE, title="Mixtral of Experts")
+        self.small = _support.seed_fulltext_paper("doi:10.1000/atlas7b", SMALL, title="Atlas-7B: an open model")
+        self.large = _support.seed_fulltext_paper("doi:10.1000/titan", LARGE[1], title=LARGE[0])
+        self.moe = _support.seed_fulltext_paper("doi:10.1000/mixtral", MOE, title="Mixtral of Experts")
 
     def test_small_dense_model_runs_on_consumer_gpu(self):
         out = t.call("estimate_hardware_specs", {"paper_id": self.small})
@@ -82,18 +82,17 @@ class HardwareEstimatorTests(unittest.TestCase):
         self.assertEqual((out["total_parameters_billion"], out["active_parameters_billion"]), (47.0, 13.0))
         self.assertEqual(out["reported_training_hardware"], "TPU v4-1024")
         self.assertEqual(out["operational_tier"], "workstation")
-        _support.seed_fulltext_paper(c, "doi:10.1000/moe2", "An 8x7B sparse MoE model.", title="MoE")
+        _support.seed_fulltext_paper("doi:10.1000/moe2", "An 8x7B sparse MoE model.", title="MoE")
         derived = t.estimate_hardware_specs("doi:10.1000/moe2")
         self.assertEqual((derived["total_parameters_billion"], derived["active_parameters_billion"]), (46.7, 12.7))
         _support.seed_fulltext_paper(
-            c, "doi:10.1000/ds", "DeepSeek has 671B parameters with 37B activated.", title="DeepSeek"
+            "doi:10.1000/ds", "DeepSeek has 671B parameters with 37B activated.", title="DeepSeek"
         )
         ds = t.estimate_hardware_specs("doi:10.1000/ds")
         self.assertEqual((ds["architecture_type"], ds["active_parameters_billion"]), ("moe", 37.0))
 
     def test_defaults_and_special_architectures(self):
         _support.seed_fulltext_paper(
-            c,
             "doi:10.1000/bert",
             None,
             open_access=False,
@@ -104,7 +103,6 @@ class HardwareEstimatorTests(unittest.TestCase):
         self.assertEqual((bert["total_parameters_billion"], bert["architecture_type"]), (0.11, "encoder_only"))
         self.assertEqual(bert["fp16"]["kv_cache_8k_context_gb"], round(bert["fp16"]["weights_gb"] * 0.05, 2))
         _support.seed_fulltext_paper(
-            c,
             "doi:10.1000/none",
             None,
             open_access=False,
@@ -114,7 +112,7 @@ class HardwareEstimatorTests(unittest.TestCase):
         ssm = t.estimate_hardware_specs("doi:10.1000/none")
         self.assertEqual((ssm["total_parameters_billion"], ssm["architecture_type"]), (0.35, "rnn_ssm"))
         _support.seed_fulltext_paper(
-            c, "doi:10.1000/blank", None, open_access=False, title="On things", abstract="Nothing about sizes here."
+            "doi:10.1000/blank", None, open_access=False, title="On things", abstract="Nothing about sizes here."
         )
         blank = t.estimate_hardware_specs("doi:10.1000/blank")
         self.assertEqual(blank["total_parameters_billion"], 7.0)
@@ -125,7 +123,7 @@ class HardwareEstimatorTests(unittest.TestCase):
             {"context_length": 0},
             {"total_params_b": 7, "active_params_b": 9},
         ):
-            with self.subTest(kwargs=kwargs), self.assertRaises(c.HTTPError) as ctx:
+            with self.subTest(kwargs=kwargs), self.assertRaises(_errors.HTTPError) as ctx:
                 t.estimate_hardware_specs(self.small, **kwargs)
             self.assertEqual(ctx.exception.code, 400)
 

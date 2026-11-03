@@ -1,0 +1,7 @@
+Reviewer 1:
+- The paper lacks an ablation study of the routing gate; please add experiments with and without the gate.
+- Notation in Section 3 is inconsistent (L vs mathcal L).
+
+Reviewer 2:
+- Results are reported for a single seed; please report mean and standard deviation over at least 5 seeds.
+- The comparison omits the Mixture-of-Experts baseline, which is the most relevant competitor.

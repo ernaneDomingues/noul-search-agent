@@ -9,7 +9,7 @@
     {
       "name": "noul-search-agent",
       "source": ".",
-      "description": "Scientific literature search with evidence levels, Evidence Meter, PDF download and research dossiers.",
+      "description": "Scientific literature search with evidence levels, Evidence Meter, PDF download and persistent research projects.",
       "category": "research",
       "tags": ["research", "science", "evidence", "mcp"]
     }

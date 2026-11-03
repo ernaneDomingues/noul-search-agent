@@ -1,6 +1,6 @@
 ---
 name: security-reviewer
-description: Read-only security reviewer for changes to networking, downloads, file paths, the HTTP server or the installer. Use before opening a PR that touches noul_core networking, noul_mcp HTTP handling, install.py or any code that writes files.
+description: Read-only security reviewer for changes to networking, downloads, file paths, the HTTP server or the installer. Use before opening a PR that touches src/noul/net (networking), src/noul/server (MCP/HTTP handling), src/noul/install.py, the noul._bin launchers or any code that writes files.
 tools: Read, Grep, Glob, Bash
 ---
 

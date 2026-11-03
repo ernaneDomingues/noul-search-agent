@@ -14,11 +14,11 @@ THIS_YEAR = datetime.date.today().year
 
 
 def setUpModule():
-    global c, t, cli
+    global t, cli, _errors
     _support.isolate_environment()
-    import noul_cli as cli
-    import noul_core as c
-    import noul_tools as t
+    from noul import api as t
+    from noul import cli
+    from noul import errors as _errors
 
 
 FAKE_SEARCH = {"papers": [], "sources": ["openalex"], "warnings": []}
@@ -127,7 +127,7 @@ class ToolAndCliTests(unittest.TestCase):
         out = t.call("clarify_search_scope", {"query": "creatina", "answers": {"q2": 2}})
         self.assertEqual(out["recommended_filters"]["study_types"], ["rct"])
         for args in ({"query": "x", "domain": "astrology"}, {"query": "  "}, {"query": "x", "answers": ["q1"]}):
-            with self.subTest(args=args), self.assertRaises(c.HTTPError) as ctx:
+            with self.subTest(args=args), self.assertRaises(_errors.HTTPError) as ctx:
                 t.call("clarify_search_scope", args)
             self.assertEqual(ctx.exception.code, 400)
 

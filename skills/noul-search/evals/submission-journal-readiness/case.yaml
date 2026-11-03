@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: submission-journal-readiness
+expected_outcome: |
+  audit_submission_readiness for venue lancet: the checklist of mandatory statements (data availability,
+  competing interests, ethics/IRB, funding, trial registration/reporting guideline) with what is present and
+  missing, confirmed against the manuscript, and an ordered list of additions; the readiness call made by the
+  model.
+context:
+  scaffold_script: place-files.sh

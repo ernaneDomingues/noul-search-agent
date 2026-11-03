@@ -46,13 +46,13 @@ noul-install = "noul.install:main"
 [tool.setuptools.dynamic]
 version = { attr = "noul.__version__" }
 
-# The root-level noul_*.py/install.py files are deprecated shims for source checkouts only; wheels ship `noul`.
 [tool.setuptools.packages.find]
 where = ["src"]
 
 # Templates used by `noul-install` (looked up under <prefix>/share/noul-search-agent).
 [tool.setuptools.data-files]
 "share/noul-search-agent/skills/noul-search" = ["skills/noul-search/SKILL.md"]
+"share/noul-search-agent/skills/noul-search/references" = ["skills/noul-search/references/*.md"]
 "share/noul-search-agent/agents" = [
     "agents/AGENTS.snippet.md",
     "agents/claude-noul-researcher.md",
@@ -101,4 +101,4 @@ branch = true
 [tool.coverage.report]
 skip_empty = true
 # Baseline measured at the start of the v2 refactor (Phase 0): 79% line+branch. Never lower this number.
-fail_under = 78
+fail_under = 84

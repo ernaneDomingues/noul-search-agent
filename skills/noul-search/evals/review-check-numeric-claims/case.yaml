@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: review-check-numeric-claims
+expected_outcome: |
+  Each claim located in the paper with section/page; claim 1 supported in the abstract and Table 2 (with the
+  41.0 in section 6.1 noted as an inconsistency if found); claim 2 supported (section 5.2); claim 3 not
+  supported as stated (213M is the big model; the base model is ~65M).

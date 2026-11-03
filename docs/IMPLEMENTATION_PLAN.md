@@ -1,6 +1,8 @@
 # Plano de Implementação — Fase 6: Copiloto de Escrita Acadêmica, Saneador de BibTeX, Rebuttal, Pré-Submissão (Gatekeeper) e Landing Page GitHub Pages
 
 > **Documento histórico (v1).** Desde a Fase 3a da v2, as ferramentas analíticas não dão mais veredito nem nota (`verdict`, `overall_score`, `readiness_score`, `desk_reject_risk`, `status` das afirmações): devolvem evidências no contrato `AnalysisResult` (`src/noul/schemas/evidence.py`), e o modelo do cliente julga com a rubrica.
+>
+> **Removidos na 2.0.0:** os arquivos da raiz (`noul_core.py`, `noul_tools.py`, `noul_mcp.py`, `noul_cli.py`, `install.py`) e o servidor MCP v1 citados aqui. O código atual está em `src/noul/` (ver `README.md` e `CHANGELOG.md`).
 
 Este documento detalha o plano de execução da **Fase 6** do `noul-search-agent`, cobrindo as **Issues #22, #23, #24, #25, #26, #27 e #28**.
 O objetivo desta fase final é transformar o `noul` em um **Copiloto Completo de Autoria e Submissão Científica** — auxiliando desde o esqueleto estrutural (IMRaD) e preenchimento contextual de citações até a síntese de *Related Work*, saneamento de `.bib`, resposta a revisores (*rebuttal*) e auditoria preventiva de *desk-reject* (anonimato double-blind, checklists de conferências/periódicos e *overclaiming*) — além de publicar a **Landing Page e Portal de Documentação no GitHub Pages**.

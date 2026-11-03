@@ -5,15 +5,15 @@ import io
 import unittest
 from contextlib import redirect_stdout
 
-import noul_cli
-import noul_core
-import noul_tools
+from noul import api, cli
+from noul import errors as _errors
+from noul.net import cache as _net_cache
 
 
 class ScaffolderTests(unittest.TestCase):
     def setUp(self):
         self.cs_id = "arxiv:2502.77001"
-        noul_core.cache_set(
+        _net_cache.cache_set(
             "paper:" + self.cs_id,
             {
                 "id": self.cs_id,
@@ -32,7 +32,7 @@ class ScaffolderTests(unittest.TestCase):
                 ),
             },
         )
-        noul_core.cache_set(
+        _net_cache.cache_set(
             "ft:" + self.cs_id,
             {
                 "text": (
@@ -43,7 +43,7 @@ class ScaffolderTests(unittest.TestCase):
         )
 
         self.econ_id = "doi:10.1093/qje/2025888"
-        noul_core.cache_set(
+        _net_cache.cache_set(
             "paper:" + self.econ_id,
             {
                 "id": self.econ_id,
@@ -65,7 +65,7 @@ class ScaffolderTests(unittest.TestCase):
         )
 
         self.bio_id = "pmid:39555001"
-        noul_core.cache_set(
+        _net_cache.cache_set(
             "paper:" + self.bio_id,
             {
                 "id": self.bio_id,
@@ -85,7 +85,7 @@ class ScaffolderTests(unittest.TestCase):
         )
 
     def test_cs_pytorch_scaffold_and_ast_validation(self):
-        res = noul_tools.call("scaffold_implementation", {"paper_id": self.cs_id})
+        res = api.call("scaffold_implementation", {"paper_id": self.cs_id})
         self.assertEqual(res["domain"], "computer_science")
         self.assertEqual(res["target"], "pytorch")
         self.assertEqual(res["language"], "python")
@@ -109,7 +109,7 @@ class ScaffolderTests(unittest.TestCase):
         ast.parse(tests)
 
     def test_economics_statsmodels_and_r_scaffolds(self):
-        sm_res = noul_tools.scaffold_implementation(self.econ_id)
+        sm_res = api.scaffold_implementation(self.econ_id)
         self.assertEqual(sm_res["domain"], "economics")
         self.assertEqual(sm_res["target"], "statsmodels")
         self.assertEqual(sm_res["language"], "python")
@@ -130,14 +130,14 @@ class ScaffolderTests(unittest.TestCase):
         self.assertIn("baseline_spec", matrix)
         self.assertIn("placebo_pretrend", matrix)
 
-        r_res = noul_tools.scaffold_implementation(self.econ_id, target="r")
+        r_res = api.scaffold_implementation(self.econ_id, target="r")
         self.assertEqual(r_res["target"], "r")
         self.assertEqual(r_res["language"], "r")
         self.assertIn("feols(", r_res["source_code"])
         self.assertIn("stopifnot(", r_res["unit_tests"])
 
     def test_biomedical_clinical_protocol_scaffold(self):
-        bio_res = noul_tools.scaffold_implementation(self.bio_id)
+        bio_res = api.scaffold_implementation(self.bio_id)
         self.assertEqual(bio_res["domain"], "biomedical")
         self.assertEqual(bio_res["target"], "clinical_protocol")
         self.assertTrue(bio_res["syntax_valid"])
@@ -160,16 +160,16 @@ class ScaffolderTests(unittest.TestCase):
         self.assertIn("treatment_effect", analysis)
 
     def test_alias_invalid_target_and_cli_pretty(self):
-        alias_res = noul_tools.call("scaffold_paper_code", {"paper_id": self.cs_id, "target_language": "pytorch"})
+        alias_res = api.call("scaffold_paper_code", {"paper_id": self.cs_id, "target_language": "pytorch"})
         self.assertEqual(alias_res["target"], "pytorch")
 
-        with self.assertRaises(noul_core.HTTPError) as ctx:
-            noul_tools.scaffold_implementation(self.cs_id, target="cobol")
+        with self.assertRaises(_errors.HTTPError) as ctx:
+            api.scaffold_implementation(self.cs_id, target="cobol")
         self.assertEqual(ctx.exception.code, 400)
 
         buf = io.StringIO()
         with redirect_stdout(buf):
-            rc = noul_cli.main(["scaffold", self.cs_id, "--pretty"])
+            rc = cli.main(["scaffold", self.cs_id, "--pretty"])
         self.assertEqual(rc, 0)
         self.assertIn("# Code & Protocol Scaffold:", buf.getvalue())
 

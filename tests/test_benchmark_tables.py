@@ -48,18 +48,17 @@ Sparse-7B      12.4ms         3,900        5.12
 
 
 def setUpModule():
-    global c, t, cli, tt
+    global t, cli, tt, _errors
     _support.isolate_environment()
-    import noul_cli as cli
-    import noul_core as c
-    import noul_tools as t
-
+    from noul import api as t
+    from noul import cli
+    from noul import errors as _errors
     from noul.tools import technical_tools as tt
 
 
 class BenchmarkTablesTests(unittest.TestCase):
     def setUp(self):
-        self.pid = _support.seed_fulltext_paper(c, "doi:10.1000/sparse7b", FULLTEXT, title="Sparse-7B")
+        self.pid = _support.seed_fulltext_paper("doi:10.1000/sparse7b", FULLTEXT, title="Sparse-7B")
         for name in ("_http_json", "_http_get"):
             patcher = mock.patch(_support.core_target(name), side_effect=_support.no_network)
             patcher.start()
@@ -139,13 +138,13 @@ class BenchmarkTablesTests(unittest.TestCase):
 
     def test_abstract_fallback_and_validation(self):
         pid = _support.seed_fulltext_paper(
-            c, "doi:10.1000/abs", None, open_access=False, abstract="Our model scores 67.1% accuracy on GSM8K."
+            "doi:10.1000/abs", None, open_access=False, abstract="Our model scores 67.1% accuracy on GSM8K."
         )
         out = t.extract_benchmark_tables(pid)
         self.assertEqual(out["source"], "abstract")
         self.assertEqual(out["normalized_summary"]["by_metric"]["GSM8K"], {"reported": 67.1})
         self.assertTrue(any("title/abstract" in w for w in out["warnings"]))
-        with self.assertRaises(c.HTTPError) as ctx:
+        with self.assertRaises(_errors.HTTPError) as ctx:
             t.call("extract_benchmark_tables", {})
         self.assertEqual(ctx.exception.code, 400)
 

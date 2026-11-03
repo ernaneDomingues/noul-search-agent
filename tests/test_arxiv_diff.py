@@ -51,12 +51,12 @@ ATOM_V2 = """<?xml version="1.0" encoding="UTF-8"?>
 
 
 def setUpModule():
-    global c, t, cli, arxiv_client
+    global t, cli, arxiv_client, _errors, _net_cache
     _support.isolate_environment()
-    import noul_cli as cli
-    import noul_core as c
-    import noul_tools as t
-
+    from noul import api as t
+    from noul import cli
+    from noul import errors as _errors
+    from noul.net import cache as _net_cache
     from noul.providers import arxiv_client as _ac
 
     arxiv_client = _ac
@@ -92,9 +92,9 @@ class ArxivDiffTests(unittest.TestCase):
             arxiv_client.parse_arxiv_version_args("hep-th/9901001", "1", "2"),
             ("hep-th/9901001", "v1", "v2"),
         )
-        with self.assertRaises(c.HTTPError):
+        with self.assertRaises(_errors.HTTPError):
             arxiv_client.parse_arxiv_version_args("not-an-arxiv-id")
-        with self.assertRaises(c.HTTPError):
+        with self.assertRaises(_errors.HTTPError):
             arxiv_client.parse_arxiv_version_args("2401.12345", "v1", "v1")
 
     def test_diff_via_atom_api_detects_metrics_attenuation_authors_and_baselines(self):
@@ -132,7 +132,7 @@ class ArxivDiffTests(unittest.TestCase):
         self.assertIn("### Text Diff Highlights", md)
 
     def test_diff_with_cached_fulltext_tables_and_cli(self):
-        c.cache_set(
+        _net_cache.cache_set(
             "paper:arxiv:2402.54321v1",
             {
                 "id": "arxiv:2402.54321v1",
@@ -141,7 +141,7 @@ class ArxivDiffTests(unittest.TestCase):
                 "authors": ["Dan Brown"],
             },
         )
-        c.cache_set(
+        _net_cache.cache_set(
             "ft:arxiv:2402.54321v1",
             {
                 "text": (
@@ -153,7 +153,7 @@ class ArxivDiffTests(unittest.TestCase):
                 ),
             },
         )
-        c.cache_set(
+        _net_cache.cache_set(
             "paper:arxiv:2402.54321v2",
             {
                 "id": "arxiv:2402.54321v2",
@@ -162,7 +162,7 @@ class ArxivDiffTests(unittest.TestCase):
                 "authors": ["Dan Brown", "Eva Green"],
             },
         )
-        c.cache_set(
+        _net_cache.cache_set(
             "ft:arxiv:2402.54321v2",
             {
                 "text": (
