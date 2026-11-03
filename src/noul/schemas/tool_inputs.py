@@ -276,7 +276,7 @@ class RecommendCitationsInput(_ToolInput):
 class SynthesizeRelatedWorkInput(_ToolInput):
     """Arguments of `synthesize_related_work`."""
 
-    paper_ids: list[str]
+    paper_ids: list[str] = Field(..., max_length=20, description="Papers to synthesise (up to 20)")
     proposal: str
     citation_style: Literal["latex", "numeric"] | None = Field(
         "latex", json_schema_extra={"enum_order": ["latex", "numeric"]}
@@ -391,7 +391,7 @@ class RelatedPapersInput(_ToolInput):
 class DownloadPapersInput(_ToolInput):
     """Arguments of `download_papers`."""
 
-    ids: list[str]
+    ids: list[str] = Field(..., max_length=25, description="Paper ids or DOIs (up to 25 per call)")
     output_dir: str | None = Field(
         None,
         description="Folder inside the workspace (relative paths are workspace-relative). Default: configured download_dir (./papers).",

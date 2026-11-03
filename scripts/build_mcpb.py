@@ -110,7 +110,7 @@ def manifest(variant, platform=None):
         "long_description": (
             "Noul retrieves and structures scientific evidence; Claude judges it. It searches six scholarly "
             "sources, classifies study designs, computes an Evidence Meter from Claude's stance classifications, "
-            "downloads open-access PDFs into your Noul folder, saves research dossiers and supports peer review "
+            "downloads open-access PDFs into your Noul folder, keeps persistent research projects and supports peer review "
             "and manuscript writing. No API keys are needed; a contact e-mail improves full-text coverage."
         ),
         "author": {"name": "Ernane Domingues", "url": "https://github.com/ernaneDomingues"},

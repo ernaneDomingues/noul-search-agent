@@ -2,7 +2,8 @@
 
 > **Status em 31/10/2026.** Este roadmap foi escrito em 27/10/2026, antes das Fases 1–6 e da v1.0.0. A evolução
 > agora segue o plano de refatoração aprovado em [`REFACTOR_PLAN.md`](REFACTOR_PLAN.md) (v2.0, um PR por fase);
-> as seções abaixo ficam como histórico e lista de ideias. Estado dos itens P0 da seção 1:
+> as seções abaixo ficam como histórico e lista de ideias. Os arquivos citados nelas (`noul_core.py`, `noul_tools.py`,
+> `noul_mcp.py`, `install.py`) foram removidos na 2.0.0; o código atual está em `src/noul/`. Estado dos itens P0 da seção 1:
 >
 > | P0 | Situação |
 > |---|---|

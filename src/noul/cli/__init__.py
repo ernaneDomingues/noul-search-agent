@@ -189,8 +189,8 @@ def main(argv=None):
     s.add_argument("--min-citations", type=int)
     s.add_argument("--open-access", action="store_true")
     s.add_argument("--sort", choices=["relevance", "date", "citations"])
-    s.add_argument("--limit", type=int, default=15)
-    s.add_argument("--offset", type=int, default=0)
+    s.add_argument("--limit", type=int, default=15, help="papers per page, 1-40 (default: 15)")
+    s.add_argument("--offset", type=int, default=0, help="results to skip, >= 0")
     s.add_argument("--domain", help=DOMAIN_HELP)
     s.add_argument("--pretty", action="store_true")
     s.add_argument(
@@ -243,7 +243,7 @@ def main(argv=None):
     hyp_p.add_argument("ids", nargs="+", help="Paper IDs/DOIs (space- or comma-separated, at least 2)")
     hyp_p.add_argument("--topic")
     hyp_p.add_argument(
-        "--max", dest="max_hypotheses", type=int, default=3, help="maximum hypotheses to generate (default: 3)"
+        "--max", dest="max_hypotheses", type=int, default=3, help="maximum hypotheses to generate, 1-10 (default: 3)"
     )
     hyp_p.add_argument("--pretty", action="store_true")
 
@@ -372,14 +372,14 @@ def main(argv=None):
     ask_p = sub.add_parser("ask")
     ask_p.add_argument("ids", help="Comma-separated paper IDs or DOIs")
     ask_p.add_argument("--question", required=True)
-    ask_p.add_argument("--chunks", type=int, default=4)
+    ask_p.add_argument("--chunks", type=int, default=4, help="passages per paper, 1-10 (default: 4)")
 
     rel_p = sub.add_parser("related")
     rel_p.add_argument("id")
     rel_p.add_argument("--relation", default="all", choices=["all", "similar", "references", "citing"])
     rel_p.add_argument("--types")
     rel_p.add_argument("--year-min", type=int)
-    rel_p.add_argument("--limit", type=int, default=15)
+    rel_p.add_argument("--limit", type=int, default=15, help="1-40 (default: 15)")
 
     dl_p = sub.add_parser("download")
     dl_p.add_argument("ids", help="Comma-separated paper IDs or DOIs")

@@ -88,13 +88,18 @@
         "query"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Search papers",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   },
   {
     "name": "clarify_search_scope",
@@ -118,13 +123,18 @@
         "query"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Clarify search scope",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": false
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   },
   {
     "name": "get_paper",
@@ -145,13 +155,18 @@
         "id"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Get paper",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   },
   {
     "name": "detect_paper_domain",
@@ -172,13 +187,18 @@
         "paper_id"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Detect paper domain",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   },
   {
     "name": "scan_paper_artifacts",
@@ -203,13 +223,18 @@
         "id"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Scan paper artifacts",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "review"
+    ],
+    "write_args": []
   },
   {
     "name": "get_paper_references",
@@ -250,13 +275,18 @@
         "paper_id"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Get paper references",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   },
   {
     "name": "compare_papers",
@@ -280,13 +310,18 @@
         "paper_ids"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Compare papers",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "review"
+    ],
+    "write_args": []
   },
   {
     "name": "get_thematic_insights",
@@ -309,13 +344,18 @@
         "paper_ids"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Get thematic insights",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "review"
+    ],
+    "write_args": []
   },
   {
     "name": "generate_research_hypotheses",
@@ -344,13 +384,18 @@
         "paper_ids"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Generate research hypotheses",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "review"
+    ],
+    "write_args": []
   },
   {
     "name": "export_obsidian_notes",
@@ -378,13 +423,18 @@
         "paper_ids"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Export Obsidian notes",
       "readOnlyHint": false,
       "destructiveHint": true,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "write"
+    ],
+    "write_args": []
   },
   {
     "name": "suggest_boolean_queries",
@@ -405,13 +455,18 @@
       },
       "required": []
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Suggest boolean queries",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": false
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   },
   {
     "name": "extract_benchmark_tables",
@@ -428,13 +483,18 @@
         "paper_id"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Extract benchmark tables",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "review"
+    ],
+    "write_args": []
   },
   {
     "name": "estimate_hardware_specs",
@@ -464,13 +524,18 @@
         "paper_id"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Estimate hardware specs",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "review"
+    ],
+    "write_args": []
   },
   {
     "name": "verify_paper_claims",
@@ -493,13 +558,517 @@
         "paper_id"
       ]
     },
+    "outputSchema": {
+      "$defs": {
+        "AnalysisSubject": {
+          "description": "What was analysed: a paper (id/title/domain) or the user's draft or reviews (`title` = file label).",
+          "properties": {
+            "paper_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Paper Id"
+            },
+            "title": {
+              "default": "",
+              "title": "Title",
+              "type": "string"
+            },
+            "domain": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Domain"
+            },
+            "source": {
+              "default": "",
+              "title": "Source",
+              "type": "string"
+            }
+          },
+          "title": "AnalysisSubject",
+          "type": "object"
+        },
+        "ChecklistItem": {
+          "description": "A yes/no question answered by pattern detection (`unclear` when the text does not allow an answer).",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "category": {
+              "default": "",
+              "title": "Category",
+              "type": "string"
+            },
+            "question": {
+              "title": "Question",
+              "type": "string"
+            },
+            "detected": {
+              "enum": [
+                "yes",
+                "no",
+                "unclear"
+              ],
+              "title": "Detected",
+              "type": "string"
+            },
+            "location": {
+              "default": "",
+              "title": "Location",
+              "type": "string"
+            },
+            "evidence": {
+              "items": {
+                "$ref": "#/$defs/Excerpt"
+              },
+              "title": "Evidence",
+              "type": "array"
+            },
+            "remediation": {
+              "default": "",
+              "title": "Remediation",
+              "type": "string"
+            },
+            "priority_hint": {
+              "default": "medium",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ],
+              "title": "Priority Hint",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "question",
+            "detected"
+          ],
+          "title": "ChecklistItem",
+          "type": "object"
+        },
+        "Excerpt": {
+          "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
+          "properties": {
+            "text": {
+              "title": "Text",
+              "type": "string"
+            },
+            "truncated": {
+              "default": false,
+              "title": "Truncated",
+              "type": "boolean"
+            },
+            "origin": {
+              "default": "paper",
+              "enum": [
+                "paper",
+                "draft",
+                "reviews",
+                "web",
+                "user"
+              ],
+              "title": "Origin",
+              "type": "string"
+            },
+            "paper_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Paper Id"
+            },
+            "section": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Section"
+            },
+            "page": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Page"
+            },
+            "untrusted": {
+              "default": true,
+              "title": "Untrusted",
+              "type": "boolean"
+            },
+            "chunk_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Chunk Id"
+            },
+            "char_start": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Char Start"
+            },
+            "char_end": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Char End"
+            },
+            "relevance": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Relevance"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "title": "Excerpt",
+          "type": "object"
+        },
+        "GroundedClaim": {
+          "description": "Where a claim's numbers and terms appear in the paper. Lexical facts only: whether the passage *supports*\nthe claim is for the client's model to judge from `best_match` / `other_matches`.",
+          "properties": {
+            "claim": {
+              "title": "Claim",
+              "type": "string"
+            },
+            "claim_untrusted": {
+              "default": false,
+              "title": "Claim Untrusted",
+              "type": "boolean"
+            },
+            "numbers_checked": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Numbers Checked",
+              "type": "array"
+            },
+            "numbers_found": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Numbers Found",
+              "type": "array"
+            },
+            "numbers_missing": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Numbers Missing",
+              "type": "array"
+            },
+            "keyword_overlap": {
+              "default": 0.0,
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Keyword Overlap",
+              "type": "number"
+            },
+            "hedging_cues_missing_in_text": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Hedging Cues Missing In Text",
+              "type": "array"
+            },
+            "citation_tag": {
+              "default": "",
+              "title": "Citation Tag",
+              "type": "string"
+            },
+            "best_match": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Excerpt"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "other_matches": {
+              "items": {
+                "$ref": "#/$defs/Excerpt"
+              },
+              "title": "Other Matches",
+              "type": "array"
+            }
+          },
+          "required": [
+            "claim"
+          ],
+          "title": "GroundedClaim",
+          "type": "object"
+        },
+        "Rubric": {
+          "description": "How the client's model should judge: the criteria and a short instruction (`how_to_judge`).",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "criteria": {
+              "items": {
+                "$ref": "#/$defs/RubricCriterion"
+              },
+              "title": "Criteria",
+              "type": "array"
+            },
+            "how_to_judge": {
+              "title": "How To Judge",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "how_to_judge"
+          ],
+          "title": "Rubric",
+          "type": "object"
+        },
+        "RubricCriterion": {
+          "description": "One question the client's model should answer, citing excerpts.",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "question": {
+              "title": "Question",
+              "type": "string"
+            },
+            "guidance": {
+              "default": "",
+              "title": "Guidance",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "question"
+          ],
+          "title": "RubricCriterion",
+          "type": "object"
+        },
+        "Signal": {
+          "description": "Something a heuristic detected. `kind` says which way it points; `priority_hint` is the heuristic's guess\nof how much it matters - the judgement is the client's.",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "category": {
+              "title": "Category",
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "strength",
+                "concern",
+                "gap",
+                "neutral"
+              ],
+              "title": "Kind",
+              "type": "string"
+            },
+            "description": {
+              "title": "Description",
+              "type": "string"
+            },
+            "priority_hint": {
+              "default": "medium",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ],
+              "title": "Priority Hint",
+              "type": "string"
+            },
+            "detail": {
+              "default": "",
+              "title": "Detail",
+              "type": "string"
+            },
+            "excerpts": {
+              "items": {
+                "$ref": "#/$defs/Excerpt"
+              },
+              "title": "Excerpts",
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "category",
+            "kind",
+            "description"
+          ],
+          "title": "Signal",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "tool": {
+          "title": "Tool",
+          "type": "string"
+        },
+        "method": {
+          "default": "heuristic",
+          "enum": [
+            "heuristic",
+            "retrieval"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/AnalysisSubject"
+        },
+        "signals": {
+          "items": {
+            "$ref": "#/$defs/Signal"
+          },
+          "title": "Signals",
+          "type": "array"
+        },
+        "checklist": {
+          "items": {
+            "$ref": "#/$defs/ChecklistItem"
+          },
+          "title": "Checklist",
+          "type": "array"
+        },
+        "excerpts": {
+          "items": {
+            "$ref": "#/$defs/Excerpt"
+          },
+          "title": "Excerpts",
+          "type": "array"
+        },
+        "rubric": {
+          "$ref": "#/$defs/Rubric"
+        },
+        "extraction_confidence": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Extraction Confidence",
+          "type": "string"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "untrusted_fields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Untrusted Fields",
+          "type": "array"
+        },
+        "rendered_markdown": {
+          "default": "",
+          "title": "Rendered Markdown",
+          "type": "string"
+        },
+        "auto_extracted_claims": {
+          "default": false,
+          "title": "Auto Extracted Claims",
+          "type": "boolean"
+        },
+        "claims": {
+          "items": {
+            "$ref": "#/$defs/GroundedClaim"
+          },
+          "title": "Claims",
+          "type": "array"
+        }
+      },
+      "required": [
+        "tool",
+        "subject",
+        "rubric",
+        "extraction_confidence"
+      ],
+      "title": "ClaimsGroundingReport",
+      "type": "object"
+    },
     "annotations": {
       "title": "Verify paper claims",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "review"
+    ],
+    "write_args": []
   },
   {
     "name": "extract_paper_math",
@@ -525,13 +1094,18 @@
         "paper_id"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Extract paper math",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "review"
+    ],
+    "write_args": []
   },
   {
     "name": "analyze_ablation_tables",
@@ -548,13 +1122,18 @@
         "paper_id"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Analyze ablation tables",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "review"
+    ],
+    "write_args": []
   },
   {
     "name": "extract_prompts_and_decoding",
@@ -571,13 +1150,18 @@
         "paper_id"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Extract prompts and decoding",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "review"
+    ],
+    "write_args": []
   },
   {
     "name": "detect_failure_modes",
@@ -598,13 +1182,448 @@
         "paper_id"
       ]
     },
+    "outputSchema": {
+      "$defs": {
+        "AnalysisSubject": {
+          "description": "What was analysed: a paper (id/title/domain) or the user's draft or reviews (`title` = file label).",
+          "properties": {
+            "paper_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Paper Id"
+            },
+            "title": {
+              "default": "",
+              "title": "Title",
+              "type": "string"
+            },
+            "domain": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Domain"
+            },
+            "source": {
+              "default": "",
+              "title": "Source",
+              "type": "string"
+            }
+          },
+          "title": "AnalysisSubject",
+          "type": "object"
+        },
+        "ChecklistItem": {
+          "description": "A yes/no question answered by pattern detection (`unclear` when the text does not allow an answer).",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "category": {
+              "default": "",
+              "title": "Category",
+              "type": "string"
+            },
+            "question": {
+              "title": "Question",
+              "type": "string"
+            },
+            "detected": {
+              "enum": [
+                "yes",
+                "no",
+                "unclear"
+              ],
+              "title": "Detected",
+              "type": "string"
+            },
+            "location": {
+              "default": "",
+              "title": "Location",
+              "type": "string"
+            },
+            "evidence": {
+              "items": {
+                "$ref": "#/$defs/Excerpt"
+              },
+              "title": "Evidence",
+              "type": "array"
+            },
+            "remediation": {
+              "default": "",
+              "title": "Remediation",
+              "type": "string"
+            },
+            "priority_hint": {
+              "default": "medium",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ],
+              "title": "Priority Hint",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "question",
+            "detected"
+          ],
+          "title": "ChecklistItem",
+          "type": "object"
+        },
+        "Excerpt": {
+          "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
+          "properties": {
+            "text": {
+              "title": "Text",
+              "type": "string"
+            },
+            "truncated": {
+              "default": false,
+              "title": "Truncated",
+              "type": "boolean"
+            },
+            "origin": {
+              "default": "paper",
+              "enum": [
+                "paper",
+                "draft",
+                "reviews",
+                "web",
+                "user"
+              ],
+              "title": "Origin",
+              "type": "string"
+            },
+            "paper_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Paper Id"
+            },
+            "section": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Section"
+            },
+            "page": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Page"
+            },
+            "untrusted": {
+              "default": true,
+              "title": "Untrusted",
+              "type": "boolean"
+            },
+            "chunk_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Chunk Id"
+            },
+            "char_start": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Char Start"
+            },
+            "char_end": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Char End"
+            },
+            "relevance": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Relevance"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "title": "Excerpt",
+          "type": "object"
+        },
+        "Rubric": {
+          "description": "How the client's model should judge: the criteria and a short instruction (`how_to_judge`).",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "criteria": {
+              "items": {
+                "$ref": "#/$defs/RubricCriterion"
+              },
+              "title": "Criteria",
+              "type": "array"
+            },
+            "how_to_judge": {
+              "title": "How To Judge",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "how_to_judge"
+          ],
+          "title": "Rubric",
+          "type": "object"
+        },
+        "RubricCriterion": {
+          "description": "One question the client's model should answer, citing excerpts.",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "question": {
+              "title": "Question",
+              "type": "string"
+            },
+            "guidance": {
+              "default": "",
+              "title": "Guidance",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "question"
+          ],
+          "title": "RubricCriterion",
+          "type": "object"
+        },
+        "Signal": {
+          "description": "Something a heuristic detected. `kind` says which way it points; `priority_hint` is the heuristic's guess\nof how much it matters - the judgement is the client's.",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "category": {
+              "title": "Category",
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "strength",
+                "concern",
+                "gap",
+                "neutral"
+              ],
+              "title": "Kind",
+              "type": "string"
+            },
+            "description": {
+              "title": "Description",
+              "type": "string"
+            },
+            "priority_hint": {
+              "default": "medium",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ],
+              "title": "Priority Hint",
+              "type": "string"
+            },
+            "detail": {
+              "default": "",
+              "title": "Detail",
+              "type": "string"
+            },
+            "excerpts": {
+              "items": {
+                "$ref": "#/$defs/Excerpt"
+              },
+              "title": "Excerpts",
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "category",
+            "kind",
+            "description"
+          ],
+          "title": "Signal",
+          "type": "object"
+        }
+      },
+      "description": "Candidate failure modes are the `signals` (category = long_context | noise_sensitivity |\nout_of_distribution | latency_or_compute | sample_or_population_bias | general_limitation), each with the\nsentence that triggered it.",
+      "properties": {
+        "tool": {
+          "title": "Tool",
+          "type": "string"
+        },
+        "method": {
+          "default": "heuristic",
+          "enum": [
+            "heuristic",
+            "retrieval"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/AnalysisSubject"
+        },
+        "signals": {
+          "items": {
+            "$ref": "#/$defs/Signal"
+          },
+          "title": "Signals",
+          "type": "array"
+        },
+        "checklist": {
+          "items": {
+            "$ref": "#/$defs/ChecklistItem"
+          },
+          "title": "Checklist",
+          "type": "array"
+        },
+        "excerpts": {
+          "items": {
+            "$ref": "#/$defs/Excerpt"
+          },
+          "title": "Excerpts",
+          "type": "array"
+        },
+        "rubric": {
+          "$ref": "#/$defs/Rubric"
+        },
+        "extraction_confidence": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Extraction Confidence",
+          "type": "string"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "untrusted_fields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Untrusted Fields",
+          "type": "array"
+        },
+        "rendered_markdown": {
+          "default": "",
+          "title": "Rendered Markdown",
+          "type": "string"
+        },
+        "critical_assumptions": {
+          "items": {
+            "$ref": "#/$defs/Excerpt"
+          },
+          "title": "Critical Assumptions",
+          "type": "array"
+        },
+        "baseline_superiority_scenarios": {
+          "items": {
+            "$ref": "#/$defs/Excerpt"
+          },
+          "title": "Baseline Superiority Scenarios",
+          "type": "array"
+        },
+        "operational_limits": {
+          "additionalProperties": true,
+          "title": "Operational Limits",
+          "type": "object"
+        }
+      },
+      "required": [
+        "tool",
+        "subject",
+        "rubric",
+        "extraction_confidence"
+      ],
+      "title": "FailureModesReport",
+      "type": "object"
+    },
     "annotations": {
       "title": "Detect failure modes",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "review"
+    ],
+    "write_args": []
   },
   {
     "name": "diff_arxiv_versions",
@@ -629,13 +1648,130 @@
         "arxiv_id"
       ]
     },
+    "outputSchema": {
+      "$defs": {
+        "VersionChangeItem": {
+          "properties": {
+            "category": {
+              "title": "Category",
+              "type": "string"
+            },
+            "summary": {
+              "title": "Summary",
+              "type": "string"
+            },
+            "before": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Before"
+            },
+            "after": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "After"
+            }
+          },
+          "required": [
+            "category",
+            "summary"
+          ],
+          "title": "VersionChangeItem",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "arxiv_base_id": {
+          "title": "Arxiv Base Id",
+          "type": "string"
+        },
+        "from_version": {
+          "title": "From Version",
+          "type": "string"
+        },
+        "to_version": {
+          "title": "To Version",
+          "type": "string"
+        },
+        "title_changed": {
+          "default": false,
+          "title": "Title Changed",
+          "type": "boolean"
+        },
+        "authors_added": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Authors Added",
+          "type": "array"
+        },
+        "authors_removed": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Authors Removed",
+          "type": "array"
+        },
+        "metric_deltas": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Metric Deltas",
+          "type": "array"
+        },
+        "claim_shifts": {
+          "items": {
+            "$ref": "#/$defs/VersionChangeItem"
+          },
+          "title": "Claim Shifts",
+          "type": "array"
+        },
+        "new_baselines_or_datasets": {
+          "items": {
+            "type": "string"
+          },
+          "title": "New Baselines Or Datasets",
+          "type": "array"
+        },
+        "markdown_diff": {
+          "default": "",
+          "title": "Markdown Diff",
+          "type": "string"
+        }
+      },
+      "required": [
+        "arxiv_base_id",
+        "from_version",
+        "to_version"
+      ],
+      "title": "ArxivVersionDiffReport",
+      "type": "object"
+    },
     "annotations": {
       "title": "Diff arXiv versions",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "review"
+    ],
+    "write_args": []
   },
   {
     "name": "review_paper",
@@ -660,13 +1796,487 @@
         "paper_id"
       ]
     },
+    "outputSchema": {
+      "$defs": {
+        "AnalysisSubject": {
+          "description": "What was analysed: a paper (id/title/domain) or the user's draft or reviews (`title` = file label).",
+          "properties": {
+            "paper_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Paper Id"
+            },
+            "title": {
+              "default": "",
+              "title": "Title",
+              "type": "string"
+            },
+            "domain": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Domain"
+            },
+            "source": {
+              "default": "",
+              "title": "Source",
+              "type": "string"
+            }
+          },
+          "title": "AnalysisSubject",
+          "type": "object"
+        },
+        "ChecklistItem": {
+          "description": "A yes/no question answered by pattern detection (`unclear` when the text does not allow an answer).",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "category": {
+              "default": "",
+              "title": "Category",
+              "type": "string"
+            },
+            "question": {
+              "title": "Question",
+              "type": "string"
+            },
+            "detected": {
+              "enum": [
+                "yes",
+                "no",
+                "unclear"
+              ],
+              "title": "Detected",
+              "type": "string"
+            },
+            "location": {
+              "default": "",
+              "title": "Location",
+              "type": "string"
+            },
+            "evidence": {
+              "items": {
+                "$ref": "#/$defs/Excerpt"
+              },
+              "title": "Evidence",
+              "type": "array"
+            },
+            "remediation": {
+              "default": "",
+              "title": "Remediation",
+              "type": "string"
+            },
+            "priority_hint": {
+              "default": "medium",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ],
+              "title": "Priority Hint",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "question",
+            "detected"
+          ],
+          "title": "ChecklistItem",
+          "type": "object"
+        },
+        "Excerpt": {
+          "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
+          "properties": {
+            "text": {
+              "title": "Text",
+              "type": "string"
+            },
+            "truncated": {
+              "default": false,
+              "title": "Truncated",
+              "type": "boolean"
+            },
+            "origin": {
+              "default": "paper",
+              "enum": [
+                "paper",
+                "draft",
+                "reviews",
+                "web",
+                "user"
+              ],
+              "title": "Origin",
+              "type": "string"
+            },
+            "paper_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Paper Id"
+            },
+            "section": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Section"
+            },
+            "page": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Page"
+            },
+            "untrusted": {
+              "default": true,
+              "title": "Untrusted",
+              "type": "boolean"
+            },
+            "chunk_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Chunk Id"
+            },
+            "char_start": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Char Start"
+            },
+            "char_end": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Char End"
+            },
+            "relevance": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Relevance"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "title": "Excerpt",
+          "type": "object"
+        },
+        "ReviewPerspective": {
+          "description": "One reviewer persona of the domain rubric and the signals it produced.",
+          "properties": {
+            "role": {
+              "title": "Role",
+              "type": "string"
+            },
+            "focus": {
+              "default": "",
+              "title": "Focus",
+              "type": "string"
+            },
+            "signal_ids": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Signal Ids",
+              "type": "array"
+            },
+            "questions_for_authors": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Questions For Authors",
+              "type": "array"
+            }
+          },
+          "required": [
+            "role"
+          ],
+          "title": "ReviewPerspective",
+          "type": "object"
+        },
+        "Rubric": {
+          "description": "How the client's model should judge: the criteria and a short instruction (`how_to_judge`).",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "criteria": {
+              "items": {
+                "$ref": "#/$defs/RubricCriterion"
+              },
+              "title": "Criteria",
+              "type": "array"
+            },
+            "how_to_judge": {
+              "title": "How To Judge",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "how_to_judge"
+          ],
+          "title": "Rubric",
+          "type": "object"
+        },
+        "RubricCriterion": {
+          "description": "One question the client's model should answer, citing excerpts.",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "question": {
+              "title": "Question",
+              "type": "string"
+            },
+            "guidance": {
+              "default": "",
+              "title": "Guidance",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "question"
+          ],
+          "title": "RubricCriterion",
+          "type": "object"
+        },
+        "Signal": {
+          "description": "Something a heuristic detected. `kind` says which way it points; `priority_hint` is the heuristic's guess\nof how much it matters - the judgement is the client's.",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "category": {
+              "title": "Category",
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "strength",
+                "concern",
+                "gap",
+                "neutral"
+              ],
+              "title": "Kind",
+              "type": "string"
+            },
+            "description": {
+              "title": "Description",
+              "type": "string"
+            },
+            "priority_hint": {
+              "default": "medium",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ],
+              "title": "Priority Hint",
+              "type": "string"
+            },
+            "detail": {
+              "default": "",
+              "title": "Detail",
+              "type": "string"
+            },
+            "excerpts": {
+              "items": {
+                "$ref": "#/$defs/Excerpt"
+              },
+              "title": "Excerpts",
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "category",
+            "kind",
+            "description"
+          ],
+          "title": "Signal",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "tool": {
+          "title": "Tool",
+          "type": "string"
+        },
+        "method": {
+          "default": "heuristic",
+          "enum": [
+            "heuristic",
+            "retrieval"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/AnalysisSubject"
+        },
+        "signals": {
+          "items": {
+            "$ref": "#/$defs/Signal"
+          },
+          "title": "Signals",
+          "type": "array"
+        },
+        "checklist": {
+          "items": {
+            "$ref": "#/$defs/ChecklistItem"
+          },
+          "title": "Checklist",
+          "type": "array"
+        },
+        "excerpts": {
+          "items": {
+            "$ref": "#/$defs/Excerpt"
+          },
+          "title": "Excerpts",
+          "type": "array"
+        },
+        "rubric": {
+          "$ref": "#/$defs/Rubric"
+        },
+        "extraction_confidence": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Extraction Confidence",
+          "type": "string"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "untrusted_fields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Untrusted Fields",
+          "type": "array"
+        },
+        "rendered_markdown": {
+          "default": "",
+          "title": "Rendered Markdown",
+          "type": "string"
+        },
+        "rubric_applied": {
+          "title": "Rubric Applied",
+          "type": "string"
+        },
+        "perspectives": {
+          "items": {
+            "$ref": "#/$defs/ReviewPerspective"
+          },
+          "title": "Perspectives",
+          "type": "array"
+        },
+        "missing_experiments_or_controls": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Missing Experiments Or Controls",
+          "type": "array"
+        },
+        "questions_for_authors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Questions For Authors",
+          "type": "array"
+        }
+      },
+      "required": [
+        "tool",
+        "subject",
+        "rubric",
+        "extraction_confidence",
+        "rubric_applied"
+      ],
+      "title": "PeerReviewReport",
+      "type": "object"
+    },
     "annotations": {
       "title": "Review paper",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "review"
+    ],
+    "write_args": []
   },
   {
     "name": "review_paper_scientific",
@@ -691,13 +2301,487 @@
         "paper_id"
       ]
     },
+    "outputSchema": {
+      "$defs": {
+        "AnalysisSubject": {
+          "description": "What was analysed: a paper (id/title/domain) or the user's draft or reviews (`title` = file label).",
+          "properties": {
+            "paper_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Paper Id"
+            },
+            "title": {
+              "default": "",
+              "title": "Title",
+              "type": "string"
+            },
+            "domain": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Domain"
+            },
+            "source": {
+              "default": "",
+              "title": "Source",
+              "type": "string"
+            }
+          },
+          "title": "AnalysisSubject",
+          "type": "object"
+        },
+        "ChecklistItem": {
+          "description": "A yes/no question answered by pattern detection (`unclear` when the text does not allow an answer).",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "category": {
+              "default": "",
+              "title": "Category",
+              "type": "string"
+            },
+            "question": {
+              "title": "Question",
+              "type": "string"
+            },
+            "detected": {
+              "enum": [
+                "yes",
+                "no",
+                "unclear"
+              ],
+              "title": "Detected",
+              "type": "string"
+            },
+            "location": {
+              "default": "",
+              "title": "Location",
+              "type": "string"
+            },
+            "evidence": {
+              "items": {
+                "$ref": "#/$defs/Excerpt"
+              },
+              "title": "Evidence",
+              "type": "array"
+            },
+            "remediation": {
+              "default": "",
+              "title": "Remediation",
+              "type": "string"
+            },
+            "priority_hint": {
+              "default": "medium",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ],
+              "title": "Priority Hint",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "question",
+            "detected"
+          ],
+          "title": "ChecklistItem",
+          "type": "object"
+        },
+        "Excerpt": {
+          "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
+          "properties": {
+            "text": {
+              "title": "Text",
+              "type": "string"
+            },
+            "truncated": {
+              "default": false,
+              "title": "Truncated",
+              "type": "boolean"
+            },
+            "origin": {
+              "default": "paper",
+              "enum": [
+                "paper",
+                "draft",
+                "reviews",
+                "web",
+                "user"
+              ],
+              "title": "Origin",
+              "type": "string"
+            },
+            "paper_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Paper Id"
+            },
+            "section": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Section"
+            },
+            "page": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Page"
+            },
+            "untrusted": {
+              "default": true,
+              "title": "Untrusted",
+              "type": "boolean"
+            },
+            "chunk_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Chunk Id"
+            },
+            "char_start": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Char Start"
+            },
+            "char_end": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Char End"
+            },
+            "relevance": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Relevance"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "title": "Excerpt",
+          "type": "object"
+        },
+        "ReviewPerspective": {
+          "description": "One reviewer persona of the domain rubric and the signals it produced.",
+          "properties": {
+            "role": {
+              "title": "Role",
+              "type": "string"
+            },
+            "focus": {
+              "default": "",
+              "title": "Focus",
+              "type": "string"
+            },
+            "signal_ids": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Signal Ids",
+              "type": "array"
+            },
+            "questions_for_authors": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Questions For Authors",
+              "type": "array"
+            }
+          },
+          "required": [
+            "role"
+          ],
+          "title": "ReviewPerspective",
+          "type": "object"
+        },
+        "Rubric": {
+          "description": "How the client's model should judge: the criteria and a short instruction (`how_to_judge`).",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "criteria": {
+              "items": {
+                "$ref": "#/$defs/RubricCriterion"
+              },
+              "title": "Criteria",
+              "type": "array"
+            },
+            "how_to_judge": {
+              "title": "How To Judge",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "how_to_judge"
+          ],
+          "title": "Rubric",
+          "type": "object"
+        },
+        "RubricCriterion": {
+          "description": "One question the client's model should answer, citing excerpts.",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "question": {
+              "title": "Question",
+              "type": "string"
+            },
+            "guidance": {
+              "default": "",
+              "title": "Guidance",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "question"
+          ],
+          "title": "RubricCriterion",
+          "type": "object"
+        },
+        "Signal": {
+          "description": "Something a heuristic detected. `kind` says which way it points; `priority_hint` is the heuristic's guess\nof how much it matters - the judgement is the client's.",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "category": {
+              "title": "Category",
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "strength",
+                "concern",
+                "gap",
+                "neutral"
+              ],
+              "title": "Kind",
+              "type": "string"
+            },
+            "description": {
+              "title": "Description",
+              "type": "string"
+            },
+            "priority_hint": {
+              "default": "medium",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ],
+              "title": "Priority Hint",
+              "type": "string"
+            },
+            "detail": {
+              "default": "",
+              "title": "Detail",
+              "type": "string"
+            },
+            "excerpts": {
+              "items": {
+                "$ref": "#/$defs/Excerpt"
+              },
+              "title": "Excerpts",
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "category",
+            "kind",
+            "description"
+          ],
+          "title": "Signal",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "tool": {
+          "title": "Tool",
+          "type": "string"
+        },
+        "method": {
+          "default": "heuristic",
+          "enum": [
+            "heuristic",
+            "retrieval"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/AnalysisSubject"
+        },
+        "signals": {
+          "items": {
+            "$ref": "#/$defs/Signal"
+          },
+          "title": "Signals",
+          "type": "array"
+        },
+        "checklist": {
+          "items": {
+            "$ref": "#/$defs/ChecklistItem"
+          },
+          "title": "Checklist",
+          "type": "array"
+        },
+        "excerpts": {
+          "items": {
+            "$ref": "#/$defs/Excerpt"
+          },
+          "title": "Excerpts",
+          "type": "array"
+        },
+        "rubric": {
+          "$ref": "#/$defs/Rubric"
+        },
+        "extraction_confidence": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Extraction Confidence",
+          "type": "string"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "untrusted_fields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Untrusted Fields",
+          "type": "array"
+        },
+        "rendered_markdown": {
+          "default": "",
+          "title": "Rendered Markdown",
+          "type": "string"
+        },
+        "rubric_applied": {
+          "title": "Rubric Applied",
+          "type": "string"
+        },
+        "perspectives": {
+          "items": {
+            "$ref": "#/$defs/ReviewPerspective"
+          },
+          "title": "Perspectives",
+          "type": "array"
+        },
+        "missing_experiments_or_controls": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Missing Experiments Or Controls",
+          "type": "array"
+        },
+        "questions_for_authors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Questions For Authors",
+          "type": "array"
+        }
+      },
+      "required": [
+        "tool",
+        "subject",
+        "rubric",
+        "extraction_confidence",
+        "rubric_applied"
+      ],
+      "title": "PeerReviewReport",
+      "type": "object"
+    },
     "annotations": {
       "title": "Review paper (scientific committee)",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "review"
+    ],
+    "write_args": []
   },
   {
     "name": "scaffold_implementation",
@@ -721,13 +2805,92 @@
         "paper_id"
       ]
     },
+    "outputSchema": {
+      "properties": {
+        "paper_id": {
+          "title": "Paper Id",
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        },
+        "domain": {
+          "default": "computer_science",
+          "title": "Domain",
+          "type": "string"
+        },
+        "target": {
+          "default": "pytorch",
+          "title": "Target",
+          "type": "string"
+        },
+        "language": {
+          "default": "python",
+          "title": "Language",
+          "type": "string"
+        },
+        "framework": {
+          "default": "torch",
+          "title": "Framework",
+          "type": "string"
+        },
+        "source_code": {
+          "title": "Source Code",
+          "type": "string"
+        },
+        "unit_tests": {
+          "title": "Unit Tests",
+          "type": "string"
+        },
+        "syntax_valid": {
+          "default": true,
+          "title": "Syntax Valid",
+          "type": "boolean"
+        },
+        "shape_verified": {
+          "default": true,
+          "title": "Shape Verified",
+          "type": "boolean"
+        },
+        "dependencies": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Dependencies",
+          "type": "array"
+        },
+        "requirements_txt": {
+          "default": "",
+          "title": "Requirements Txt",
+          "type": "string"
+        },
+        "execution_notes": {
+          "default": "",
+          "title": "Execution Notes",
+          "type": "string"
+        }
+      },
+      "required": [
+        "paper_id",
+        "source_code",
+        "unit_tests"
+      ],
+      "title": "CodeScaffold",
+      "type": "object"
+    },
     "annotations": {
       "title": "Scaffold implementation",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "review"
+    ],
+    "write_args": []
   },
   {
     "name": "scaffold_paper_code",
@@ -751,13 +2914,18 @@
         "paper_id"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Scaffold paper code",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "review"
+    ],
+    "write_args": []
   },
   {
     "name": "recommend_citations",
@@ -788,13 +2956,109 @@
         "draft_text"
       ]
     },
+    "outputSchema": {
+      "$defs": {
+        "CitationRecommendationItem": {
+          "properties": {
+            "claim_sentence": {
+              "title": "Claim Sentence",
+              "type": "string"
+            },
+            "marker_or_trigger": {
+              "default": "",
+              "title": "Marker Or Trigger",
+              "type": "string"
+            },
+            "search_query": {
+              "default": "",
+              "title": "Search Query",
+              "type": "string"
+            },
+            "recommended_papers": {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "title": "Recommended Papers",
+              "type": "array"
+            },
+            "justifications": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Justifications",
+              "type": "array"
+            },
+            "citation_keys": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Citation Keys",
+              "type": "array"
+            },
+            "inline_replacement": {
+              "default": "",
+              "title": "Inline Replacement",
+              "type": "string"
+            }
+          },
+          "required": [
+            "claim_sentence"
+          ],
+          "title": "CitationRecommendationItem",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "input_format": {
+          "default": "markdown",
+          "title": "Input Format",
+          "type": "string"
+        },
+        "annotated_text": {
+          "default": "",
+          "title": "Annotated Text",
+          "type": "string"
+        },
+        "claims_detected": {
+          "default": 0,
+          "title": "Claims Detected",
+          "type": "integer"
+        },
+        "recommendations": {
+          "items": {
+            "$ref": "#/$defs/CitationRecommendationItem"
+          },
+          "title": "Recommendations",
+          "type": "array"
+        },
+        "bibtex_block": {
+          "default": "",
+          "title": "Bibtex Block",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "title": "CitationInfillerReport",
+      "type": "object"
+    },
     "annotations": {
       "title": "Recommend citations",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "write"
+    ],
+    "write_args": []
   },
   {
     "name": "synthesize_related_work",
@@ -807,7 +3071,9 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Papers to synthesise (up to 20)",
+          "maxItems": 20
         },
         "proposal": {
           "type": "string"
@@ -834,13 +3100,101 @@
         "proposal"
       ]
     },
+    "outputSchema": {
+      "$defs": {
+        "RelatedWorkThemeCluster": {
+          "properties": {
+            "theme_name": {
+              "title": "Theme Name",
+              "type": "string"
+            },
+            "approach_family": {
+              "title": "Approach Family",
+              "type": "string"
+            },
+            "paper_ids": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Paper Ids",
+              "type": "array"
+            },
+            "citation_keys": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Citation Keys",
+              "type": "array"
+            },
+            "comparative_narrative": {
+              "default": "",
+              "title": "Comparative Narrative",
+              "type": "string"
+            }
+          },
+          "required": [
+            "theme_name",
+            "approach_family"
+          ],
+          "title": "RelatedWorkThemeCluster",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "proposal_summary": {
+          "title": "Proposal Summary",
+          "type": "string"
+        },
+        "citation_style": {
+          "default": "latex",
+          "title": "Citation Style",
+          "type": "string"
+        },
+        "output_format": {
+          "default": "markdown",
+          "title": "Output Format",
+          "type": "string"
+        },
+        "thematic_clusters": {
+          "items": {
+            "$ref": "#/$defs/RelatedWorkThemeCluster"
+          },
+          "title": "Thematic Clusters",
+          "type": "array"
+        },
+        "positioning_paragraph": {
+          "default": "",
+          "title": "Positioning Paragraph",
+          "type": "string"
+        },
+        "rendered_related_work": {
+          "default": "",
+          "title": "Rendered Related Work",
+          "type": "string"
+        },
+        "bibtex_block": {
+          "default": "",
+          "title": "Bibtex Block",
+          "type": "string"
+        }
+      },
+      "required": [
+        "proposal_summary"
+      ],
+      "title": "RelatedWorkSynthesis",
+      "type": "object"
+    },
     "annotations": {
       "title": "Synthesize related work",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "write"
+    ],
+    "write_args": []
   },
   {
     "name": "generate_manuscript_blueprint",
@@ -878,13 +3232,98 @@
         "topic"
       ]
     },
+    "outputSchema": {
+      "$defs": {
+        "BlueprintSection": {
+          "properties": {
+            "section_title": {
+              "title": "Section Title",
+              "type": "string"
+            },
+            "imrad_role": {
+              "title": "Imrad Role",
+              "type": "string"
+            },
+            "paragraph_prompts": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Paragraph Prompts",
+              "type": "array"
+            },
+            "recommended_elements": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Recommended Elements",
+              "type": "array"
+            }
+          },
+          "required": [
+            "section_title",
+            "imrad_role"
+          ],
+          "title": "BlueprintSection",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "topic": {
+          "title": "Topic",
+          "type": "string"
+        },
+        "venue": {
+          "default": "general",
+          "title": "Venue",
+          "type": "string"
+        },
+        "hypothesis": {
+          "default": "",
+          "title": "Hypothesis",
+          "type": "string"
+        },
+        "key_findings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Key Findings",
+          "type": "array"
+        },
+        "output_format": {
+          "default": "markdown",
+          "title": "Output Format",
+          "type": "string"
+        },
+        "sections": {
+          "items": {
+            "$ref": "#/$defs/BlueprintSection"
+          },
+          "title": "Sections",
+          "type": "array"
+        },
+        "rendered_template": {
+          "default": "",
+          "title": "Rendered Template",
+          "type": "string"
+        }
+      },
+      "required": [
+        "topic"
+      ],
+      "title": "ManuscriptBlueprint",
+      "type": "object"
+    },
     "annotations": {
       "title": "Generate manuscript blueprint",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": false
-    }
+    },
+    "profiles": [
+      "write"
+    ],
+    "write_args": []
   },
   {
     "name": "audit_manuscript_draft",
@@ -913,13 +3352,444 @@
         "draft_input"
       ]
     },
+    "outputSchema": {
+      "$defs": {
+        "AnalysisSubject": {
+          "description": "What was analysed: a paper (id/title/domain) or the user's draft or reviews (`title` = file label).",
+          "properties": {
+            "paper_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Paper Id"
+            },
+            "title": {
+              "default": "",
+              "title": "Title",
+              "type": "string"
+            },
+            "domain": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Domain"
+            },
+            "source": {
+              "default": "",
+              "title": "Source",
+              "type": "string"
+            }
+          },
+          "title": "AnalysisSubject",
+          "type": "object"
+        },
+        "ChecklistItem": {
+          "description": "A yes/no question answered by pattern detection (`unclear` when the text does not allow an answer).",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "category": {
+              "default": "",
+              "title": "Category",
+              "type": "string"
+            },
+            "question": {
+              "title": "Question",
+              "type": "string"
+            },
+            "detected": {
+              "enum": [
+                "yes",
+                "no",
+                "unclear"
+              ],
+              "title": "Detected",
+              "type": "string"
+            },
+            "location": {
+              "default": "",
+              "title": "Location",
+              "type": "string"
+            },
+            "evidence": {
+              "items": {
+                "$ref": "#/$defs/Excerpt"
+              },
+              "title": "Evidence",
+              "type": "array"
+            },
+            "remediation": {
+              "default": "",
+              "title": "Remediation",
+              "type": "string"
+            },
+            "priority_hint": {
+              "default": "medium",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ],
+              "title": "Priority Hint",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "question",
+            "detected"
+          ],
+          "title": "ChecklistItem",
+          "type": "object"
+        },
+        "Excerpt": {
+          "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
+          "properties": {
+            "text": {
+              "title": "Text",
+              "type": "string"
+            },
+            "truncated": {
+              "default": false,
+              "title": "Truncated",
+              "type": "boolean"
+            },
+            "origin": {
+              "default": "paper",
+              "enum": [
+                "paper",
+                "draft",
+                "reviews",
+                "web",
+                "user"
+              ],
+              "title": "Origin",
+              "type": "string"
+            },
+            "paper_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Paper Id"
+            },
+            "section": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Section"
+            },
+            "page": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Page"
+            },
+            "untrusted": {
+              "default": true,
+              "title": "Untrusted",
+              "type": "boolean"
+            },
+            "chunk_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Chunk Id"
+            },
+            "char_start": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Char Start"
+            },
+            "char_end": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Char End"
+            },
+            "relevance": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Relevance"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "title": "Excerpt",
+          "type": "object"
+        },
+        "Rubric": {
+          "description": "How the client's model should judge: the criteria and a short instruction (`how_to_judge`).",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "criteria": {
+              "items": {
+                "$ref": "#/$defs/RubricCriterion"
+              },
+              "title": "Criteria",
+              "type": "array"
+            },
+            "how_to_judge": {
+              "title": "How To Judge",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "how_to_judge"
+          ],
+          "title": "Rubric",
+          "type": "object"
+        },
+        "RubricCriterion": {
+          "description": "One question the client's model should answer, citing excerpts.",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "question": {
+              "title": "Question",
+              "type": "string"
+            },
+            "guidance": {
+              "default": "",
+              "title": "Guidance",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "question"
+          ],
+          "title": "RubricCriterion",
+          "type": "object"
+        },
+        "Signal": {
+          "description": "Something a heuristic detected. `kind` says which way it points; `priority_hint` is the heuristic's guess\nof how much it matters - the judgement is the client's.",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "category": {
+              "title": "Category",
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "strength",
+                "concern",
+                "gap",
+                "neutral"
+              ],
+              "title": "Kind",
+              "type": "string"
+            },
+            "description": {
+              "title": "Description",
+              "type": "string"
+            },
+            "priority_hint": {
+              "default": "medium",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ],
+              "title": "Priority Hint",
+              "type": "string"
+            },
+            "detail": {
+              "default": "",
+              "title": "Detail",
+              "type": "string"
+            },
+            "excerpts": {
+              "items": {
+                "$ref": "#/$defs/Excerpt"
+              },
+              "title": "Excerpts",
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "category",
+            "kind",
+            "description"
+          ],
+          "title": "Signal",
+          "type": "object"
+        }
+      },
+      "description": "Draft findings are `signals` (category weak_claim | notation_inconsistency | reproducibility_omission,\nexcerpts from the user's draft); `rendered_report` is Markdown or LaTeX per `output_format`.",
+      "properties": {
+        "tool": {
+          "title": "Tool",
+          "type": "string"
+        },
+        "method": {
+          "default": "heuristic",
+          "enum": [
+            "heuristic",
+            "retrieval"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/AnalysisSubject"
+        },
+        "signals": {
+          "items": {
+            "$ref": "#/$defs/Signal"
+          },
+          "title": "Signals",
+          "type": "array"
+        },
+        "checklist": {
+          "items": {
+            "$ref": "#/$defs/ChecklistItem"
+          },
+          "title": "Checklist",
+          "type": "array"
+        },
+        "excerpts": {
+          "items": {
+            "$ref": "#/$defs/Excerpt"
+          },
+          "title": "Excerpts",
+          "type": "array"
+        },
+        "rubric": {
+          "$ref": "#/$defs/Rubric"
+        },
+        "extraction_confidence": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Extraction Confidence",
+          "type": "string"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "untrusted_fields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Untrusted Fields",
+          "type": "array"
+        },
+        "rendered_markdown": {
+          "default": "",
+          "title": "Rendered Markdown",
+          "type": "string"
+        },
+        "venue": {
+          "default": "general",
+          "title": "Venue",
+          "type": "string"
+        },
+        "output_format": {
+          "default": "markdown",
+          "title": "Output Format",
+          "type": "string"
+        },
+        "rendered_report": {
+          "default": "",
+          "title": "Rendered Report",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "subject",
+        "rubric",
+        "extraction_confidence"
+      ],
+      "title": "DraftAuditReport",
+      "type": "object"
+    },
     "annotations": {
       "title": "Audit manuscript draft",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": false
-    }
+    },
+    "profiles": [
+      "write"
+    ],
+    "write_args": []
   },
   {
     "name": "sanitize_bibtex",
@@ -943,13 +3813,133 @@
         "bibtex_input"
       ]
     },
+    "outputSchema": {
+      "$defs": {
+        "BibtexEntryUpdate": {
+          "properties": {
+            "original_key": {
+              "title": "Original Key",
+              "type": "string"
+            },
+            "canonical_key": {
+              "title": "Canonical Key",
+              "type": "string"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "action": {
+              "title": "Action",
+              "type": "string"
+            },
+            "old_venue_or_type": {
+              "default": "",
+              "title": "Old Venue Or Type",
+              "type": "string"
+            },
+            "new_venue_or_type": {
+              "default": "",
+              "title": "New Venue Or Type",
+              "type": "string"
+            },
+            "doi": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Doi"
+            },
+            "notes": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Notes",
+              "type": "array"
+            }
+          },
+          "required": [
+            "original_key",
+            "canonical_key",
+            "title",
+            "action"
+          ],
+          "title": "BibtexEntryUpdate",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "entries_total": {
+          "default": 0,
+          "title": "Entries Total",
+          "type": "integer"
+        },
+        "entries_out": {
+          "default": 0,
+          "title": "Entries Out",
+          "type": "integer"
+        },
+        "duplicates_removed": {
+          "default": 0,
+          "title": "Duplicates Removed",
+          "type": "integer"
+        },
+        "preprints_upgraded": {
+          "default": 0,
+          "title": "Preprints Upgraded",
+          "type": "integer"
+        },
+        "dois_completed": {
+          "default": 0,
+          "title": "Dois Completed",
+          "type": "integer"
+        },
+        "latex_escapes_fixed": {
+          "default": 0,
+          "title": "Latex Escapes Fixed",
+          "type": "integer"
+        },
+        "updates": {
+          "items": {
+            "$ref": "#/$defs/BibtexEntryUpdate"
+          },
+          "title": "Updates",
+          "type": "array"
+        },
+        "sanitized_bibtex": {
+          "default": "",
+          "title": "Sanitized Bibtex",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "title": "BibtexSanitizeReport",
+      "type": "object"
+    },
     "annotations": {
       "title": "Sanitize BibTeX",
       "readOnlyHint": false,
       "destructiveHint": true,
       "idempotentHint": false,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "write"
+    ],
+    "write_args": [
+      "output_path"
+    ]
   },
   {
     "name": "parse_and_draft_rebuttal",
@@ -980,13 +3970,515 @@
         "reviews_input"
       ]
     },
+    "outputSchema": {
+      "$defs": {
+        "AnalysisSubject": {
+          "description": "What was analysed: a paper (id/title/domain) or the user's draft or reviews (`title` = file label).",
+          "properties": {
+            "paper_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Paper Id"
+            },
+            "title": {
+              "default": "",
+              "title": "Title",
+              "type": "string"
+            },
+            "domain": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Domain"
+            },
+            "source": {
+              "default": "",
+              "title": "Source",
+              "type": "string"
+            }
+          },
+          "title": "AnalysisSubject",
+          "type": "object"
+        },
+        "ChecklistItem": {
+          "description": "A yes/no question answered by pattern detection (`unclear` when the text does not allow an answer).",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "category": {
+              "default": "",
+              "title": "Category",
+              "type": "string"
+            },
+            "question": {
+              "title": "Question",
+              "type": "string"
+            },
+            "detected": {
+              "enum": [
+                "yes",
+                "no",
+                "unclear"
+              ],
+              "title": "Detected",
+              "type": "string"
+            },
+            "location": {
+              "default": "",
+              "title": "Location",
+              "type": "string"
+            },
+            "evidence": {
+              "items": {
+                "$ref": "#/$defs/Excerpt"
+              },
+              "title": "Evidence",
+              "type": "array"
+            },
+            "remediation": {
+              "default": "",
+              "title": "Remediation",
+              "type": "string"
+            },
+            "priority_hint": {
+              "default": "medium",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ],
+              "title": "Priority Hint",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "question",
+            "detected"
+          ],
+          "title": "ChecklistItem",
+          "type": "object"
+        },
+        "Excerpt": {
+          "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
+          "properties": {
+            "text": {
+              "title": "Text",
+              "type": "string"
+            },
+            "truncated": {
+              "default": false,
+              "title": "Truncated",
+              "type": "boolean"
+            },
+            "origin": {
+              "default": "paper",
+              "enum": [
+                "paper",
+                "draft",
+                "reviews",
+                "web",
+                "user"
+              ],
+              "title": "Origin",
+              "type": "string"
+            },
+            "paper_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Paper Id"
+            },
+            "section": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Section"
+            },
+            "page": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Page"
+            },
+            "untrusted": {
+              "default": true,
+              "title": "Untrusted",
+              "type": "boolean"
+            },
+            "chunk_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Chunk Id"
+            },
+            "char_start": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Char Start"
+            },
+            "char_end": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Char End"
+            },
+            "relevance": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Relevance"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "title": "Excerpt",
+          "type": "object"
+        },
+        "RebuttalPoint": {
+          "properties": {
+            "point_id": {
+              "title": "Point Id",
+              "type": "string"
+            },
+            "reviewer_id": {
+              "title": "Reviewer Id",
+              "type": "string"
+            },
+            "category": {
+              "title": "Category",
+              "type": "string"
+            },
+            "priority_hint": {
+              "default": "medium",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ],
+              "title": "Priority Hint",
+              "type": "string"
+            },
+            "requires_new_experiment": {
+              "default": false,
+              "title": "Requires New Experiment",
+              "type": "boolean"
+            },
+            "comment": {
+              "$ref": "#/$defs/Excerpt"
+            },
+            "response_template": {
+              "default": "",
+              "title": "Response Template",
+              "type": "string"
+            },
+            "manuscript_action_template": {
+              "default": "",
+              "title": "Manuscript Action Template",
+              "type": "string"
+            }
+          },
+          "required": [
+            "point_id",
+            "reviewer_id",
+            "category",
+            "comment"
+          ],
+          "title": "RebuttalPoint",
+          "type": "object"
+        },
+        "Rubric": {
+          "description": "How the client's model should judge: the criteria and a short instruction (`how_to_judge`).",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "criteria": {
+              "items": {
+                "$ref": "#/$defs/RubricCriterion"
+              },
+              "title": "Criteria",
+              "type": "array"
+            },
+            "how_to_judge": {
+              "title": "How To Judge",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "how_to_judge"
+          ],
+          "title": "Rubric",
+          "type": "object"
+        },
+        "RubricCriterion": {
+          "description": "One question the client's model should answer, citing excerpts.",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "question": {
+              "title": "Question",
+              "type": "string"
+            },
+            "guidance": {
+              "default": "",
+              "title": "Guidance",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "question"
+          ],
+          "title": "RubricCriterion",
+          "type": "object"
+        },
+        "Signal": {
+          "description": "Something a heuristic detected. `kind` says which way it points; `priority_hint` is the heuristic's guess\nof how much it matters - the judgement is the client's.",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "category": {
+              "title": "Category",
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "strength",
+                "concern",
+                "gap",
+                "neutral"
+              ],
+              "title": "Kind",
+              "type": "string"
+            },
+            "description": {
+              "title": "Description",
+              "type": "string"
+            },
+            "priority_hint": {
+              "default": "medium",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ],
+              "title": "Priority Hint",
+              "type": "string"
+            },
+            "detail": {
+              "default": "",
+              "title": "Detail",
+              "type": "string"
+            },
+            "excerpts": {
+              "items": {
+                "$ref": "#/$defs/Excerpt"
+              },
+              "title": "Excerpts",
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "category",
+            "kind",
+            "description"
+          ],
+          "title": "Signal",
+          "type": "object"
+        }
+      },
+      "description": "Parsed reviewer points with response templates; `excerpts` hold the paper abstract / draft context.",
+      "properties": {
+        "tool": {
+          "title": "Tool",
+          "type": "string"
+        },
+        "method": {
+          "default": "heuristic",
+          "enum": [
+            "heuristic",
+            "retrieval"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/AnalysisSubject"
+        },
+        "signals": {
+          "items": {
+            "$ref": "#/$defs/Signal"
+          },
+          "title": "Signals",
+          "type": "array"
+        },
+        "checklist": {
+          "items": {
+            "$ref": "#/$defs/ChecklistItem"
+          },
+          "title": "Checklist",
+          "type": "array"
+        },
+        "excerpts": {
+          "items": {
+            "$ref": "#/$defs/Excerpt"
+          },
+          "title": "Excerpts",
+          "type": "array"
+        },
+        "rubric": {
+          "$ref": "#/$defs/Rubric"
+        },
+        "extraction_confidence": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Extraction Confidence",
+          "type": "string"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "untrusted_fields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Untrusted Fields",
+          "type": "array"
+        },
+        "rendered_markdown": {
+          "default": "",
+          "title": "Rendered Markdown",
+          "type": "string"
+        },
+        "reviewers_detected": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reviewers Detected",
+          "type": "array"
+        },
+        "total_points": {
+          "default": 0,
+          "title": "Total Points",
+          "type": "integer"
+        },
+        "new_experiments_requested": {
+          "default": 0,
+          "title": "New Experiments Requested",
+          "type": "integer"
+        },
+        "points": {
+          "items": {
+            "$ref": "#/$defs/RebuttalPoint"
+          },
+          "title": "Points",
+          "type": "array"
+        },
+        "markdown_rebuttal": {
+          "default": "",
+          "title": "Markdown Rebuttal",
+          "type": "string"
+        },
+        "latex_rebuttal": {
+          "default": "",
+          "title": "Latex Rebuttal",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "subject",
+        "rubric",
+        "extraction_confidence"
+      ],
+      "title": "RebuttalReport",
+      "type": "object"
+    },
     "annotations": {
       "title": "Parse and draft rebuttal",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "write"
+    ],
+    "write_args": []
   },
   {
     "name": "audit_submission_readiness",
@@ -1007,13 +4499,446 @@
         "draft_path"
       ]
     },
+    "outputSchema": {
+      "$defs": {
+        "AnalysisSubject": {
+          "description": "What was analysed: a paper (id/title/domain) or the user's draft or reviews (`title` = file label).",
+          "properties": {
+            "paper_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Paper Id"
+            },
+            "title": {
+              "default": "",
+              "title": "Title",
+              "type": "string"
+            },
+            "domain": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Domain"
+            },
+            "source": {
+              "default": "",
+              "title": "Source",
+              "type": "string"
+            }
+          },
+          "title": "AnalysisSubject",
+          "type": "object"
+        },
+        "ChecklistItem": {
+          "description": "A yes/no question answered by pattern detection (`unclear` when the text does not allow an answer).",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "category": {
+              "default": "",
+              "title": "Category",
+              "type": "string"
+            },
+            "question": {
+              "title": "Question",
+              "type": "string"
+            },
+            "detected": {
+              "enum": [
+                "yes",
+                "no",
+                "unclear"
+              ],
+              "title": "Detected",
+              "type": "string"
+            },
+            "location": {
+              "default": "",
+              "title": "Location",
+              "type": "string"
+            },
+            "evidence": {
+              "items": {
+                "$ref": "#/$defs/Excerpt"
+              },
+              "title": "Evidence",
+              "type": "array"
+            },
+            "remediation": {
+              "default": "",
+              "title": "Remediation",
+              "type": "string"
+            },
+            "priority_hint": {
+              "default": "medium",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ],
+              "title": "Priority Hint",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "question",
+            "detected"
+          ],
+          "title": "ChecklistItem",
+          "type": "object"
+        },
+        "Excerpt": {
+          "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
+          "properties": {
+            "text": {
+              "title": "Text",
+              "type": "string"
+            },
+            "truncated": {
+              "default": false,
+              "title": "Truncated",
+              "type": "boolean"
+            },
+            "origin": {
+              "default": "paper",
+              "enum": [
+                "paper",
+                "draft",
+                "reviews",
+                "web",
+                "user"
+              ],
+              "title": "Origin",
+              "type": "string"
+            },
+            "paper_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Paper Id"
+            },
+            "section": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Section"
+            },
+            "page": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Page"
+            },
+            "untrusted": {
+              "default": true,
+              "title": "Untrusted",
+              "type": "boolean"
+            },
+            "chunk_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Chunk Id"
+            },
+            "char_start": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Char Start"
+            },
+            "char_end": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Char End"
+            },
+            "relevance": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Relevance"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "title": "Excerpt",
+          "type": "object"
+        },
+        "Rubric": {
+          "description": "How the client's model should judge: the criteria and a short instruction (`how_to_judge`).",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "criteria": {
+              "items": {
+                "$ref": "#/$defs/RubricCriterion"
+              },
+              "title": "Criteria",
+              "type": "array"
+            },
+            "how_to_judge": {
+              "title": "How To Judge",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "how_to_judge"
+          ],
+          "title": "Rubric",
+          "type": "object"
+        },
+        "RubricCriterion": {
+          "description": "One question the client's model should answer, citing excerpts.",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "question": {
+              "title": "Question",
+              "type": "string"
+            },
+            "guidance": {
+              "default": "",
+              "title": "Guidance",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "question"
+          ],
+          "title": "RubricCriterion",
+          "type": "object"
+        },
+        "Signal": {
+          "description": "Something a heuristic detected. `kind` says which way it points; `priority_hint` is the heuristic's guess\nof how much it matters - the judgement is the client's.",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "category": {
+              "title": "Category",
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "strength",
+                "concern",
+                "gap",
+                "neutral"
+              ],
+              "title": "Kind",
+              "type": "string"
+            },
+            "description": {
+              "title": "Description",
+              "type": "string"
+            },
+            "priority_hint": {
+              "default": "medium",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ],
+              "title": "Priority Hint",
+              "type": "string"
+            },
+            "detail": {
+              "default": "",
+              "title": "Detail",
+              "type": "string"
+            },
+            "excerpts": {
+              "items": {
+                "$ref": "#/$defs/Excerpt"
+              },
+              "title": "Excerpts",
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "category",
+            "kind",
+            "description"
+          ],
+          "title": "Signal",
+          "type": "object"
+        }
+      },
+      "description": "Pre-submission evidence: anonymity and overclaiming findings are `signals`; venue checklist and mandatory\nsections are `checklist` items (detected yes/no). No readiness score: the client judges readiness.",
+      "properties": {
+        "tool": {
+          "title": "Tool",
+          "type": "string"
+        },
+        "method": {
+          "default": "heuristic",
+          "enum": [
+            "heuristic",
+            "retrieval"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/AnalysisSubject"
+        },
+        "signals": {
+          "items": {
+            "$ref": "#/$defs/Signal"
+          },
+          "title": "Signals",
+          "type": "array"
+        },
+        "checklist": {
+          "items": {
+            "$ref": "#/$defs/ChecklistItem"
+          },
+          "title": "Checklist",
+          "type": "array"
+        },
+        "excerpts": {
+          "items": {
+            "$ref": "#/$defs/Excerpt"
+          },
+          "title": "Excerpts",
+          "type": "array"
+        },
+        "rubric": {
+          "$ref": "#/$defs/Rubric"
+        },
+        "extraction_confidence": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Extraction Confidence",
+          "type": "string"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "untrusted_fields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Untrusted Fields",
+          "type": "array"
+        },
+        "rendered_markdown": {
+          "default": "",
+          "title": "Rendered Markdown",
+          "type": "string"
+        },
+        "venue": {
+          "title": "Venue",
+          "type": "string"
+        },
+        "double_blind": {
+          "default": false,
+          "title": "Double Blind",
+          "type": "boolean"
+        },
+        "suggested_actions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Suggested Actions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "tool",
+        "subject",
+        "rubric",
+        "extraction_confidence",
+        "venue"
+      ],
+      "title": "SubmissionGatekeeperReport",
+      "type": "object"
+    },
     "annotations": {
       "title": "Audit submission readiness",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": false
-    }
+    },
+    "profiles": [
+      "write"
+    ],
+    "write_args": []
   },
   {
     "name": "get_fulltext",
@@ -1033,13 +4958,232 @@
         "id"
       ]
     },
+    "outputSchema": {
+      "$defs": {
+        "Excerpt": {
+          "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
+          "properties": {
+            "text": {
+              "title": "Text",
+              "type": "string"
+            },
+            "truncated": {
+              "default": false,
+              "title": "Truncated",
+              "type": "boolean"
+            },
+            "origin": {
+              "default": "paper",
+              "enum": [
+                "paper",
+                "draft",
+                "reviews",
+                "web",
+                "user"
+              ],
+              "title": "Origin",
+              "type": "string"
+            },
+            "paper_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Paper Id"
+            },
+            "section": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Section"
+            },
+            "page": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Page"
+            },
+            "untrusted": {
+              "default": true,
+              "title": "Untrusted",
+              "type": "boolean"
+            },
+            "chunk_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Chunk Id"
+            },
+            "char_start": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Char Start"
+            },
+            "char_end": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Char End"
+            },
+            "relevance": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Relevance"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "title": "Excerpt",
+          "type": "object"
+        }
+      },
+      "description": "`get_fulltext`: up to 6 passages relevant to `question` (or the first passages without one). When no open\nfull text is available, `abstract_fallback` holds the abstract instead.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "available": {
+          "title": "Available",
+          "type": "boolean"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Where the open-access copy was found: metadata (the paper record's own PDF link), unpaywall, europepmc_xml, ... - not the content type.",
+          "title": "Source"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "method": {
+          "const": "retrieval",
+          "default": "retrieval",
+          "title": "Method",
+          "type": "string"
+        },
+        "question": {
+          "default": "",
+          "title": "Question",
+          "type": "string"
+        },
+        "excerpts": {
+          "items": {
+            "$ref": "#/$defs/Excerpt"
+          },
+          "title": "Excerpts",
+          "type": "array"
+        },
+        "abstract_fallback": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Abstract Fallback"
+        },
+        "untrusted_fields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Untrusted Fields",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "available"
+      ],
+      "title": "FulltextResult",
+      "type": "object"
+    },
     "annotations": {
       "title": "Get full text",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   },
   {
     "name": "query_fulltexts",
@@ -1053,11 +5197,15 @@
           "items": {
             "type": "string"
           },
-          "description": "Paper ids (1-20)"
+          "description": "Paper ids (1-20)",
+          "minItems": 1,
+          "maxItems": 20
         },
         "question": {
           "type": "string",
-          "description": "The question to answer from the papers"
+          "description": "The question to answer from the papers",
+          "minLength": 1,
+          "pattern": "\\S"
         },
         "max_chunks_per_paper": {
           "type": "integer",
@@ -1072,13 +5220,276 @@
         "question"
       ]
     },
+    "outputSchema": {
+      "$defs": {
+        "Excerpt": {
+          "description": "A verbatim passage. `untrusted` is true for third-party text (papers, PDFs, web pages, reviews).",
+          "properties": {
+            "text": {
+              "title": "Text",
+              "type": "string"
+            },
+            "truncated": {
+              "default": false,
+              "title": "Truncated",
+              "type": "boolean"
+            },
+            "origin": {
+              "default": "paper",
+              "enum": [
+                "paper",
+                "draft",
+                "reviews",
+                "web",
+                "user"
+              ],
+              "title": "Origin",
+              "type": "string"
+            },
+            "paper_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Paper Id"
+            },
+            "section": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Section"
+            },
+            "page": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Page"
+            },
+            "untrusted": {
+              "default": true,
+              "title": "Untrusted",
+              "type": "boolean"
+            },
+            "chunk_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Chunk Id"
+            },
+            "char_start": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Char Start"
+            },
+            "char_end": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Char End"
+            },
+            "relevance": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Relevance"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "title": "Excerpt",
+          "type": "object"
+        },
+        "PaperPassages": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "title": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Title"
+            },
+            "authors": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Authors",
+              "type": "array"
+            },
+            "year": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Year"
+            },
+            "doi": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Doi"
+            },
+            "evidence": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Evidence"
+            },
+            "content_source": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "fulltext",
+                    "abstract_only"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Content Source"
+            },
+            "excerpts": {
+              "items": {
+                "$ref": "#/$defs/Excerpt"
+              },
+              "title": "Excerpts",
+              "type": "array"
+            },
+            "error": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Error"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "title": "PaperPassages",
+          "type": "object"
+        }
+      },
+      "description": "`query_fulltexts`: the best passages per paper for one question.",
+      "properties": {
+        "question": {
+          "title": "Question",
+          "type": "string"
+        },
+        "method": {
+          "const": "retrieval",
+          "default": "retrieval",
+          "title": "Method",
+          "type": "string"
+        },
+        "results": {
+          "items": {
+            "$ref": "#/$defs/PaperPassages"
+          },
+          "title": "Results",
+          "type": "array"
+        },
+        "untrusted_fields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Untrusted Fields",
+          "type": "array"
+        }
+      },
+      "required": [
+        "question"
+      ],
+      "title": "QueryFulltextsResult",
+      "type": "object"
+    },
     "annotations": {
       "title": "Query full texts",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   },
   {
     "name": "citation_graph",
@@ -1095,13 +5506,18 @@
         "id"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Citation graph",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   },
   {
     "name": "related_papers",
@@ -1153,13 +5569,18 @@
         "id"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Related papers",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   },
   {
     "name": "download_papers",
@@ -1172,7 +5593,9 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Paper ids or DOIs (up to 25 per call)",
+          "maxItems": 25
         },
         "output_dir": {
           "type": "string",
@@ -1183,13 +5606,18 @@
         "ids"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Download papers",
       "readOnlyHint": false,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   },
   {
     "name": "export_papers",
@@ -1217,13 +5645,18 @@
         "ids"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Export papers",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   },
   {
     "name": "save_research_dossier",
@@ -1254,13 +5687,18 @@
         "synthesis_markdown"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Save research dossier",
       "readOnlyHint": false,
       "destructiveHint": true,
       "idempotentHint": true,
       "openWorldHint": false
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   },
   {
     "name": "list_research_dossiers",
@@ -1276,13 +5714,18 @@
       },
       "required": []
     },
+    "outputSchema": null,
     "annotations": {
       "title": "List research dossiers",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": false
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   },
   {
     "name": "get_research_dossier",
@@ -1303,13 +5746,18 @@
         "slug"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Get research dossier",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": false
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   },
   {
     "name": "configure_noul",
@@ -1337,13 +5785,18 @@
       },
       "required": []
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Configure Noul",
       "readOnlyHint": false,
       "destructiveHint": true,
       "idempotentHint": true,
       "openWorldHint": false
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   },
   {
     "name": "evidence_meter",
@@ -1379,13 +5832,18 @@
         "items"
       ]
     },
+    "outputSchema": null,
     "annotations": {
       "title": "Evidence meter",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": false
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   },
   {
     "name": "project_create",
@@ -1396,16 +5854,101 @@
       "properties": {
         "title": {
           "type": "string",
-          "description": "Short project name, e.g. the topic"
+          "description": "Short project name, e.g. the topic",
+          "minLength": 1,
+          "maxLength": 300
         },
         "question": {
           "type": "string",
-          "description": "The research question the project answers"
+          "description": "The research question the project answers",
+          "maxLength": 2000
         }
       },
       "required": [
         "title"
       ]
+    },
+    "outputSchema": {
+      "$defs": {
+        "StatusCounts": {
+          "properties": {
+            "candidate": {
+              "default": 0,
+              "title": "Candidate",
+              "type": "integer"
+            },
+            "included": {
+              "default": 0,
+              "title": "Included",
+              "type": "integer"
+            },
+            "excluded": {
+              "default": 0,
+              "title": "Excluded",
+              "type": "integer"
+            }
+          },
+          "title": "StatusCounts",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "slug": {
+          "title": "Slug",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "question": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Question"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "integer"
+        },
+        "updated_at": {
+          "title": "Updated At",
+          "type": "integer"
+        },
+        "counts": {
+          "$ref": "#/$defs/StatusCounts"
+        },
+        "note_count": {
+          "default": 0,
+          "title": "Note Count",
+          "type": "integer"
+        },
+        "created": {
+          "title": "Created",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "slug",
+        "title",
+        "created_at",
+        "updated_at",
+        "counts",
+        "created"
+      ],
+      "title": "ProjectCreated",
+      "type": "object"
     },
     "annotations": {
       "title": "Create research project",
@@ -1413,7 +5956,11 @@
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": false
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   },
   {
     "name": "project_list",
@@ -1424,13 +5971,108 @@
       "properties": {},
       "required": []
     },
+    "outputSchema": {
+      "$defs": {
+        "ProjectSummary": {
+          "description": "A research project: a question and the papers considered for it.",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "integer"
+            },
+            "slug": {
+              "title": "Slug",
+              "type": "string"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "question": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Question"
+            },
+            "created_at": {
+              "title": "Created At",
+              "type": "integer"
+            },
+            "updated_at": {
+              "title": "Updated At",
+              "type": "integer"
+            },
+            "counts": {
+              "$ref": "#/$defs/StatusCounts"
+            },
+            "note_count": {
+              "default": 0,
+              "title": "Note Count",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "id",
+            "slug",
+            "title",
+            "created_at",
+            "updated_at",
+            "counts"
+          ],
+          "title": "ProjectSummary",
+          "type": "object"
+        },
+        "StatusCounts": {
+          "properties": {
+            "candidate": {
+              "default": 0,
+              "title": "Candidate",
+              "type": "integer"
+            },
+            "included": {
+              "default": 0,
+              "title": "Included",
+              "type": "integer"
+            },
+            "excluded": {
+              "default": 0,
+              "title": "Excluded",
+              "type": "integer"
+            }
+          },
+          "title": "StatusCounts",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "projects": {
+          "items": {
+            "$ref": "#/$defs/ProjectSummary"
+          },
+          "title": "Projects",
+          "type": "array"
+        }
+      },
+      "title": "ProjectList",
+      "type": "object"
+    },
     "annotations": {
       "title": "List research projects",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": false
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   },
   {
     "name": "project_get",
@@ -1441,7 +6083,9 @@
       "properties": {
         "project": {
           "type": "string",
-          "description": "Project slug (from project_create / project_list) or numeric id"
+          "description": "Project slug (from project_create / project_list) or numeric id",
+          "minLength": 1,
+          "maxLength": 120
         },
         "include_papers": {
           "type": "boolean",
@@ -1453,13 +6097,251 @@
         "project"
       ]
     },
+    "outputSchema": {
+      "$defs": {
+        "ProjectNote": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "integer"
+            },
+            "paper_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Paper Id"
+            },
+            "text": {
+              "title": "Text",
+              "type": "string"
+            },
+            "created_at": {
+              "title": "Created At",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "id",
+            "text",
+            "created_at"
+          ],
+          "title": "ProjectNote",
+          "type": "object"
+        },
+        "ProjectPaper": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "title": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Title"
+            },
+            "authors": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Authors",
+              "type": "array"
+            },
+            "year": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Year"
+            },
+            "doi": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Doi"
+            },
+            "evidence": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Evidence"
+            },
+            "status": {
+              "enum": [
+                "candidate",
+                "included",
+                "excluded"
+              ],
+              "title": "Status",
+              "type": "string"
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Reason"
+            },
+            "added_at": {
+              "title": "Added At",
+              "type": "integer"
+            },
+            "updated_at": {
+              "title": "Updated At",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "id",
+            "status",
+            "added_at",
+            "updated_at"
+          ],
+          "title": "ProjectPaper",
+          "type": "object"
+        },
+        "StatusCounts": {
+          "properties": {
+            "candidate": {
+              "default": 0,
+              "title": "Candidate",
+              "type": "integer"
+            },
+            "included": {
+              "default": 0,
+              "title": "Included",
+              "type": "integer"
+            },
+            "excluded": {
+              "default": 0,
+              "title": "Excluded",
+              "type": "integer"
+            }
+          },
+          "title": "StatusCounts",
+          "type": "object"
+        }
+      },
+      "description": "`project_get`: the project with its papers (included first) and notes. Paper titles are third-party text.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "slug": {
+          "title": "Slug",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "question": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Question"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "integer"
+        },
+        "updated_at": {
+          "title": "Updated At",
+          "type": "integer"
+        },
+        "counts": {
+          "$ref": "#/$defs/StatusCounts"
+        },
+        "note_count": {
+          "default": 0,
+          "title": "Note Count",
+          "type": "integer"
+        },
+        "papers": {
+          "items": {
+            "$ref": "#/$defs/ProjectPaper"
+          },
+          "title": "Papers",
+          "type": "array"
+        },
+        "notes": {
+          "items": {
+            "$ref": "#/$defs/ProjectNote"
+          },
+          "title": "Notes",
+          "type": "array"
+        },
+        "untrusted_fields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Untrusted Fields",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "slug",
+        "title",
+        "created_at",
+        "updated_at",
+        "counts"
+      ],
+      "title": "ProjectDetail",
+      "type": "object"
+    },
     "annotations": {
       "title": "Get research project",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": false
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   },
   {
     "name": "project_add_papers",
@@ -1470,14 +6352,18 @@
       "properties": {
         "project": {
           "type": "string",
-          "description": "Project slug (from project_create / project_list) or numeric id"
+          "description": "Project slug (from project_create / project_list) or numeric id",
+          "minLength": 1,
+          "maxLength": 120
         },
         "ids": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "Paper ids, DOIs, PMIDs or arXiv ids"
+          "description": "Paper ids, DOIs, PMIDs or arXiv ids",
+          "minItems": 1,
+          "maxItems": 100
         },
         "status": {
           "type": "string",
@@ -1491,7 +6377,8 @@
         },
         "reason": {
           "type": "string",
-          "description": "Why they were added (e.g. the search that found them)"
+          "description": "Why they were added (e.g. the search that found them)",
+          "maxLength": 2000
         }
       },
       "required": [
@@ -1499,13 +6386,136 @@
         "ids"
       ]
     },
+    "outputSchema": {
+      "$defs": {
+        "ProjectSummary": {
+          "description": "A research project: a question and the papers considered for it.",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "integer"
+            },
+            "slug": {
+              "title": "Slug",
+              "type": "string"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "question": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Question"
+            },
+            "created_at": {
+              "title": "Created At",
+              "type": "integer"
+            },
+            "updated_at": {
+              "title": "Updated At",
+              "type": "integer"
+            },
+            "counts": {
+              "$ref": "#/$defs/StatusCounts"
+            },
+            "note_count": {
+              "default": 0,
+              "title": "Note Count",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "id",
+            "slug",
+            "title",
+            "created_at",
+            "updated_at",
+            "counts"
+          ],
+          "title": "ProjectSummary",
+          "type": "object"
+        },
+        "StatusCounts": {
+          "properties": {
+            "candidate": {
+              "default": 0,
+              "title": "Candidate",
+              "type": "integer"
+            },
+            "included": {
+              "default": 0,
+              "title": "Included",
+              "type": "integer"
+            },
+            "excluded": {
+              "default": 0,
+              "title": "Excluded",
+              "type": "integer"
+            }
+          },
+          "title": "StatusCounts",
+          "type": "object"
+        }
+      },
+      "description": "`project_add_papers`: ids added, ids already in the project (status unchanged) and ids not found.",
+      "properties": {
+        "project": {
+          "$ref": "#/$defs/ProjectSummary"
+        },
+        "added": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Added",
+          "type": "array"
+        },
+        "already_present": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Already Present",
+          "type": "array"
+        },
+        "not_found": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Not Found",
+          "type": "array"
+        },
+        "id_map": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Id Map",
+          "type": "object"
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "title": "ProjectPapersChange",
+      "type": "object"
+    },
     "annotations": {
       "title": "Add papers to research project",
       "readOnlyHint": false,
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": true
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   },
   {
     "name": "project_set_status",
@@ -1516,14 +6526,18 @@
       "properties": {
         "project": {
           "type": "string",
-          "description": "Project slug (from project_create / project_list) or numeric id"
+          "description": "Project slug (from project_create / project_list) or numeric id",
+          "minLength": 1,
+          "maxLength": 120
         },
         "ids": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "Paper ids as returned by project_get (or the DOIs added)"
+          "description": "Paper ids as returned by project_get (or the DOIs added)",
+          "minItems": 1,
+          "maxItems": 100
         },
         "status": {
           "type": "string",
@@ -1535,7 +6549,9 @@
         },
         "reason": {
           "type": "string",
-          "description": "Why (e.g. the inclusion criterion met or failed)"
+          "description": "Why (e.g. the inclusion criterion met or failed)",
+          "minLength": 1,
+          "maxLength": 2000
         }
       },
       "required": [
@@ -1545,13 +6561,122 @@
         "reason"
       ]
     },
+    "outputSchema": {
+      "$defs": {
+        "ProjectSummary": {
+          "description": "A research project: a question and the papers considered for it.",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "integer"
+            },
+            "slug": {
+              "title": "Slug",
+              "type": "string"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "question": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Question"
+            },
+            "created_at": {
+              "title": "Created At",
+              "type": "integer"
+            },
+            "updated_at": {
+              "title": "Updated At",
+              "type": "integer"
+            },
+            "counts": {
+              "$ref": "#/$defs/StatusCounts"
+            },
+            "note_count": {
+              "default": 0,
+              "title": "Note Count",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "id",
+            "slug",
+            "title",
+            "created_at",
+            "updated_at",
+            "counts"
+          ],
+          "title": "ProjectSummary",
+          "type": "object"
+        },
+        "StatusCounts": {
+          "properties": {
+            "candidate": {
+              "default": 0,
+              "title": "Candidate",
+              "type": "integer"
+            },
+            "included": {
+              "default": 0,
+              "title": "Included",
+              "type": "integer"
+            },
+            "excluded": {
+              "default": 0,
+              "title": "Excluded",
+              "type": "integer"
+            }
+          },
+          "title": "StatusCounts",
+          "type": "object"
+        }
+      },
+      "description": "`project_set_status`: ids updated and ids that are not in the project.",
+      "properties": {
+        "project": {
+          "$ref": "#/$defs/ProjectSummary"
+        },
+        "updated": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Updated",
+          "type": "array"
+        },
+        "missing": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Missing",
+          "type": "array"
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "title": "ProjectStatusChange",
+      "type": "object"
+    },
     "annotations": {
       "title": "Set paper status in research project",
       "readOnlyHint": false,
       "destructiveHint": true,
       "idempotentHint": true,
       "openWorldHint": false
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   },
   {
     "name": "project_note",
@@ -1562,14 +6687,20 @@
       "properties": {
         "project": {
           "type": "string",
-          "description": "Project slug (from project_create / project_list) or numeric id"
+          "description": "Project slug (from project_create / project_list) or numeric id",
+          "minLength": 1,
+          "maxLength": 120
         },
         "text": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
         },
         "paper_id": {
           "type": "string",
-          "description": "Attach the note to a paper already in the project"
+          "description": "Attach the note to a paper already in the project",
+          "minLength": 1,
+          "maxLength": 300
         }
       },
       "required": [
@@ -1577,12 +6708,111 @@
         "text"
       ]
     },
+    "outputSchema": {
+      "$defs": {
+        "ProjectSummary": {
+          "description": "A research project: a question and the papers considered for it.",
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "integer"
+            },
+            "slug": {
+              "title": "Slug",
+              "type": "string"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "question": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Question"
+            },
+            "created_at": {
+              "title": "Created At",
+              "type": "integer"
+            },
+            "updated_at": {
+              "title": "Updated At",
+              "type": "integer"
+            },
+            "counts": {
+              "$ref": "#/$defs/StatusCounts"
+            },
+            "note_count": {
+              "default": 0,
+              "title": "Note Count",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "id",
+            "slug",
+            "title",
+            "created_at",
+            "updated_at",
+            "counts"
+          ],
+          "title": "ProjectSummary",
+          "type": "object"
+        },
+        "StatusCounts": {
+          "properties": {
+            "candidate": {
+              "default": 0,
+              "title": "Candidate",
+              "type": "integer"
+            },
+            "included": {
+              "default": 0,
+              "title": "Included",
+              "type": "integer"
+            },
+            "excluded": {
+              "default": 0,
+              "title": "Excluded",
+              "type": "integer"
+            }
+          },
+          "title": "StatusCounts",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "project": {
+          "$ref": "#/$defs/ProjectSummary"
+        },
+        "note_id": {
+          "title": "Note Id",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project",
+        "note_id"
+      ],
+      "title": "ProjectNoteAdded",
+      "type": "object"
+    },
     "annotations": {
       "title": "Add research project note",
       "readOnlyHint": false,
       "destructiveHint": false,
       "idempotentHint": false,
       "openWorldHint": false
-    }
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
   }
 ]

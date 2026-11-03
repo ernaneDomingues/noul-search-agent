@@ -15,7 +15,7 @@ O Noul continua sem LLM próprio: as ferramentas recuperam e estruturam evidênc
   `parse_and_draft_rebuttal` devolvem o contrato comum `AnalysisResult`: `signals` com trechos, seção e página,
   `checklist`, `rubric` com `how_to_judge`, `extraction_confidence`, `limitations` e `untrusted_fields`.
 - **Trechos viram `Excerpt`.** `get_fulltext` e `query_fulltexts` devolvem objetos com texto, seção, página (quando a
-  fonte tem páginas reais), relevância BM25 e id estável. Antes eram strings.
+  fonte tem páginas reais), relevância BM25 e `chunk_id` estável. Antes eram strings.
 - **Rótulos em inglês** na saída de todas as ferramentas.
 - **Limites explícitos nos esquemas de entrada.** Valores fora da faixa passam a ser recusados (antes eram cortados
   em silêncio):
@@ -26,6 +26,12 @@ O Noul continua sem LLM próprio: as ferramentas recuperam e estruturam evidênc
   | `related_papers` | `limit` | 1–40 |
   | `generate_research_hypotheses` | `max_hypotheses` | 1–10 |
   | `query_fulltexts` | `ids` / `question` / `max_chunks_per_paper` | 1–20 ids / não vazia / 1–10 |
+  | `download_papers` | `ids` | até 25 |
+  | `synthesize_related_work` | `paper_ids` | até 20 |
+
+  Os limites aparecem no `inputSchema` (`minimum`/`maximum`, `minItems`/`maxItems`, `minLength`/`pattern`) e valem
+  também para as opções da CLI (`--limit`, `--chunks`, `--max`). No conector público, um `limit` acima de 40 passa
+  a ser recusado; entre o teto público (25) e 40, continua sendo reduzido com aviso.
 - **Removidos os arquivos da raiz** `noul_core.py`, `noul_tools.py`, `noul_mcp.py`, `noul_cli.py` e `install.py`
   (obsoletos desde a Fase 1).
 - **Removido o servidor MCP v1** (`noul-mcp --legacy` e `src/noul/server/legacy.py`). `noul-mcp` roda sobre o SDK

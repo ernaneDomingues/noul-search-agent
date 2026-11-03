@@ -606,6 +606,14 @@ class AgentTestSuite(unittest.TestCase):
             noul_mcp.main(["--legacy"])
         self.assertEqual(ctx.exception.code, 2)
 
+    def test_write_tools_refuse_folders_outside_the_workspace(self):
+        outside = Path(ENV["NOUL_WORKSPACE"]).parent / "noul-outside-workspace"
+        with mock.patch.dict(os.environ, {"NOUL_ALLOW_ANY_PATH": ""}):
+            assert_http_error(403, t.save_research_dossier, "x", "y", output_dir=str(outside))
+            assert_http_error(403, t.download_papers, ["doi:10.1000/x"], output_dir=str(outside))
+            assert_http_error(403, t.list_research_dossiers, output_dir="../escape")
+        self.assertFalse(outside.exists())
+
     def test_workspace_dossiers_stay_confined(self):
         with tempfile.TemporaryDirectory() as external:
             outside = Path(external)

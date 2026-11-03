@@ -19,14 +19,27 @@ def _contract():
     from noul import registry
 
     return [
-        {k: t[k] for k in ("name", "title", "description", "inputSchema", "annotations")} for t in registry.catalog()
+        {
+            k: t[k]
+            for k in (
+                "name",
+                "title",
+                "description",
+                "inputSchema",
+                "outputSchema",
+                "annotations",
+                "profiles",
+                "write_args",
+            )
+        }
+        for t in registry.catalog()
     ]
 
 
 class ContractTests(unittest.TestCase):
     def test_tools_list_matches_the_v2_contract(self):
-        """The 2.0 input contract (name, title, description, inputSchema, annotations of every tool) is pinned like
-        the output schemas. For an intended change, regenerate it with
+        """The 2.0 contract of every tool (name, title, description, input and output schemas, annotations, profiles
+        and write arguments) is pinned. For an intended change, regenerate it with
         `UPDATE_CONTRACT_FIXTURES=1 python -m pytest tests/test_registry.py -k v2_contract` and explain it in the PR."""
         actual = _contract()
         if os.environ.get("UPDATE_CONTRACT_FIXTURES") == "1":
