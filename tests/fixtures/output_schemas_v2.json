@@ -1358,7 +1358,7 @@
     "type": "object"
    }
   },
-  "description": "Candidate failure modes are the `signals` (category = long_context | noise_sensitivity |\nout_of_distribution | latency_or_compute | sample_or_population_bias | general_limitation), each with the\nsentence that triggered it.",
+  "description": "Candidate failure modes are the `signals` (category = long_context | noise_sensitivity |\nout_of_distribution | latency_or_compute | sample_or_population_bias | general_limitation), each with the\nsentence that triggered it. An `integrity` signal (retraction, expression of concern) comes first when known.",
   "properties": {
    "baseline_superiority_scenarios": {
     "items": {

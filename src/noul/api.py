@@ -104,7 +104,7 @@ def _reject_symlink_path(path, requested_dir=None):
 def _with_integrity(result, paper_id):
     """Add `subject.retraction` and the integrity signals (first) to an analytic result about a paper."""
     try:
-        paper = _integrity.enrich(_resolve(paper_id))
+        paper = _integrity.enrich(_resolve(paper_id), versions=False)
     except _errors.HTTPError:
         return result  # the tool itself resolved the paper; a lookup failure here must not hide its result
     _cache.cache_set("paper:" + paper["id"], paper)
@@ -115,6 +115,7 @@ def _with_integrity(result, paper_id):
     out["subject"] = {**(out.get("subject") or {}), **({"retraction": retraction} if retraction else {})}
     out["signals"] = [s.model_dump(mode="json") for s in signals] + list(out.get("signals") or [])
     if out.get("rendered_markdown"):
+        # The Markdown was rendered before these signals existed: show them as a banner above the report.
         lines = [f"> **{s.description}** {s.detail}" for s in signals]
         out["rendered_markdown"] = "\n".join(lines) + "\n\n" + out["rendered_markdown"]
     return out
@@ -692,7 +693,8 @@ def scaffold_paper_code(paper_id, target_language=None, domain=None):
         "Contextual citation recommender & infiller (#22): scans a draft paragraph or file (.md/.tex) for "
         "explicit `[CITATION NEEDED]` / `\\cite{?}` markers and unsubstantiated empirical claims, retrieves "
         "up to `max_per_claim` candidate supporting papers per claim with a justification quoting each abstract "
-        "(check that it really backs the claim; retracted candidates are dropped with a warning), inserts inline "
+        "(check that it really backs the claim; candidates known to be retracted - from the search sources or "
+        "Crossref - are dropped with a warning), inserts inline "
         "LaTeX or Markdown citations, and generates a deduplicated BibTeX block."
     ),
     input=_inputs.RecommendCitationsInput,
@@ -764,7 +766,8 @@ def audit_manuscript_draft(draft_input, venue="neurips", output_format="markdown
         "arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or "
         "journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes "
         "authors, escapes unescaped LaTeX (`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`). Entries "
-        "whose DOI is retracted are kept but flagged (`retracted_entries`, `warnings`)."
+        "whose DOI Crossref reports as retracted are kept but flagged (`retracted_entries`, `warnings`; first 200 "
+        "entries with a DOI)."
     ),
     input=_inputs.SanitizeBibtexInput,
     write_args=("output_path",),
@@ -1253,9 +1256,10 @@ def evidence_meter(items):
                 continue
             seen.add(str(pid))
         p = _cached_paper(pid)
-        if p and _integrity.is_retracted(_integrity.enrich(p, network=False)):
+        known = _integrity.enrich(p, network=False) if p else None
+        if known and _integrity.is_retracted(known):
             # A retracted paper is not evidence for or against anything: leave it out of the counts, say so.
-            excluded.append({"id": pid, "stance": stance, "reason": "retracted: " + _integrity.describe(p)})
+            excluded.append({"id": pid, "stance": stance, "reason": "retracted: " + _integrity.describe(known)})
             continue
         ev = (p or {}).get("evidence") or it.get("evidence") or "other"
         w = float(_classify.EV_W.get(ev, _classify.EV_W.get("other", 0.3)))
@@ -1265,7 +1269,8 @@ def evidence_meter(items):
     total_n = sum(raw_counts.values())
     if total_n == 0:
         if excluded:
-            raise _errors.HTTPError(400, "Every classified paper is retracted; there is no evidence left to count")
+            listed = "; ".join(f"{x['id']} ({x['reason']})" for x in excluded)
+            raise _errors.HTTPError(400, f"Every classified paper is retracted, so there is nothing to count: {listed}")
         raise _errors.HTTPError(400, "No valid stances provided (use supportive, inconclusive or contrary)")
     total_w = sum(weighted.values()) or 1.0
     warnings = (
@@ -1392,19 +1397,27 @@ def project_list():
     title="Get research project",
 )
 def project_get(project, include_papers=True):
-    out = _project_call(_store.get_project, project, include_papers=bool(include_papers))
+    return _neutralized_project(
+        _flag_retractions(_project_call(_store.get_project, project, include_papers=bool(include_papers)))
+    )
+
+
+def _flag_retractions(out):
+    """Mark project papers known (from the record or the cache, offline) to be retracted, and warn about the ones
+    still included or candidate."""
     for paper in out["papers"]:
         if not paper.get("retraction"):  # learnt after the paper was added (get_paper, a later search)
-            known = _cached_paper(paper["id"])
-            if known and _integrity.is_retracted(_integrity.enrich(known, network=False)):
-                paper["retraction"] = _contract.integrity_signals(_integrity.enrich(known, network=False))[0]
+            cached = _cached_paper(paper["id"])
+            known = _integrity.enrich(cached, network=False) if cached else None
+            if known and _integrity.is_retracted(known):
+                paper["retraction"] = _contract.integrity_signals(known)[0]
     flagged = [p for p in out["papers"] if p.get("retraction") and p["status"] != "excluded"]
     out["warnings"] = [
         f"Retracted paper still {p['status']} in the project: {p['id']} ({_integrity.describe(p)}). "
         "Exclude it or keep it only as a cited retraction."
         for p in flagged
     ]
-    return _neutralized_project(out)
+    return out
 
 
 def _neutralized_project(out):
@@ -1518,7 +1531,7 @@ def project_note(project, text, paper_id=None):
 def project_markdown(project):
     """Markdown view of a project (the noul://project/<slug> resource). All project text is neutralised; the
     question and notes go inside untrusted blocks, titles and reasons as single-line labels."""
-    p = _neutralized_project(_project_call(_store.get_project, project))
+    p = _neutralized_project(_flag_retractions(_project_call(_store.get_project, project)))
     lines = [
         f"# Research project: {_untrusted.label(p['title'], 200)}",
         "",
@@ -1536,7 +1549,11 @@ def project_markdown(project):
         lines += [f"## {heading}"]
         for x in group:
             title = _untrusted.label(x["title"] or x["id"], 200)
-            lines.append(f"- `{_untrusted.label(x['id'], 120)}` {title}" + (f" ({x['year']})" if x.get("year") else ""))
+            lines.append(
+                f"- `{_untrusted.label(x['id'], 120)}` {title}"
+                + (f" ({x['year']})" if x.get("year") else "")
+                + (" — **RETRACTED**" if x.get("retraction") else "")
+            )
             if x.get("reason"):
                 lines.append(f"  - Reason: {_untrusted.label(x['reason'], 300)}")
         lines.append("")

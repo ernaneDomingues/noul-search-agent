@@ -12,6 +12,7 @@ example) is the client model's call.
 
 from __future__ import annotations
 
+import re
 import urllib.parse
 from typing import Any
 
@@ -23,8 +24,17 @@ from noul.net import http as _nhttp
 WITHDRAWN = frozenset({"retraction", "withdrawal", "removal", "partial_retraction"})
 CONCERN = frozenset({"expression_of_concern"})
 RETRACTED_PUB_TYPES = frozenset({"retracted publication", "retracted-publication"})
+NOTICE_TYPES = frozenset({"retraction", "erratum", "expression-of-concern"})
 ARXIV_DOI_PREFIX = "10.48550/arxiv."
 _CACHE_TTL = 86400 * 7  # retractions are rare but not instant: re-check weekly
+# Crossref fields are written by depositors: keep only shapes that cannot carry instructions to the model.
+_STRICT_DOI = re.compile(r"^10\.\d{4,9}/[-._;()/:a-z0-9]{1,200}$")
+_KNOWN_SOURCES = frozenset({"publisher", "retraction-watch"})
+
+
+def _safe_doi(raw: Any) -> str | None:
+    doi = _ids._norm_doi(raw)
+    return doi if doi and _STRICT_DOI.match(doi) else None
 
 
 def _date(parts: Any) -> str | None:
@@ -43,7 +53,10 @@ def from_pub_types(pub_types: list[Any] | None, source: str) -> dict[str, Any] |
 
 
 def from_openalex(work: dict[str, Any]) -> dict[str, Any] | None:
-    return {"is_retracted": True, "kind": "retraction", "source": "openalex"} if work.get("is_retracted") else None
+    # OpenAlex also sets is_retracted on the retraction *notice* (type "retraction"): the notice is not retracted.
+    if not work.get("is_retracted") or str(work.get("type") or "").lower() in NOTICE_TYPES:
+        return None
+    return {"is_retracted": True, "kind": "retraction", "source": "openalex"}
 
 
 def parse_crossref(message: dict[str, Any]) -> dict[str, Any]:
@@ -51,11 +64,12 @@ def parse_crossref(message: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {}
     for upd in message.get("updated-by") or []:
         kind = str(upd.get("type") or "").strip().lower().replace(" ", "_")
+        origin = str(upd.get("source") or "").strip().lower()
         entry = {
             "kind": kind,
-            "notice_doi": _ids._norm_doi(upd.get("DOI")),
+            "notice_doi": _safe_doi(upd.get("DOI")),
             "date": _date(upd.get("updated")),
-            "source": "crossref" + (f"/{upd['source']}" if upd.get("source") else ""),
+            "source": "crossref" + (f"/{origin if origin in _KNOWN_SOURCES else 'other'}" if origin else ""),
         }
         if kind in WITHDRAWN and "retraction" not in out:
             out["retraction"] = {"is_retracted": True, **entry}
@@ -65,7 +79,7 @@ def parse_crossref(message: dict[str, Any]) -> dict[str, Any]:
     versions: dict[str, str] = {}
     for key, field in (("is-preprint-of", "published_as"), ("has-preprint", "preprint")):
         for item in rel.get(key) or []:
-            doi = _ids._norm_doi(item.get("id")) if str(item.get("id-type") or "doi").lower() == "doi" else None
+            doi = _safe_doi(item.get("id")) if str(item.get("id-type") or "doi").lower() == "doi" else None
             if doi:
                 versions[field] = _ids._paper_id(doi=doi)
                 break
@@ -100,35 +114,43 @@ def _arxiv_published_as(paper: dict[str, Any]) -> str | None:
     doi = _ids._norm_doi(paper.get("doi"))
     if doi and not doi.lower().startswith(ARXIV_DOI_PREFIX):
         return None  # already the published record
+    key = "integrity:arxiv:" + str(paper.get("arxiv_id") or "").lower()
+    cached = _cache.cache_get(key, max_age=_CACHE_TTL)
+    if isinstance(cached, dict):  # {"published_as": id | None}, negatives included
+        return cached.get("published_as")
     entry = {"fields": {"title": paper.get("title") or "", "eprint": paper.get("arxiv_id") or ""}}
     try:
         found = arxiv_client.resolve_published_venue_for_preprint(entry)
     except Exception:
-        return None
-    pub_doi = _ids._norm_doi((found or {}).get("doi"))
-    return _ids._paper_id(doi=pub_doi) if pub_doi and not pub_doi.lower().startswith(ARXIV_DOI_PREFIX) else None
+        return None  # transient: not cached
+    pub_doi = _safe_doi((found or {}).get("doi"))
+    published = _ids._paper_id(doi=pub_doi) if pub_doi and not pub_doi.lower().startswith(ARXIV_DOI_PREFIX) else None
+    _cache.cache_set(key, {"published_as": published})
+    return published
 
 
-def enrich(paper: dict[str, Any], network: bool = True) -> dict[str, Any]:
+def enrich(paper: dict[str, Any], network: bool = True, versions: bool = True) -> dict[str, Any]:
     """Return a copy of `paper` with `retraction`, `concern` and `versions` filled in from every available source.
 
-    `network=False` keeps to what the record and the cache already know (for offline tools such as the meter)."""
+    `network=False` keeps to what the record and the cache already know (for offline tools such as the meter);
+    `versions=False` skips the arXiv published-version lookup (callers that only need the retraction)."""
     p = dict(paper)
     facts = crossref_facts(p.get("doi") or "") if network else {}
     if not network and p.get("doi"):
-        cached = _cache.cache_get("integrity:crossref:" + str(_ids._norm_doi(p["doi"]) or "").lower())
+        key = "integrity:crossref:" + str(_ids._norm_doi(p["doi"]) or "").lower()
+        cached = _cache.cache_get(key, max_age=_CACHE_TTL)
         facts = cached if isinstance(cached, dict) else {}
     if facts.get("retraction") and not (p.get("retraction") or {}).get("notice_doi"):
         p["retraction"] = {**(p.get("retraction") or {}), **facts["retraction"]}
     if facts.get("concern"):
         p["concern"] = facts["concern"]
-    versions = {**(p.get("versions") or {}), **(facts.get("versions") or {})}
-    if network and p.get("arxiv_id") and "published_as" not in versions:
+    found = {**(p.get("versions") or {}), **(facts.get("versions") or {})}
+    if network and versions and p.get("arxiv_id") and "published_as" not in found:
         published = _arxiv_published_as(p)
         if published:
-            versions["published_as"] = published
-    if versions:
-        p["versions"] = versions
+            found["published_as"] = published
+    if found:
+        p["versions"] = found
     return p
 
 

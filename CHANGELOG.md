@@ -21,7 +21,9 @@ e as versões seguem o [Versionamento Semântico](https://semver.org/lang/pt-BR/
 - **Skill**: as referências de busca e de revisão explicam como tratar artigos retratados e preprints com versão
   publicada. Entram duas evals novas: MMR e autismo, e a revisão de um artigo retratado.
 
-Todas as mudanças de contrato são acréscimos: nenhum campo existente muda.
+Os contratos só ganham campos; nenhum campo existente muda. Uma mudança de comportamento: se todos os artigos
+passados ao `evidence_meter` forem retratados, ele responde com erro 400 que lista os ids e os avisos de retratação,
+em vez de percentuais.
 
 ## [2.0.0] — 2026-11
 

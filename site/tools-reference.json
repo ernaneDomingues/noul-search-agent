@@ -273,7 +273,7 @@
     },
     {
       "name": "recommend_citations",
-      "description": "Contextual citation recommender & infiller (#22): scans a draft paragraph or file (.md/.tex) for explicit `[CITATION NEEDED]` / `\\cite{?}` markers and unsubstantiated empirical claims, retrieves up to `max_per_claim` candidate supporting papers per claim with a justification quoting each abstract (check that it really backs the claim; retracted candidates are dropped with a warning), inserts inline LaTeX or Markdown citations, and generates a deduplicated BibTeX block.",
+      "description": "Contextual citation recommender & infiller (#22): scans a draft paragraph or file (.md/.tex) for explicit `[CITATION NEEDED]` / `\\cite{?}` markers and unsubstantiated empirical claims, retrieves up to `max_per_claim` candidate supporting papers per claim with a justification quoting each abstract (check that it really backs the claim; candidates known to be retracted - from the search sources or Crossref - are dropped with a warning), inserts inline LaTeX or Markdown citations, and generates a deduplicated BibTeX block.",
       "required": [
         "draft_text"
       ],
@@ -324,7 +324,7 @@
     },
     {
       "name": "sanitize_bibtex",
-      "description": "BibTeX sanitizer & preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`). Entries whose DOI is retracted are kept but flagged (`retracted_entries`, `warnings`).",
+      "description": "BibTeX sanitizer & preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`). Entries whose DOI Crossref reports as retracted are kept but flagged (`retracted_entries`, `warnings`; first 200 entries with a DOI).",
       "required": [
         "bibtex_input"
       ],

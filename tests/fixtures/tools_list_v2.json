@@ -1628,7 +1628,7 @@
           "type": "object"
         }
       },
-      "description": "Candidate failure modes are the `signals` (category = long_context | noise_sensitivity |\nout_of_distribution | latency_or_compute | sample_or_population_bias | general_limitation), each with the\nsentence that triggered it.",
+      "description": "Candidate failure modes are the `signals` (category = long_context | noise_sensitivity |\nout_of_distribution | latency_or_compute | sample_or_population_bias | general_limitation), each with the\nsentence that triggered it. An `integrity` signal (retraction, expression of concern) comes first when known.",
       "properties": {
         "tool": {
           "title": "Tool",
@@ -3158,7 +3158,7 @@
   {
     "name": "recommend_citations",
     "title": "Recommend citations",
-    "description": "Contextual citation recommender & infiller (#22): scans a draft paragraph or file (.md/.tex) for explicit `[CITATION NEEDED]` / `\\cite{?}` markers and unsubstantiated empirical claims, retrieves up to `max_per_claim` candidate supporting papers per claim with a justification quoting each abstract (check that it really backs the claim; retracted candidates are dropped with a warning), inserts inline LaTeX or Markdown citations, and generates a deduplicated BibTeX block.",
+    "description": "Contextual citation recommender & infiller (#22): scans a draft paragraph or file (.md/.tex) for explicit `[CITATION NEEDED]` / `\\cite{?}` markers and unsubstantiated empirical claims, retrieves up to `max_per_claim` candidate supporting papers per claim with a justification quoting each abstract (check that it really backs the claim; candidates known to be retracted - from the search sources or Crossref - are dropped with a warning), inserts inline LaTeX or Markdown citations, and generates a deduplicated BibTeX block.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -4079,7 +4079,7 @@
   {
     "name": "sanitize_bibtex",
     "title": "Sanitize BibTeX",
-    "description": "BibTeX sanitizer & preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`). Entries whose DOI is retracted are kept but flagged (`retracted_entries`, `warnings`).",
+    "description": "BibTeX sanitizer & preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`). Entries whose DOI Crossref reports as retracted are kept but flagged (`retracted_entries`, `warnings`; first 200 entries with a DOI).",
     "inputSchema": {
       "type": "object",
       "properties": {

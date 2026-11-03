@@ -6,8 +6,9 @@ failure modes or its reproducibility. Noul gathers the evidence; the review and 
 ## Workflow
 1. **Identify the paper**: `get_paper(id)` with the DOI, arXiv id, PMID or OpenAlex id the user gave (arXiv ids such
    as `arxiv:1706.03762` work). Note `open_access`: without open full text, the tools see only the abstract.
-   Check `retraction` and `concern` first: the analytic tools also put an `integrity-retracted` (or
-   `integrity-expression-of-concern`) signal first and set `subject.retraction`. Reviewing a retracted paper is
+   Check `retraction` and `concern` first: `review_paper`, `review_paper_scientific`, `verify_paper_claims` and
+   `detect_failure_modes` also put an `integrity-retracted` (or `integrity-expression-of-concern`) signal first and
+   set `subject.retraction`. Reviewing a retracted paper is
    legitimate (e.g. to show what went wrong), but say up front that it is retracted, cite the notice, and do not
    recommend acceptance or use its findings as evidence. For a preprint with `versions.published_as`, tell the user a
    published version exists and review that one if they agree.

@@ -406,7 +406,8 @@ def recommend_citations(
 
         marker_or_trigger = marker_m.group(1) if marker_m else (trigger_m.group(0) if trigger_m else "")
         query = _extract_search_query(sent)
-        papers = _retrieve_papers_for_claim(query, max_per_claim=max_k)
+        # Crossref check on the few candidates (cached weekly): search sources do not flag every retraction.
+        papers = [_integrity.enrich(p, versions=False) for p in _retrieve_papers_for_claim(query, max_per_claim=max_k)]
         retracted = [p for p in papers if _integrity.is_retracted(p)]
         if retracted:
             # Never propose a retracted paper as support; say which candidates were dropped and why.
@@ -1371,6 +1372,10 @@ def _choose_canonical_bib_key(keys: list[str], fields: dict, used_keys: set) -> 
     return chosen
 
 
+# One Crossref lookup per entry (cached weekly): bound the cost of very large bibliographies.
+MAX_INTEGRITY_CHECKS = 200
+
+
 def sanitize_bibtex(
     bibtex_input: str,
     update_preprints: bool = True,
@@ -1422,6 +1427,7 @@ def sanitize_bibtex(
     duplicates_removed = 0
     preprints_upgraded = 0
     retracted_entries = 0
+    integrity_checks = 0
     dois_completed = 0
     latex_escapes_fixed = 0
     updates: list[BibtexEntryUpdate] = []
@@ -1508,7 +1514,10 @@ def sanitize_bibtex(
         new_venue = merged_fields.get("booktitle") or merged_fields.get("journal") or etype
 
         # Integrity: a retracted paper in the bibliography is reported (kept: citing a retraction can be legitimate).
-        facts = _integrity.crossref_facts(merged_fields.get("doi") or "") if merged_fields.get("doi") else {}
+        facts = {}
+        if merged_fields.get("doi") and integrity_checks < MAX_INTEGRITY_CHECKS:
+            integrity_checks += 1
+            facts = _integrity.crossref_facts(merged_fields["doi"])
         if facts.get("retraction"):
             retracted_entries += 1
             desc = _integrity.describe(facts)
@@ -1559,6 +1568,8 @@ def sanitize_bibtex(
             )
         )
 
+    if integrity_checks >= MAX_INTEGRITY_CHECKS:
+        warnings.append(f"Retraction check limited to the first {MAX_INTEGRITY_CHECKS} entries with a DOI.")
     sanitized_text = "\n\n".join(sanitized_blocks) + ("\n" if sanitized_blocks else "")
     if out_file is not None:
         out_file.parent.mkdir(parents=True, exist_ok=True)

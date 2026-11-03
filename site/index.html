@@ -466,7 +466,7 @@
           </article>
           <article class="tool-card" data-tool="recommend_citations">
             <h4 class="mono">recommend_citations</h4>
-            <p>Contextual citation recommender &amp; infiller (#22): scans a draft paragraph or file (.md/.tex) for explicit `[CITATION NEEDED]` / `\cite{?}` markers and unsubstantiated empirical claims, retrieves up to `max_per_claim` candidate supporting papers per claim with a justification quoting each abstract (check that it really backs the claim; retracted candidates are dropped with a warning), inserts inline LaTeX or Markdown citations, and generates a deduplicated BibTeX block.</p>
+            <p>Contextual citation recommender &amp; infiller (#22): scans a draft paragraph or file (.md/.tex) for explicit `[CITATION NEEDED]` / `\cite{?}` markers and unsubstantiated empirical claims, retrieves up to `max_per_claim` candidate supporting papers per claim with a justification quoting each abstract (check that it really backs the claim; candidates known to be retracted - from the search sources or Crossref - are dropped with a warning), inserts inline LaTeX or Markdown citations, and generates a deduplicated BibTeX block.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> draft_text | <strong>Optional:</strong> max_per_claim, citation_style</div>
               <div><strong>CLI:</strong> <code>noul cite &lt;text_or_file&gt;</code></div>
@@ -498,7 +498,7 @@
           </article>
           <article class="tool-card" data-tool="sanitize_bibtex">
             <h4 class="mono">sanitize_bibtex</h4>
-            <p>BibTeX sanitizer &amp; preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&amp;`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`). Entries whose DOI is retracted are kept but flagged (`retracted_entries`, `warnings`).</p>
+            <p>BibTeX sanitizer &amp; preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&amp;`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`). Entries whose DOI Crossref reports as retracted are kept but flagged (`retracted_entries`, `warnings`; first 200 entries with a DOI).</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> bibtex_input | <strong>Optional:</strong> update_preprints, output_path</div>
               <div><strong>CLI:</strong> <code>noul bibtex sanitize &lt;bib&gt;</code></div>
