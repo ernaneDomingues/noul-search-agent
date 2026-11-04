@@ -3,6 +3,31 @@
 Todas as mudanças relevantes do Noul Search. O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/)
 e as versões seguem o [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [Não publicado]
+
+### Novidades
+- **Retratações**: `search_papers` marca com `retraction` os artigos que OpenAlex, PubMed ou Europe PMC indexam como
+  retratados. `get_paper` também consulta o Crossref (avisos de retratação, retirada e remoção, inclusive os dados do
+  Retraction Watch) e informa o DOI do aviso, a data e a fonte, além de `concern` (expressão de preocupação).
+- **Preprint e versão publicada**: `get_paper` devolve `versions.published_as` (para um preprint) e
+  `versions.preprint` (para um artigo publicado), com ids que podem ser encadeados em `get_paper`. Quando o vínculo vem
+  da comparação de título e autores, e não do depósito da editora, `versions.published_as_match` avisa para confirmar.
+- **Onde a retratação aparece**:
+  - `evidence_meter` deixa os artigos retratados fora da contagem e os lista em `excluded`, com aviso e `notice_doi`;
+  - `review_paper`, `review_paper_scientific`, `verify_paper_claims` e `detect_failure_modes` trazem
+    `subject.retraction` e o sinal `integrity-retracted` em primeiro lugar;
+  - `recommend_citations` não propõe artigos retratados;
+  - `project_get` avisa sobre artigos retratados que continuam incluídos;
+  - `sanitize_bibtex` mantém a entrada, mas a sinaliza (`retracted_entries`).
+- **Skill**: as referências de busca e de revisão explicam como tratar artigos retratados e preprints com versão
+  publicada. Entram duas evals novas: MMR e autismo, e a revisão de um artigo retratado.
+- **Checagem incompleta não passa por artigo limpo**: se o Crossref não responder, `get_paper`, as ferramentas de
+  revisão, `recommend_citations` e `sanitize_bibtex` avisam que a checagem não terminou.
+
+Os contratos só ganham campos; nenhum campo existente muda. Uma mudança de comportamento: se todos os artigos
+passados ao `evidence_meter` forem retratados, ele responde com erro 400 que lista os ids e os avisos de retratação,
+em vez de percentuais.
+
 ## [2.0.0] — 2026-11
 
 A 2.0.0 fecha a refatoração descrita em [`docs/REFACTOR_PLAN.md`](docs/REFACTOR_PLAN.md) (Fases 0 a 3, PRs #29 a #40).

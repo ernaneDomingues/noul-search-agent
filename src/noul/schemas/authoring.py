@@ -97,6 +97,7 @@ class BibtexSanitizeReport(_Model):
     preprints_upgraded: int = 0
     dois_completed: int = 0
     latex_escapes_fixed: int = 0
+    retracted_entries: int = 0  # entries whose DOI Crossref reports as retracted (kept, with a warning)
     updates: list[BibtexEntryUpdate] = _field(default_factory=list)
     sanitized_bibtex: str = ""
     warnings: list[str] = _field(default_factory=list)

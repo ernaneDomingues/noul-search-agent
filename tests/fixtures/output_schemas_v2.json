@@ -28,6 +28,17 @@
       "default": null,
       "title": "Paper Id"
      },
+     "retraction": {
+      "anyOf": [
+       {
+        "$ref": "#/$defs/Retraction"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
      "source": {
       "default": "",
       "title": "Source",
@@ -221,6 +232,52 @@
      "text"
     ],
     "title": "Excerpt",
+    "type": "object"
+   },
+   "Retraction": {
+    "description": "A retraction, withdrawal or removal of the paper, with where the fact comes from.",
+    "properties": {
+     "date": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Date"
+     },
+     "is_retracted": {
+      "default": true,
+      "title": "Is Retracted",
+      "type": "boolean"
+     },
+     "kind": {
+      "default": "retraction",
+      "title": "Kind",
+      "type": "string"
+     },
+     "notice_doi": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Notice Doi"
+     },
+     "source": {
+      "default": "",
+      "title": "Source",
+      "type": "string"
+     }
+    },
+    "title": "Retraction",
     "type": "object"
    },
    "Rubric": {
@@ -455,6 +512,17 @@
       "default": null,
       "title": "Paper Id"
      },
+     "retraction": {
+      "anyOf": [
+       {
+        "$ref": "#/$defs/Retraction"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
      "source": {
       "default": "",
       "title": "Source",
@@ -648,6 +716,52 @@
      "text"
     ],
     "title": "Excerpt",
+    "type": "object"
+   },
+   "Retraction": {
+    "description": "A retraction, withdrawal or removal of the paper, with where the fact comes from.",
+    "properties": {
+     "date": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Date"
+     },
+     "is_retracted": {
+      "default": true,
+      "title": "Is Retracted",
+      "type": "boolean"
+     },
+     "kind": {
+      "default": "retraction",
+      "title": "Kind",
+      "type": "string"
+     },
+     "notice_doi": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Notice Doi"
+     },
+     "source": {
+      "default": "",
+      "title": "Source",
+      "type": "string"
+     }
+    },
+    "title": "Retraction",
     "type": "object"
    },
    "Rubric": {
@@ -884,6 +998,17 @@
       "default": null,
       "title": "Paper Id"
      },
+     "retraction": {
+      "anyOf": [
+       {
+        "$ref": "#/$defs/Retraction"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
      "source": {
       "default": "",
       "title": "Source",
@@ -1079,6 +1204,52 @@
     "title": "Excerpt",
     "type": "object"
    },
+   "Retraction": {
+    "description": "A retraction, withdrawal or removal of the paper, with where the fact comes from.",
+    "properties": {
+     "date": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Date"
+     },
+     "is_retracted": {
+      "default": true,
+      "title": "Is Retracted",
+      "type": "boolean"
+     },
+     "kind": {
+      "default": "retraction",
+      "title": "Kind",
+      "type": "string"
+     },
+     "notice_doi": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Notice Doi"
+     },
+     "source": {
+      "default": "",
+      "title": "Source",
+      "type": "string"
+     }
+    },
+    "title": "Retraction",
+    "type": "object"
+   },
    "Rubric": {
     "description": "How the client's model should judge: the criteria and a short instruction (`how_to_judge`).",
     "properties": {
@@ -1187,7 +1358,7 @@
     "type": "object"
    }
   },
-  "description": "Candidate failure modes are the `signals` (category = long_context | noise_sensitivity |\nout_of_distribution | latency_or_compute | sample_or_population_bias | general_limitation), each with the\nsentence that triggered it.",
+  "description": "Candidate failure modes are the `signals` (category = long_context | noise_sensitivity |\nout_of_distribution | latency_or_compute | sample_or_population_bias | general_limitation), each with the\nsentence that triggered it. An `integrity` signal (retraction, expression of concern) comes first when known.",
   "properties": {
    "baseline_superiority_scenarios": {
     "items": {
@@ -1530,6 +1701,17 @@
       "default": null,
       "title": "Paper Id"
      },
+     "retraction": {
+      "anyOf": [
+       {
+        "$ref": "#/$defs/Retraction"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
      "source": {
       "default": "",
       "title": "Source",
@@ -1775,6 +1957,52 @@
      "comment"
     ],
     "title": "RebuttalPoint",
+    "type": "object"
+   },
+   "Retraction": {
+    "description": "A retraction, withdrawal or removal of the paper, with where the fact comes from.",
+    "properties": {
+     "date": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Date"
+     },
+     "is_retracted": {
+      "default": true,
+      "title": "Is Retracted",
+      "type": "boolean"
+     },
+     "kind": {
+      "default": "retraction",
+      "title": "Kind",
+      "type": "string"
+     },
+     "notice_doi": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Notice Doi"
+     },
+     "source": {
+      "default": "",
+      "title": "Source",
+      "type": "string"
+     }
+    },
+    "title": "Retraction",
     "type": "object"
    },
    "Rubric": {
@@ -2287,6 +2515,17 @@
       "default": null,
       "title": "Paper Id"
      },
+     "retraction": {
+      "anyOf": [
+       {
+        "$ref": "#/$defs/Retraction"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
      "source": {
       "default": "",
       "title": "Source",
@@ -2480,6 +2719,52 @@
      "text"
     ],
     "title": "Excerpt",
+    "type": "object"
+   },
+   "Retraction": {
+    "description": "A retraction, withdrawal or removal of the paper, with where the fact comes from.",
+    "properties": {
+     "date": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Date"
+     },
+     "is_retracted": {
+      "default": true,
+      "title": "Is Retracted",
+      "type": "boolean"
+     },
+     "kind": {
+      "default": "retraction",
+      "title": "Kind",
+      "type": "string"
+     },
+     "notice_doi": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Notice Doi"
+     },
+     "source": {
+      "default": "",
+      "title": "Source",
+      "type": "string"
+     }
+    },
+    "title": "Retraction",
     "type": "object"
    },
    "ReviewPerspective": {
@@ -2757,6 +3042,17 @@
       "default": null,
       "title": "Paper Id"
      },
+     "retraction": {
+      "anyOf": [
+       {
+        "$ref": "#/$defs/Retraction"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
      "source": {
       "default": "",
       "title": "Source",
@@ -2950,6 +3246,52 @@
      "text"
     ],
     "title": "Excerpt",
+    "type": "object"
+   },
+   "Retraction": {
+    "description": "A retraction, withdrawal or removal of the paper, with where the fact comes from.",
+    "properties": {
+     "date": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Date"
+     },
+     "is_retracted": {
+      "default": true,
+      "title": "Is Retracted",
+      "type": "boolean"
+     },
+     "kind": {
+      "default": "retraction",
+      "title": "Kind",
+      "type": "string"
+     },
+     "notice_doi": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Notice Doi"
+     },
+     "source": {
+      "default": "",
+      "title": "Source",
+      "type": "string"
+     }
+    },
+    "title": "Retraction",
     "type": "object"
    },
    "ReviewPerspective": {
@@ -3227,6 +3569,17 @@
       "default": null,
       "title": "Paper Id"
      },
+     "retraction": {
+      "anyOf": [
+       {
+        "$ref": "#/$defs/Retraction"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
      "source": {
       "default": "",
       "title": "Source",
@@ -3497,6 +3850,52 @@
      "claim"
     ],
     "title": "GroundedClaim",
+    "type": "object"
+   },
+   "Retraction": {
+    "description": "A retraction, withdrawal or removal of the paper, with where the fact comes from.",
+    "properties": {
+     "date": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Date"
+     },
+     "is_retracted": {
+      "default": true,
+      "title": "Is Retracted",
+      "type": "boolean"
+     },
+     "kind": {
+      "default": "retraction",
+      "title": "Kind",
+      "type": "string"
+     },
+     "notice_doi": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Notice Doi"
+     },
+     "source": {
+      "default": "",
+      "title": "Source",
+      "type": "string"
+     }
+    },
+    "title": "Retraction",
     "type": "object"
    },
    "Rubric": {

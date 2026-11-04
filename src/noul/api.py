@@ -14,6 +14,8 @@ from noul import ids as _ids
 from noul import log as _log
 from noul import registry as _registry
 from noul.evidence import classify as _classify
+from noul.evidence import contract as _contract
+from noul.evidence import integrity as _integrity
 from noul.evidence import untrusted as _untrusted
 from noul.library import downloads as _downloads
 from noul.library import export as _exporting
@@ -99,6 +101,33 @@ def _reject_symlink_path(path, requested_dir=None):
     return Path(path)
 
 
+def _with_integrity(result, paper_id):
+    """Add `subject.retraction` and the integrity signals (first) to an analytic result about a paper."""
+    try:
+        paper = _integrity.enrich(_resolve(paper_id), versions=False)
+    except _errors.HTTPError:
+        return result  # the tool itself resolved the paper; a lookup failure here must not hide its result
+    check_failed = paper.pop(_integrity.CHECK_FAILED, False)
+    _cache.cache_set("paper:" + paper["id"], paper)
+    retraction, signals = _contract.integrity_signals(paper)
+    if not signals and not check_failed:
+        return result
+    out = dict(result)
+    if check_failed:
+        out["limitations"] = [*(out.get("limitations") or []), _integrity.CHECK_FAILED_WARNING]
+    if not signals:
+        return out
+    out["subject"] = {**(out.get("subject") or {}), **({"retraction": retraction} if retraction else {})}
+    out["signals"] = [s.model_dump(mode="json") for s in signals] + list(out.get("signals") or [])
+    if (retraction or {}).get("notice_doi"):
+        out["untrusted_fields"] = [*(out.get("untrusted_fields") or []), "subject.retraction.notice_doi"]
+    if out.get("rendered_markdown"):
+        # The Markdown was rendered before these signals existed: show them as a banner above the report.
+        lines = [f"> **{s.description}** {s.detail}" for s in signals]
+        out["rendered_markdown"] = "\n".join(lines) + "\n\n" + out["rendered_markdown"]
+    return out
+
+
 def _slim(p, idx=None, abstract_chars=1500):
     out = {
         k: p.get(k)
@@ -123,6 +152,9 @@ def _slim(p, idx=None, abstract_chars=1500):
             "has_weights",
             "has_dataset",
             "artifacts",
+            "retraction",
+            "concern",
+            "versions",
         )
         if p.get(k) is not None
         or k in ("id", "title", "authors", "year", "journal", "doi", "citations", "evidence", "open_access")
@@ -167,7 +199,8 @@ def _resolve(id_or_doi):
         "Semantic Scholar, Crossref, arXiv, Europe PMC), deduplicated and ranked by study design and "
         "citations. Returns abstracts, evidence level (meta-analysis, systematic-review, rct, review, cohort, "
         "empirical, preclinical, other) and a citation/venue band (`tier`: top, high, standard, emerging — "
-        "not a JCR quartile) and scientific `domain`. YOU classify each paper's stance and synthesize."
+        "not a JCR quartile) and scientific `domain`. Papers a source indexes as retracted carry `retraction`. "
+        "YOU classify each paper's stance and synthesize."
     ),
     input=_inputs.SearchPapersInput,
     profiles=("research",),
@@ -248,16 +281,24 @@ def clarify_search_scope(query, answers=None, domain=None):
     "get_paper",
     description=(
         "Get full record and abstract of a paper by cached ID, DOI, PMID, OpenAlex ID, arXiv ID, or Semantic "
-        "Scholar ID. Includes its scientific `domain`; pass `domain` to override it."
+        "Scholar ID. Includes its scientific `domain` (pass `domain` to override it) and integrity facts with "
+        "their source: `retraction` (retracted/withdrawn, notice DOI and date), `concern` (expression of concern) "
+        "and `versions` (`published_as` for a preprint, `preprint` for a published paper; DOIs for get_paper; "
+        "`published_as_match` means the link comes from matching title and authors, so confirm it). A `warnings` "
+        "entry means the check could not run, which does not clear the paper."
     ),
     input=_inputs.GetPaperInput,
     profiles=("research",),
 )
 def get_paper(id, domain=None):
     forced = _domain_override(domain)
-    p = _resolve(id)
+    p = _integrity.enrich(_resolve(id))
+    check_failed = p.pop(_integrity.CHECK_FAILED, False)
+    _cache.cache_set("paper:" + p["id"], p)  # offline tools (evidence_meter) see the integrity facts too
     out = _slim(p, abstract_chars=10000)
-    out["untrusted_fields"] = ["title", "abstract"]
+    if check_failed:
+        out["warnings"] = [_integrity.CHECK_FAILED_WARNING]
+    out["untrusted_fields"] = ["title", "abstract", "retraction.notice_doi", "concern.notice_doi", "versions"]
     if forced:
         out["domain"] = forced
         out["domain_overridden"] = True
@@ -499,7 +540,7 @@ def estimate_hardware_specs(paper_id, total_params_b=None, active_params_b=None,
     output=_out.ClaimsGroundingReport,
 )
 def verify_paper_claims(paper_id, claims=None):
-    return _technical_tools.verify_paper_claims(paper_id, claims=claims)
+    return _with_integrity(_technical_tools.verify_paper_claims(paper_id, claims=claims), paper_id)
 
 
 @_registry.tool(
@@ -566,7 +607,9 @@ def extract_prompts_and_decoding(paper_id):
     output=_out.FailureModesReport,
 )
 def detect_failure_modes(paper_id, inspect_fulltext=True):
-    return _technical_tools.detect_failure_modes(paper_id, inspect_fulltext=bool(inspect_fulltext))
+    return _with_integrity(
+        _technical_tools.detect_failure_modes(paper_id, inspect_fulltext=bool(inspect_fulltext)), paper_id
+    )
 
 
 @_registry.tool(
@@ -603,7 +646,9 @@ def diff_arxiv_versions(arxiv_id, from_version="v1", to_version="v2"):
     output=_out.PeerReviewReport,
 )
 def review_paper(paper_id, domain=None, inspect_fulltext=True):
-    return _review_tools.review_paper(paper_id, domain=domain, inspect_fulltext=bool(inspect_fulltext))
+    return _with_integrity(
+        _review_tools.review_paper(paper_id, domain=domain, inspect_fulltext=bool(inspect_fulltext)), paper_id
+    )
 
 
 @_registry.tool(
@@ -618,7 +663,10 @@ def review_paper(paper_id, domain=None, inspect_fulltext=True):
     title="Review paper (scientific committee)",
 )
 def review_paper_scientific(paper_id, domain=None, inspect_fulltext=True):
-    return _review_tools.review_paper_scientific(paper_id, domain=domain, inspect_fulltext=bool(inspect_fulltext))
+    return _with_integrity(
+        _review_tools.review_paper_scientific(paper_id, domain=domain, inspect_fulltext=bool(inspect_fulltext)),
+        paper_id,
+    )
 
 
 @_registry.tool(
@@ -656,9 +704,10 @@ def scaffold_paper_code(paper_id, target_language=None, domain=None):
     description=(
         "Contextual citation recommender & infiller (#22): scans a draft paragraph or file (.md/.tex) for "
         "explicit `[CITATION NEEDED]` / `\\cite{?}` markers and unsubstantiated empirical claims, retrieves "
-        "2-3 candidate supporting papers per claim with a justification quoting each abstract (check that it "
-        "really backs the claim), inserts inline LaTeX or Markdown citations, and generates a deduplicated "
-        "BibTeX block."
+        "up to `max_per_claim` candidate supporting papers per claim with a justification quoting each abstract "
+        "(check that it really backs the claim; candidates known to be retracted - from the search sources or "
+        "Crossref - are dropped with a warning), inserts inline "
+        "LaTeX or Markdown citations, and generates a deduplicated BibTeX block."
     ),
     input=_inputs.RecommendCitationsInput,
     profiles=("write",),
@@ -728,7 +777,9 @@ def audit_manuscript_draft(draft_input, venue="neurips", output_format="markdown
         "BibTeX sanitizer & preprint-to-published resolver (#25): parses `.bib` files or text, upgrades "
         "arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or "
         "journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes "
-        "authors, escapes unescaped LaTeX (`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`)."
+        "authors, escapes unescaped LaTeX (`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`). Entries "
+        "whose DOI Crossref reports as retracted are kept but flagged (`retracted_entries`, `warnings`; first 200 "
+        "entries with a DOI)."
     ),
     input=_inputs.SanitizeBibtexInput,
     write_args=("output_path",),
@@ -1183,7 +1234,9 @@ def _cached_paper(pid):
     description=(
         "Compute the Evidence Meter deterministically from YOUR stance classification of each paper: raw "
         "counts and percentages plus study-design-weighted percentages (meta-analysis 1.0 … preclinical 0.2). "
-        "Use its output instead of computing percentages yourself."
+        "Papers known to be retracted (from search_papers/get_paper records) are left out and listed in "
+        "`excluded` with a warning; if every countable paper is retracted the tool answers with an error that lists "
+        "them. Use its output instead of computing percentages yourself."
     ),
     input=_inputs.EvidenceMeterInput,
     network=False,
@@ -1199,6 +1252,7 @@ def evidence_meter(items):
     weighted = {"supportive": 0.0, "inconclusive": 0.0, "contrary": 0.0}
     breakdown = []
     skipped = []
+    excluded = []
     seen = set()
     for it in items:
         if not isinstance(it, dict):
@@ -1215,6 +1269,18 @@ def evidence_meter(items):
                 continue
             seen.add(str(pid))
         p = _cached_paper(pid)
+        known = _integrity.enrich(p, network=False) if p else None
+        if known and _integrity.is_retracted(known):
+            # A retracted paper is not evidence for or against anything: leave it out of the counts, say so.
+            excluded.append(
+                {
+                    "id": pid,
+                    "stance": stance,
+                    "reason": "retracted: " + _integrity.describe(known),
+                    "notice_doi": known["retraction"].get("notice_doi"),
+                }
+            )
+            continue
         ev = (p or {}).get("evidence") or it.get("evidence") or "other"
         w = float(_classify.EV_W.get(ev, _classify.EV_W.get("other", 0.3)))
         raw_counts[stance] += 1
@@ -1222,8 +1288,24 @@ def evidence_meter(items):
         breakdown.append({"id": pid, "stance": stance, "evidence": ev, "weight": w})
     total_n = sum(raw_counts.values())
     if total_n == 0:
+        if excluded:
+            listed = "; ".join(f"{x['id']} ({x['reason']})" for x in excluded)
+            others = "; ".join(f"{x.get('id', x.get('item'))} ({x['reason']})" for x in skipped)
+            ignored = f" Also ignored: {others}." if skipped else ""
+            raise _errors.HTTPError(
+                400, f"Every countable paper is retracted, so there is nothing to count: {listed}.{ignored}"
+            )
         raise _errors.HTTPError(400, "No valid stances provided (use supportive, inconclusive or contrary)")
     total_w = sum(weighted.values()) or 1.0
+    warnings = (
+        [
+            f"{len(excluded)} retracted paper(s) excluded from the meter: "
+            + ", ".join(str(x["id"]) for x in excluded)
+            + ". Mention them only as retracted."
+        ]
+        if excluded
+        else []
+    )
     return {
         "total_papers": total_n,
         "raw_counts": raw_counts,
@@ -1232,6 +1314,9 @@ def evidence_meter(items):
         "weights": dict(_classify.EV_W),
         "breakdown": breakdown,
         "skipped": skipped,
+        "excluded": excluded,
+        "warnings": warnings,
+        "untrusted_fields": ["excluded[].notice_doi"] if excluded else [],
     }
 
 
@@ -1337,7 +1422,27 @@ def project_list():
     title="Get research project",
 )
 def project_get(project, include_papers=True):
-    return _neutralized_project(_project_call(_store.get_project, project, include_papers=bool(include_papers)))
+    return _neutralized_project(
+        _flag_retractions(_project_call(_store.get_project, project, include_papers=bool(include_papers)))
+    )
+
+
+def _flag_retractions(out):
+    """Mark project papers known (from the record or the cache, offline) to be retracted, and warn about the ones
+    still included or candidate."""
+    for paper in out["papers"]:
+        if not paper.get("retraction"):  # learnt after the paper was added (get_paper, a later search)
+            cached = _cached_paper(paper["id"])
+            known = _integrity.enrich(cached, network=False) if cached else None
+            if known and _integrity.is_retracted(known):
+                paper["retraction"] = _contract.integrity_signals(known)[0]
+    flagged = [p for p in out["papers"] if p.get("retraction") and p["status"] != "excluded"]
+    out["warnings"] = [
+        f"Retracted paper still {p['status']} in the project: {p['id']} ({_integrity.describe(p)}). "
+        "Exclude it or keep it only as a cited retraction."
+        for p in flagged
+    ]
+    return out
 
 
 def _neutralized_project(out):
@@ -1451,7 +1556,7 @@ def project_note(project, text, paper_id=None):
 def project_markdown(project):
     """Markdown view of a project (the noul://project/<slug> resource). All project text is neutralised; the
     question and notes go inside untrusted blocks, titles and reasons as single-line labels."""
-    p = _neutralized_project(_project_call(_store.get_project, project))
+    p = _neutralized_project(_flag_retractions(_project_call(_store.get_project, project)))
     lines = [
         f"# Research project: {_untrusted.label(p['title'], 200)}",
         "",
@@ -1469,7 +1574,11 @@ def project_markdown(project):
         lines += [f"## {heading}"]
         for x in group:
             title = _untrusted.label(x["title"] or x["id"], 200)
-            lines.append(f"- `{_untrusted.label(x['id'], 120)}` {title}" + (f" ({x['year']})" if x.get("year") else ""))
+            lines.append(
+                f"- `{_untrusted.label(x['id'], 120)}` {title}"
+                + (f" ({x['year']})" if x.get("year") else "")
+                + (" — **RETRACTED**" if x.get("retraction") else "")
+            )
             if x.get("reason"):
                 lines.append(f"  - Reason: {_untrusted.label(x['reason'], 300)}")
         lines.append("")

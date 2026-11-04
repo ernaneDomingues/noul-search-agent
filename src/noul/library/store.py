@@ -342,6 +342,9 @@ def _detail(conn: sqlite3.Connection, ref: str | int, include_papers: bool) -> d
                     "reason": r["reason"],
                     "added_at": r["added_at"],
                     "updated_at": r["updated_at"],
+                    **(
+                        {"retraction": meta["retraction"]} if (meta.get("retraction") or {}).get("is_retracted") else {}
+                    ),
                 }
             )
     out["notes"] = [

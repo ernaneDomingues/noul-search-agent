@@ -97,11 +97,13 @@ class SkillLayoutTests(unittest.TestCase):
 
 
 class EvalCaseTests(unittest.TestCase):
-    def test_twelve_cases_three_per_journey(self):
+    def test_every_journey_has_three_to_five_cases(self):
         cases = sorted(p for p in EVALS.iterdir() if p.is_dir())
-        self.assertEqual(len(cases), 12)
         per_journey = {j: [c for c in cases if c.name.startswith(j + "-")] for j in JOURNEYS}
-        self.assertEqual({j: len(v) for j, v in per_journey.items()}, dict.fromkeys(JOURNEYS, 3))
+        self.assertEqual(sum(len(v) for v in per_journey.values()), len(cases), "every case names its journey")
+        for journey, found in per_journey.items():
+            with self.subTest(journey=journey):
+                self.assertTrue(3 <= len(found) <= 5, [c.name for c in found])
 
     def test_each_case_loads(self):
         for case in sorted(p for p in EVALS.iterdir() if p.is_dir()):

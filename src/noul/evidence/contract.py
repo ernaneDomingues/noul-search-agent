@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from noul.evidence import integrity as _integrity
 from noul.evidence import untrusted as _untrusted
 from noul.schemas.evidence import (
     AnalysisResult,
@@ -59,6 +60,37 @@ def corpus_limitations(corpus: dict) -> list[str]:
         )
     notes.append("Pattern-based extraction: signals can be false positives or miss paraphrased content.")
     return list(dict.fromkeys(notes))
+
+
+def integrity_signals(paper: dict) -> tuple[dict | None, list[Signal]]:
+    """`subject.retraction` and the integrity signals (retraction, expression of concern) for an enriched paper."""
+    signals: list[Signal] = []
+    retraction = paper.get("retraction") if (paper.get("retraction") or {}).get("is_retracted") else None
+    if retraction:
+        signals.append(
+            Signal(
+                id="integrity-retracted",
+                category="integrity",
+                kind="concern",
+                priority_hint="high",
+                description="The paper is retracted: its findings are withdrawn and must not be used as evidence.",
+                detail=_integrity.describe(paper),
+            )
+        )
+    concern = paper.get("concern")
+    if concern:
+        signals.append(
+            Signal(
+                id="integrity-expression-of-concern",
+                category="integrity",
+                kind="concern",
+                priority_hint="high",
+                description="The publisher issued an expression of concern about this paper.",
+                detail=f"source: {concern.get('source') or 'unknown'}",
+            )
+        )
+    keys = ("is_retracted", "kind", "notice_doi", "date", "source")
+    return ({k: retraction.get(k) for k in keys if retraction.get(k) is not None} if retraction else None), signals
 
 
 def rubric(name: str, criteria: Iterable[tuple[str, ...]], how_to_judge: str = "") -> Rubric:

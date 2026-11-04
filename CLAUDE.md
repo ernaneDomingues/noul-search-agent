@@ -24,7 +24,7 @@ Next: **Phase 4** (CSL-JSON/Zotero, retractions, preprint↔published linking, M
 | `src/noul/server/mcp.py`, `http.py`, `common.py` | MCP server on the official SDK (stdio; prompts, progress, e-mail elicitation) and the Starlette HTTP app (Streamable HTTP `/mcp`, REST/OpenAPI, `Guard` middleware for Host/Origin/Bearer/body cap); profiles via `--profile`/`NOUL_TOOL_PROFILE` |
 | `src/noul/cli/`, `src/noul/install.py` | `noul` CLI (`python -m noul`), `noul-install` |
 | `src/noul/_bin/` | absolute-path launchers the installer registers when no console script exists (keeps the project folder off `sys.path`) |
-| `skills/noul-search/` | layered skill: `SKILL.md` router, `references/<journey>.md`, `evals/` (12 cases, `claude plugin eval` format) |
+| `skills/noul-search/` | layered skill: `SKILL.md` router, `references/<journey>.md`, `evals/` (3–5 cases per journey, `claude plugin eval` format) |
 | `skills/`, `agents/`, `commands/`, `.claude-plugin/` | distribution to agent clients (plugin runs `uv run --project ${CLAUDE_PLUGIN_ROOT} noul-mcp`) |
 | `site/`, `scripts/build_site.py` | GitHub Pages portal; `site/tools-reference.json` and `site/install.html` (from `site/config.json`) are **generated** |
 | `packaging/pyinstaller/`, `scripts/build_mcpb.py`, `scripts/smoke_mcp.py`, `.github/workflows/release.yml` | single-file `noul` executable, Claude Desktop extensions (.mcpb: `uv` universal + `binary` per OS, manifest generated from the registry) and the release pipeline (signing only when secrets exist: `docs/release/signing.md`) |

@@ -66,7 +66,7 @@ class PromptExtractionResult(BaseModel):
 class FailureModesReport(AnalysisResult):
     """Candidate failure modes are the `signals` (category = long_context | noise_sensitivity |
     out_of_distribution | latency_or_compute | sample_or_population_bias | general_limitation), each with the
-    sentence that triggered it."""
+    sentence that triggered it. An `integrity` signal (retraction, expression of concern) comes first when known."""
 
     critical_assumptions: list[Excerpt] = Field(default_factory=list)
     baseline_superiority_scenarios: list[Excerpt] = Field(default_factory=list)

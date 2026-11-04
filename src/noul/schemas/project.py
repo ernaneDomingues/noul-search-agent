@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from noul.schemas.evidence import Retraction
+
 Status = Literal["candidate", "included", "excluded"]
 
 
@@ -39,6 +41,7 @@ class ProjectPaper(BaseModel):
     reason: str | None = None
     added_at: int
     updated_at: int
+    retraction: Retraction | None = None  # set when the paper is known to be retracted
 
 
 class ProjectNote(BaseModel):
@@ -54,6 +57,7 @@ class ProjectDetail(ProjectSummary):
     papers: list[ProjectPaper] = Field(default_factory=list)
     notes: list[ProjectNote] = Field(default_factory=list)
     untrusted_fields: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)  # e.g. included papers that are retracted
 
 
 class ProjectCreated(ProjectSummary):
