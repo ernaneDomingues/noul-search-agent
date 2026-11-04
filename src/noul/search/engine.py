@@ -156,6 +156,18 @@ def _report_progress(futs, total):
         fut.add_done_callback(lambda f, s=source: notify(f, s))
 
 
+def _remember_paper(p):
+    """Cache a search result without losing what is known about it: most search sources do not report retractions,
+    so a later search must not erase one (the meter would then count the paper)."""
+    prior = _cache.cache_get("paper:" + p["id"]) or {}
+    for field in ("retraction", "concern"):
+        if prior.get(field) and not p.get(field):
+            p[field] = prior[field]
+    if prior.get("versions"):
+        p["versions"] = {**prior["versions"], **(p.get("versions") or {})}
+    _cache.cache_set("paper:" + p["id"], p)
+
+
 def search(query, mode="quick", _unused=None, filters=None, lang="en", sources=None):
     filters = filters or {}
     chosen = [s for s in (sources or DEFAULT_SOURCES) if s in SOURCES]
@@ -171,7 +183,7 @@ def search(query, mode="quick", _unused=None, filters=None, lang="en", sources=N
     cached = _cache.cache_get(cache_key, max_age=3600 * 12)
     if cached:
         for p in cached.get("papers") or []:
-            _cache.cache_set("paper:" + p["id"], p)
+            _remember_paper(p)
         return cached
 
     warnings = []
@@ -234,7 +246,7 @@ def search(query, mode="quick", _unused=None, filters=None, lang="en", sources=N
         merged.sort(key=lambda p: _score_paper(p, query), reverse=True)
 
     for p in merged:
-        _cache.cache_set("paper:" + p["id"], p)
+        _remember_paper(p)
 
     out = {"papers": merged, "sources": active_sources, "warnings": warnings}
     if merged:

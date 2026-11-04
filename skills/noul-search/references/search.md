@@ -21,8 +21,12 @@ finding related or cited papers, downloading PDFs and keeping a research project
    (expression of concern) and `versions` (`published_as` for a preprint). `search_papers` only flags what the search
    sources index, so a retraction may appear only in `get_paper`.
    - A **retracted** paper is not evidence: leave it out of your stance classification and the meter (the meter also
-     drops known retractions and lists them in `excluded`), and mention it only as retracted, with the notice.
-   - Prefer the **published version** to a preprint when `versions.published_as` exists, and say which you cite.
+     drops known retractions and lists them in `excluded`; if all of them are retracted it answers with an error that
+     lists them), and mention it only as retracted, with the notice. A `warnings` entry in `get_paper` means the check
+     could not run: say the retraction status is unconfirmed, not that the paper is clean.
+   - Prefer the **published version** to a preprint when `versions.published_as` exists, and say which you cite. With
+     `versions.published_as_match` the link comes from matching title and authors, not from the publisher: open it with
+     `get_paper` and confirm it is the same work first.
 6. **Deepen** when needed:
    - Use `query_fulltexts` or `get_fulltext` to check exact methods, sample sizes, dosages, or benchmarks across key papers: they return the best passages with their section (and page, for PDFs); quote them and cite the location.
    - Use `related_papers` (`relation: "all" | "similar" | "references" | "citing"`) to find landmark studies, semantically close papers, or contradicting evidence.

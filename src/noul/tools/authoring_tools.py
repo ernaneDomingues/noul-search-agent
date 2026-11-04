@@ -409,6 +409,8 @@ def recommend_citations(
         # Crossref check on the few candidates (cached weekly): search sources do not flag every retraction.
         papers = [_integrity.enrich(p, versions=False) for p in _retrieve_papers_for_claim(query, max_per_claim=max_k)]
         retracted = [p for p in papers if _integrity.is_retracted(p)]
+        if any(p.get(_integrity.CHECK_FAILED) for p in papers):
+            warnings.append(f"Claim '{sent[:60]}...': {_integrity.CHECK_FAILED_WARNING}")
         if retracted:
             # Never propose a retracted paper as support; say which candidates were dropped and why.
             papers = [p for p in papers if not _integrity.is_retracted(p)]
@@ -416,7 +418,8 @@ def recommend_citations(
             warnings.append(f"Retracted candidate(s) not proposed for claim '{sent[:60]}...': {dropped}")
 
         if not papers:
-            warnings.append(f"No papers found in cache or APIs for claim: '{sent[:80]}...'")
+            if not retracted:
+                warnings.append(f"No papers found in cache or APIs for claim: '{sent[:80]}...'")
             continue
 
         c_keys = []
@@ -1374,6 +1377,7 @@ def _choose_canonical_bib_key(keys: list[str], fields: dict, used_keys: set) -> 
 
 # One Crossref lookup per entry (cached weekly): bound the cost of very large bibliographies.
 MAX_INTEGRITY_CHECKS = 200
+MAX_CROSSREF_FAILURES_IN_A_ROW = 3  # an unreachable Crossref must not cost a timeout per entry
 
 
 def sanitize_bibtex(
@@ -1428,6 +1432,8 @@ def sanitize_bibtex(
     preprints_upgraded = 0
     retracted_entries = 0
     integrity_checks = 0
+    crossref_failures_in_a_row = 0
+    unchecked_dois = 0
     dois_completed = 0
     latex_escapes_fixed = 0
     updates: list[BibtexEntryUpdate] = []
@@ -1515,9 +1521,14 @@ def sanitize_bibtex(
 
         # Integrity: a retracted paper in the bibliography is reported (kept: citing a retraction can be legitimate).
         facts = {}
-        if merged_fields.get("doi") and integrity_checks < MAX_INTEGRITY_CHECKS:
-            integrity_checks += 1
-            facts = _integrity.crossref_facts(merged_fields["doi"])
+        if merged_fields.get("doi"):
+            if integrity_checks < MAX_INTEGRITY_CHECKS and crossref_failures_in_a_row < MAX_CROSSREF_FAILURES_IN_A_ROW:
+                integrity_checks += 1
+                facts = _integrity.crossref_facts(merged_fields["doi"])
+                crossref_failures_in_a_row = crossref_failures_in_a_row + 1 if facts.get("check_failed") else 0
+                unchecked_dois += 1 if facts.get("check_failed") else 0
+            else:
+                unchecked_dois += 1
         if facts.get("retraction"):
             retracted_entries += 1
             desc = _integrity.describe(facts)
@@ -1568,8 +1579,11 @@ def sanitize_bibtex(
             )
         )
 
-    if integrity_checks >= MAX_INTEGRITY_CHECKS:
-        warnings.append(f"Retraction check limited to the first {MAX_INTEGRITY_CHECKS} entries with a DOI.")
+    if unchecked_dois:
+        warnings.append(
+            f"Retraction status unknown for {unchecked_dois} entries with a DOI (at most {MAX_INTEGRITY_CHECKS} checks "
+            "per run, and Crossref must answer): the absence of a flag does not clear them."
+        )
     sanitized_text = "\n\n".join(sanitized_blocks) + ("\n" if sanitized_blocks else "")
     if out_file is not None:
         out_file.parent.mkdir(parents=True, exist_ok=True)

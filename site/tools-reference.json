@@ -37,7 +37,7 @@
     },
     {
       "name": "get_paper",
-      "description": "Get full record and abstract of a paper by cached ID, DOI, PMID, OpenAlex ID, arXiv ID, or Semantic Scholar ID. Includes its scientific `domain` (pass `domain` to override it) and integrity facts with their source: `retraction` (retracted/withdrawn, notice DOI and date), `concern` (expression of concern) and `versions` (`published_as` for a preprint, `preprint` for a published paper; ids for get_paper).",
+      "description": "Get full record and abstract of a paper by cached ID, DOI, PMID, OpenAlex ID, arXiv ID, or Semantic Scholar ID. Includes its scientific `domain` (pass `domain` to override it) and integrity facts with their source: `retraction` (retracted/withdrawn, notice DOI and date), `concern` (expression of concern) and `versions` (`published_as` for a preprint, `preprint` for a published paper; DOIs for get_paper; `published_as_match` means the link comes from matching title and authors, so confirm it). A `warnings` entry means the check could not run, which does not clear the paper.",
       "required": [
         "id"
       ],
@@ -474,7 +474,7 @@
     },
     {
       "name": "evidence_meter",
-      "description": "Compute the Evidence Meter deterministically from YOUR stance classification of each paper: raw counts and percentages plus study-design-weighted percentages (meta-analysis 1.0 … preclinical 0.2). Papers known to be retracted (from search_papers/get_paper records) are left out and listed in `excluded` with a warning. Use its output instead of computing percentages yourself.",
+      "description": "Compute the Evidence Meter deterministically from YOUR stance classification of each paper: raw counts and percentages plus study-design-weighted percentages (meta-analysis 1.0 … preclinical 0.2). Papers known to be retracted (from search_papers/get_paper records) are left out and listed in `excluded` with a warning; if every countable paper is retracted the tool answers with an error that lists them. Use its output instead of computing percentages yourself.",
       "required": [
         "items"
       ],

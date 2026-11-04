@@ -107,13 +107,20 @@ def _with_integrity(result, paper_id):
         paper = _integrity.enrich(_resolve(paper_id), versions=False)
     except _errors.HTTPError:
         return result  # the tool itself resolved the paper; a lookup failure here must not hide its result
+    check_failed = paper.pop(_integrity.CHECK_FAILED, False)
     _cache.cache_set("paper:" + paper["id"], paper)
     retraction, signals = _contract.integrity_signals(paper)
-    if not signals:
+    if not signals and not check_failed:
         return result
     out = dict(result)
+    if check_failed:
+        out["limitations"] = [*(out.get("limitations") or []), _integrity.CHECK_FAILED_WARNING]
+    if not signals:
+        return out
     out["subject"] = {**(out.get("subject") or {}), **({"retraction": retraction} if retraction else {})}
     out["signals"] = [s.model_dump(mode="json") for s in signals] + list(out.get("signals") or [])
+    if (retraction or {}).get("notice_doi"):
+        out["untrusted_fields"] = [*(out.get("untrusted_fields") or []), "subject.retraction.notice_doi"]
     if out.get("rendered_markdown"):
         # The Markdown was rendered before these signals existed: show them as a banner above the report.
         lines = [f"> **{s.description}** {s.detail}" for s in signals]
@@ -276,7 +283,9 @@ def clarify_search_scope(query, answers=None, domain=None):
         "Get full record and abstract of a paper by cached ID, DOI, PMID, OpenAlex ID, arXiv ID, or Semantic "
         "Scholar ID. Includes its scientific `domain` (pass `domain` to override it) and integrity facts with "
         "their source: `retraction` (retracted/withdrawn, notice DOI and date), `concern` (expression of concern) "
-        "and `versions` (`published_as` for a preprint, `preprint` for a published paper; ids for get_paper)."
+        "and `versions` (`published_as` for a preprint, `preprint` for a published paper; DOIs for get_paper; "
+        "`published_as_match` means the link comes from matching title and authors, so confirm it). A `warnings` "
+        "entry means the check could not run, which does not clear the paper."
     ),
     input=_inputs.GetPaperInput,
     profiles=("research",),
@@ -284,9 +293,12 @@ def clarify_search_scope(query, answers=None, domain=None):
 def get_paper(id, domain=None):
     forced = _domain_override(domain)
     p = _integrity.enrich(_resolve(id))
+    check_failed = p.pop(_integrity.CHECK_FAILED, False)
     _cache.cache_set("paper:" + p["id"], p)  # offline tools (evidence_meter) see the integrity facts too
     out = _slim(p, abstract_chars=10000)
-    out["untrusted_fields"] = ["title", "abstract"]
+    if check_failed:
+        out["warnings"] = [_integrity.CHECK_FAILED_WARNING]
+    out["untrusted_fields"] = ["title", "abstract", "retraction.notice_doi", "concern.notice_doi", "versions"]
     if forced:
         out["domain"] = forced
         out["domain_overridden"] = True
@@ -1223,7 +1235,8 @@ def _cached_paper(pid):
         "Compute the Evidence Meter deterministically from YOUR stance classification of each paper: raw "
         "counts and percentages plus study-design-weighted percentages (meta-analysis 1.0 … preclinical 0.2). "
         "Papers known to be retracted (from search_papers/get_paper records) are left out and listed in "
-        "`excluded` with a warning. Use its output instead of computing percentages yourself."
+        "`excluded` with a warning; if every countable paper is retracted the tool answers with an error that lists "
+        "them. Use its output instead of computing percentages yourself."
     ),
     input=_inputs.EvidenceMeterInput,
     network=False,
@@ -1259,7 +1272,14 @@ def evidence_meter(items):
         known = _integrity.enrich(p, network=False) if p else None
         if known and _integrity.is_retracted(known):
             # A retracted paper is not evidence for or against anything: leave it out of the counts, say so.
-            excluded.append({"id": pid, "stance": stance, "reason": "retracted: " + _integrity.describe(known)})
+            excluded.append(
+                {
+                    "id": pid,
+                    "stance": stance,
+                    "reason": "retracted: " + _integrity.describe(known),
+                    "notice_doi": known["retraction"].get("notice_doi"),
+                }
+            )
             continue
         ev = (p or {}).get("evidence") or it.get("evidence") or "other"
         w = float(_classify.EV_W.get(ev, _classify.EV_W.get("other", 0.3)))
@@ -1270,7 +1290,11 @@ def evidence_meter(items):
     if total_n == 0:
         if excluded:
             listed = "; ".join(f"{x['id']} ({x['reason']})" for x in excluded)
-            raise _errors.HTTPError(400, f"Every classified paper is retracted, so there is nothing to count: {listed}")
+            others = "; ".join(f"{x.get('id', x.get('item'))} ({x['reason']})" for x in skipped)
+            ignored = f" Also ignored: {others}." if skipped else ""
+            raise _errors.HTTPError(
+                400, f"Every countable paper is retracted, so there is nothing to count: {listed}.{ignored}"
+            )
         raise _errors.HTTPError(400, "No valid stances provided (use supportive, inconclusive or contrary)")
     total_w = sum(weighted.values()) or 1.0
     warnings = (
@@ -1292,6 +1316,7 @@ def evidence_meter(items):
         "skipped": skipped,
         "excluded": excluded,
         "warnings": warnings,
+        "untrusted_fields": ["excluded[].notice_doi"] if excluded else [],
     }
 
 

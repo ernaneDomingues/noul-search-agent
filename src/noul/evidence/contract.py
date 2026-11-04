@@ -79,14 +79,13 @@ def integrity_signals(paper: dict) -> tuple[dict | None, list[Signal]]:
         )
     concern = paper.get("concern")
     if concern:
-        notice = f" (notice doi:{concern['notice_doi']})" if concern.get("notice_doi") else ""
         signals.append(
             Signal(
                 id="integrity-expression-of-concern",
                 category="integrity",
                 kind="concern",
                 priority_hint="high",
-                description="The publisher issued an expression of concern about this paper" + notice + ".",
+                description="The publisher issued an expression of concern about this paper.",
                 detail=f"source: {concern.get('source') or 'unknown'}",
             )
         )

@@ -189,7 +189,9 @@ class EvidenceContractTests(unittest.TestCase):
         from noul import registry
 
         paper = registry.call("get_paper", {"id": self.pid})
-        self.assertEqual(paper["untrusted_fields"], ["title", "abstract"])
+        self.assertEqual(
+            paper["untrusted_fields"], ["title", "abstract", "retraction.notice_doi", "concern.notice_doi", "versions"]
+        )
         self.assertNotIn("</untrusted_source", paper["abstract"])
 
 

@@ -675,9 +675,10 @@ def _is_formal_published_record(rec: dict) -> bool:
     return True
 
 
-def resolve_published_venue_for_preprint(entry: dict) -> dict | None:
+def resolve_published_venue_for_preprint(entry: dict, failures: list[str] | None = None) -> dict | None:
     """Check cache and public scholarly APIs (S2 / Crossref / OpenAlex) for a formal peer-reviewed version
-    of an arXiv preprint. Returns a dict with `{venue, entry_type, year, doi, authors, title, arxiv_id}` or None."""
+    of an arXiv preprint. Returns a dict with `{venue, entry_type, year, doi, authors, title, arxiv_id}` or None.
+    Sources that could not answer are appended to `failures`, so a caller can tell "none exists" from "unknown"."""
     fields = entry.get("fields") or entry
     raw_title = str(fields.get("title") or "").strip()
     norm_t = _norm_title_key(raw_title)
@@ -724,8 +725,9 @@ def resolve_published_venue_for_preprint(entry: dict) -> dict | None:
             p_s2 = _s2._parse_s2_paper(_nhttp._http_json(url))
             if p_s2 and _is_formal_published_record(p_s2):
                 candidates.append(p_s2)
-        except Exception:
-            pass
+        except Exception as e:
+            if failures is not None and getattr(e, "code", None) != 404:  # 404: S2 has no such preprint
+                failures.append("s2")
 
     if not candidates and raw_title:
         clean_q = re.sub(r"[{}]", "", raw_title).strip()
@@ -738,6 +740,8 @@ def resolve_published_venue_for_preprint(entry: dict) -> dict | None:
                 results = search_fn(clean_q) or []
             except Exception:
                 results = []
+                if failures is not None:
+                    failures.append("title-search")
             for r in results:
                 if not _is_formal_published_record(r):
                     continue
