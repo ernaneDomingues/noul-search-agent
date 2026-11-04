@@ -46,7 +46,7 @@ def _parse_s2_paper(item):
     abstract = _ids._clean_text(item.get("abstract") or "")
     year = item.get("year")
     journal = item.get("venue") or ("arXiv" if arxiv_id else "")
-    authors = [a.get("name") for a in (item.get("authors") or [])[:10] if a.get("name")]
+    authors = [a.get("name") for a in (item.get("authors") or [])[:100] if a.get("name")]
     citations = int(item.get("citationCount") or 0)
     oa_pdf = (item.get("openAccessPdf") or {}).get("url")
     if not oa_pdf and arxiv_id:

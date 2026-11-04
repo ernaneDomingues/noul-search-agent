@@ -1,0 +1,5 @@
+schema_version: "1.1"
+name: writing-export-project-csl
+expected_outcome: |
+  A research project created and populated with Noul, with its included papers exported as CSL-JSON through
+  export_papers(project=..., format="csl-json") into a file, and no write to any Zotero account.

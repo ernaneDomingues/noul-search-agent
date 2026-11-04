@@ -22,7 +22,9 @@ Usage:
   noul graph ID_OR_DOI
   noul related ID_OR_DOI [--relation all|similar|references|citing] [--types ...] [--year-min N]
   noul download ID1,ID2 [--dir ./papers]
-  noul export ID1,ID2 [--format bibtex|ris|csv|obsidian] [--vault-dir ./vault | --export-obsidian ./vault]
+  noul export [ID1,ID2] [--project SLUG [--status included|candidate|excluded|all]]
+              [--format bibtex|ris|csv|csl-json|obsidian] [--vault-dir ./vault | --export-obsidian ./vault]
+  noul zotero [ID1,ID2] [--project SLUG [--status ...]] [--collection NAME_OR_KEY]
   noul dossier save --topic "Topic" --file report.md [--ids ID1,ID2] [--dir ./research]
   noul dossier list [--dir ./research]
   noul dossier show SLUG [--dir ./research]
@@ -37,6 +39,7 @@ Usage:
 """
 
 import argparse
+import getpass
 import inspect
 import json
 import sys
@@ -386,15 +389,23 @@ def main(argv=None):
     dl_p.add_argument("--dir", default=None, help="Inside the workspace (default: configured download_dir)")
 
     e = sub.add_parser("export")
-    e.add_argument("ids", nargs="+", help="Paper IDs/DOIs (space- or comma-separated)")
+    e.add_argument("ids", nargs="*", help="Paper IDs/DOIs (space- or comma-separated)")
+    e.add_argument("--project", help="Export this research project instead of IDs")
+    e.add_argument("--status", choices=["included", "candidate", "excluded", "all"], help="With --project")
     e.add_argument(
         "--format",
         default=None,
-        choices=["bibtex", "ris", "csv", "obsidian"],
+        choices=["bibtex", "ris", "csv", "csl-json", "obsidian"],
         help="default: bibtex (obsidian when --vault-dir/--export-obsidian is given)",
     )
     e.add_argument("--vault-dir", help="Obsidian vault folder inside the workspace (implies --format obsidian)")
     e.add_argument("--export-obsidian", metavar="VAULT_DIR", help="alias of --vault-dir")
+
+    zot = sub.add_parser("zotero", help="Create papers in your Zotero library (needs credentials: see noul config)")
+    zot.add_argument("ids", nargs="*", help="Paper IDs/DOIs (space- or comma-separated)")
+    zot.add_argument("--project", help="Send this research project instead of IDs")
+    zot.add_argument("--status", choices=["included", "candidate", "excluded", "all"], help="With --project")
+    zot.add_argument("--collection", help="Existing collection, by exact name or key")
 
     dos = sub.add_parser("dossier")
     dos_sub = dos.add_subparsers(dest="dossier_cmd", required=True)
@@ -444,6 +455,12 @@ def main(argv=None):
     cfg_p.add_argument("--workspace")
     cfg_p.add_argument("--download-dir")
     cfg_p.add_argument("--research-dir")
+    cfg_p.add_argument("--zotero-user-id")
+    cfg_p.add_argument(
+        "--zotero-api-key-stdin",
+        action="store_true",
+        help="Read the Zotero API key from stdin (a command-line argument would stay in the shell history)",
+    )
     cfg_p.add_argument("--clear", action="store_true", help="Delete the config file (env vars still apply)")
 
     m_p = sub.add_parser("meter", help="Deterministic Evidence Meter from classified papers")
@@ -730,10 +747,26 @@ def main(argv=None):
             out = _run("download_papers", split(a.ids), a.dir)
         elif a.cmd == "export":
             vault = a.vault_dir or a.export_obsidian
+            if a.project and (vault or a.format == "obsidian"):
+                raise ValueError("Obsidian export takes paper ids, not --project")
             if a.format == "obsidian" or vault:
                 out = _run("export_obsidian_notes", _split_ids(a.ids), vault_dir=vault)
             else:
-                out = _run("export_papers", _split_ids(a.ids), a.format or "bibtex")
+                out = _run(
+                    "export_papers",
+                    ids=_split_ids(a.ids) or None,
+                    format=a.format or "bibtex",
+                    project=a.project,
+                    status=a.status,
+                )
+        elif a.cmd == "zotero":
+            out = _run(
+                "zotero_push",
+                ids=_split_ids(a.ids) or None,
+                project=a.project,
+                status=a.status,
+                collection=a.collection,
+            )
         elif a.cmd == "dossier":
             if a.dossier_cmd == "save":
                 md = Path(a.file).read_text(encoding="utf-8") if a.file else a.text
@@ -765,6 +798,14 @@ def main(argv=None):
             for key in ("email", "workspace", "download_dir", "research_dir"):
                 if getattr(a, key) is not None:
                     kwargs[key] = getattr(a, key)
+            if a.zotero_user_id is not None:
+                kwargs["zotero_user_id"] = a.zotero_user_id
+            if a.zotero_api_key_stdin:
+                # No echo at a terminal. An empty value here is a failed pipe, not a request to remove the key.
+                key = getpass.getpass("Zotero API key: ") if sys.stdin.isatty() else sys.stdin.readline()
+                if not key.strip():
+                    raise ValueError("No Zotero API key on stdin; nothing changed")
+                kwargs["zotero_api_key"] = key.strip()
             if a.clear:
                 kwargs["clear"] = True
             out = _run("configure_noul", **kwargs)
@@ -774,6 +815,8 @@ def main(argv=None):
         print(json.dumps({"error": str(ex)}), file=sys.stderr)
         return 1
 
+    for warning in getattr(out, "warnings", ()):  # stderr: stdout stays a parseable export file
+        print(f"warning: {warning}", file=sys.stderr)
     print(out if isinstance(out, str) else json.dumps(out, ensure_ascii=False, indent=1))
     return 0
 

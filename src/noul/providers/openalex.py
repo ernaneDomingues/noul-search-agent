@@ -43,7 +43,7 @@ def _parse_openalex_work(w):
     src = loc.get("source") or {}
     journal = src.get("display_name") or ""
     authors = []
-    for a in (w.get("authorships") or [])[:10]:
+    for a in (w.get("authorships") or [])[:100]:
         name = (a.get("author") or {}).get("display_name")
         if name:
             authors.append(name)

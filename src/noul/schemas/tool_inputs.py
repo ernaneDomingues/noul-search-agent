@@ -432,9 +432,26 @@ class GetResearchDossierInput(_ToolInput):
 class ExportPapersInput(_ToolInput):
     """Arguments of `export_papers`."""
 
-    ids: list[str]
-    format: Literal["bibtex", "ris", "csv"] | None = Field(
-        None, json_schema_extra={"enum_order": ["bibtex", "ris", "csv"]}
+    ids: list[str] | None = Field(None, description="Paper ids or DOIs. Give either `ids` or `project`")
+    format: Literal["bibtex", "ris", "csv", "csl-json"] | None = Field(
+        None, json_schema_extra={"enum_order": ["bibtex", "ris", "csv", "csl-json"]}
+    )
+    project: str | None = Field(None, description="Export the papers of this research project (slug or id)")
+    status: Literal["included", "candidate", "excluded", "all"] | None = Field(
+        None, description="With `project`: which papers (default: included)"
+    )
+
+
+class ZoteroPushInput(_ToolInput):
+    """Arguments of `zotero_push`."""
+
+    ids: list[str] | None = Field(None, max_length=200, description="Paper ids or DOIs. Give either `ids` or `project`")
+    project: str | None = Field(None, description="Send the papers of this research project (slug or id)")
+    status: Literal["included", "candidate", "excluded", "all"] | None = Field(
+        None, description="With `project`: which papers (default: included)"
+    )
+    collection: str | None = Field(
+        None, max_length=200, description="Existing Zotero collection, by exact name or key (default: library root)"
     )
 
 
@@ -454,10 +471,17 @@ class ConfigureNoulInput(_ToolInput):
     download_dir: str | None = None
     research_dir: str | None = None
     clear: bool | None = False
+    zotero_api_key: str | None = Field(
+        None,
+        description="Zotero API key with write access. It stays in this conversation's history: prefer "
+        "NOUL_ZOTERO_API_KEY or `noul config --zotero-api-key-stdin`. An empty value removes it",
+    )
+    zotero_user_id: str | None = Field(None, description="Numeric Zotero user id. An empty value removes it")
 
 
 INPUT_MODELS: dict[str, type[_ToolInput]] = {
     "search_papers": SearchPapersInput,
+    "zotero_push": ZoteroPushInput,
     "clarify_search_scope": ClarifySearchScopeInput,
     "get_paper": GetPaperInput,
     "detect_paper_domain": DetectPaperDomainInput,

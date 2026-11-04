@@ -18,7 +18,7 @@ Next: **Phase 4** (CSL-JSON/Zotero, retractions, preprint↔published linking, M
 | `src/noul/evidence/`, `src/noul/library/` | study-design classifier + impact band; full text, citation graph, downloads, export |
 | `src/noul/tools/` | feature tools (Phases 1–6 of v1) |
 | `src/noul/registry.py` | the tool registry: `@tool(...)`, `call()` (Pydantic validation + logging), `input_schema()`, `catalog()`, `write_tools()` |
-| `src/noul/api.py` | the 47 tool functions, each decorated with `@_registry.tool(...)`; `TOOLS`/`call` re-exported for v1 callers |
+| `src/noul/api.py` | the 48 tool functions, each decorated with `@_registry.tool(...)`; `TOOLS`/`call` re-exported for v1 callers |
 | `src/noul/schemas/tool_inputs.py` | one Pydantic input model per tool — the source of the MCP `inputSchema` |
 | `src/noul/log.py` | `noul` logger, stderr only, level from `NOUL_LOG_LEVEL` |
 | `src/noul/server/mcp.py`, `http.py`, `common.py` | MCP server on the official SDK (stdio; prompts, progress, e-mail elicitation) and the Starlette HTTP app (Streamable HTTP `/mcp`, REST/OpenAPI, `Guard` middleware for Host/Origin/Bearer/body cap); profiles via `--profile`/`NOUL_TOOL_PROFILE` |

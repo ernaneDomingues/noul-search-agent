@@ -6026,7 +6026,7 @@
   {
     "name": "export_papers",
     "title": "Export papers",
-    "description": "Export papers as bibtex, ris or csv.",
+    "description": "Export papers as bibtex, ris, csv or csl-json (imported by Zotero, Mendeley and Pandoc), given `ids` or a research `project` (its included papers, or those of `status`). CSL-JSON notes known retractions.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -6034,20 +6034,34 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Paper ids or DOIs. Give either `ids` or `project`"
         },
         "format": {
           "type": "string",
           "enum": [
             "bibtex",
             "ris",
-            "csv"
+            "csv",
+            "csl-json"
           ]
+        },
+        "project": {
+          "type": "string",
+          "description": "Export the papers of this research project (slug or id)"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "included",
+            "candidate",
+            "excluded",
+            "all"
+          ],
+          "description": "With `project`: which papers (default: included)"
         }
       },
-      "required": [
-        "ids"
-      ]
+      "required": []
     },
     "outputSchema": null,
     "annotations": {
@@ -6055,6 +6069,187 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
+      "openWorldHint": true
+    },
+    "profiles": [
+      "research"
+    ],
+    "write_args": []
+  },
+  {
+    "name": "zotero_push",
+    "title": "Send papers to Zotero",
+    "description": "Create papers in the user's Zotero library (Web API, needs a key with write access), given `ids` or a research `project`, optionally in an existing `collection`. Skips papers already in the library (by DOI or title; they stay in their collections), tags retracted ones `retracted`, and returns the account, `created`, `skipped` and `failed`. At most 200 papers per call. This writes to the user's account: call it only when the user asked for it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Paper ids or DOIs. Give either `ids` or `project`",
+          "maxItems": 200
+        },
+        "project": {
+          "type": "string",
+          "description": "Send the papers of this research project (slug or id)"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "included",
+            "candidate",
+            "excluded",
+            "all"
+          ],
+          "description": "With `project`: which papers (default: included)"
+        },
+        "collection": {
+          "type": "string",
+          "description": "Existing Zotero collection, by exact name or key (default: library root)",
+          "maxLength": 200
+        }
+      },
+      "required": []
+    },
+    "outputSchema": {
+      "$defs": {
+        "ZoteroItemResult": {
+          "description": "One paper in a `zotero_push` result.",
+          "properties": {
+            "id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Id"
+            },
+            "title": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Title"
+            },
+            "zotero_key": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Zotero Key"
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Reason"
+            }
+          },
+          "title": "ZoteroItemResult",
+          "type": "object"
+        }
+      },
+      "description": "`zotero_push`: papers created, skipped (already in the library) and failed.",
+      "properties": {
+        "zotero_user_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Zotero User Id"
+        },
+        "created": {
+          "items": {
+            "$ref": "#/$defs/ZoteroItemResult"
+          },
+          "title": "Created",
+          "type": "array"
+        },
+        "skipped": {
+          "items": {
+            "$ref": "#/$defs/ZoteroItemResult"
+          },
+          "title": "Skipped",
+          "type": "array"
+        },
+        "failed": {
+          "items": {
+            "$ref": "#/$defs/ZoteroItemResult"
+          },
+          "title": "Failed",
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        },
+        "retracted_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Retracted Ids",
+          "type": "array"
+        },
+        "unchecked_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Unchecked Ids",
+          "type": "array"
+        },
+        "incomplete_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Incomplete Ids",
+          "type": "array"
+        },
+        "untrusted_fields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Untrusted Fields",
+          "type": "array"
+        }
+      },
+      "title": "ZoteroPushResult",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Send papers to Zotero",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
       "openWorldHint": true
     },
     "profiles": [
@@ -6166,7 +6361,7 @@
   {
     "name": "configure_noul",
     "title": "Configure Noul",
-    "description": "View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, and default download/research folders. `clear` resets it.",
+    "description": "View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, default download/research folders, and Zotero credentials (the key is never shown back; prefer NOUL_ZOTERO_API_KEY or `noul config` to typing it in chat). `clear` resets it.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -6185,6 +6380,14 @@
         "clear": {
           "type": "boolean",
           "default": false
+        },
+        "zotero_api_key": {
+          "type": "string",
+          "description": "Zotero API key with write access. It stays in this conversation's history: prefer NOUL_ZOTERO_API_KEY or `noul config --zotero-api-key-stdin`. An empty value removes it"
+        },
+        "zotero_user_id": {
+          "type": "string",
+          "description": "Numeric Zotero user id. An empty value removes it"
         }
       },
       "required": []

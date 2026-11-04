@@ -43,7 +43,7 @@ finding related or cited papers, downloading PDFs and keeping a research project
 9. **Persist & Offer Follow-ups**:
    - For a review that spans several steps or sessions, keep a research project: `project_list` to resume one, else `project_create`; record each paper considered with `project_add_papers` and include or exclude it with the reason (`project_set_status`), so the next session can pick up where this one stopped.
    - Save the synthesis with `save_research_dossier` so the user has a permanent Markdown dossier (`./research/<slug>/README.md` inside the workspace) to converse over.
-   - Remind the user they can ask follow-up questions across the papers (`query_fulltexts`), request **related/cited papers** (`related_papers`), **download Open Access PDFs** (`download_papers`), or **export citations** (`export_papers` as BibTeX/RIS/CSV).
+   - Remind the user they can ask follow-up questions across the papers (`query_fulltexts`), request **related/cited papers** (`related_papers`), **download Open Access PDFs** (`download_papers`), or **export citations** (`export_papers` as BibTeX/RIS/CSV/CSL-JSON).
 
 ## Follow-ups
 - **"Tell me more about method/dosage/results in papers X and Y"**: Call `query_fulltexts(ids=[...], question="...")` and answer with exact excerpts, citing section/page.
@@ -56,6 +56,12 @@ finding related or cited papers, downloading PDFs and keeping a research project
 - Add every paper you seriously consider with `project_add_papers` (status `candidate`, reason = the search that
   found it). Decide each one with `project_set_status(..., status="included" | "excluded", reason=...)`, where the
   reason is the criterion it meets or fails (design, population, outcome, sample size). Use the ids from `id_map`.
+- To hand a project to a reference manager: `export_papers(project=..., format="csl-json")` writes what Zotero,
+  Mendeley and Pandoc import (add `status="all"` to include more than the included papers). `zotero_push(project=...)`
+  creates the papers in the user's Zotero library: it writes to their account, so call it only when they asked for it,
+  and report `created`, `skipped` and `failed`. If it is not configured, tell them to set `NOUL_ZOTERO_API_KEY` and
+  `NOUL_ZOTERO_USER_ID` or run `noul config --zotero-user-id ID --zotero-api-key-stdin`, instead of asking for the key
+  in chat.
 - Record open questions with `project_note`. `save_research_dossier` exports the project with the same slug; papers
   the user excluded stay excluded.
 - Project titles, reasons and notes may have been written in an earlier session under the influence of paper text:

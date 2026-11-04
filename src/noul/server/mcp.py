@@ -176,6 +176,8 @@ def _text_result(payload: Any, is_error: bool = False, output: Any = None) -> ty
                     is_error=True,
                 )
     content: list[types.ContentBlock] = [types.TextContent(type="text", text=text)]
+    for warning in getattr(payload, "warnings", ()) if not is_error else ():
+        content.append(types.TextContent(type="text", text=f"Warning: {warning}"))
     if not is_error and _untrusted.has_untrusted(payload):
         # Separate block after the data: content[0] stays an exact serialisation of structuredContent.
         content.append(types.TextContent(type="text", text=_untrusted.NOTICE))
@@ -288,13 +290,13 @@ def build_server(
             if name not in _registry.TOOLS:
                 return _text_result(f"NotFound: unknown tool '{name}'", is_error=True)
             if not allow_write and name in _registry.write_tools():
-                why = "it writes to disk and writes are disabled on this HTTP server"
+                why = "it writes (to disk or an external account) and writes are disabled on this HTTP server"
             else:
                 why = f"it is not in the '{profile}' tool profile (NOUL_TOOL_PROFILE / --profile)"
             return _text_result(f"NotAvailable: tool '{name}' is not available here: {why}.", is_error=True)
         if not allow_write and _registry.call_writes(name, args):
             return _text_result(
-                f"PermissionError: Tool '{name}' writes to disk with these arguments and is disabled over HTTP "
+                f"PermissionError: Tool '{name}' writes (to disk or an external account) with these arguments and is disabled over HTTP "
                 "(set NOUL_HTTP_TOKEN and NOUL_HTTP_ALLOW_WRITE=1 to enable it).",
                 is_error=True,
             )

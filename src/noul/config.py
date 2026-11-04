@@ -3,11 +3,14 @@
 import json
 import os
 import re
+import tempfile
 from pathlib import Path
 
 from noul import errors as _errors
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+ZOTERO_KEY_RE = re.compile(r"^[A-Za-z0-9]{10,128}$")
+ZOTERO_USER_RE = re.compile(r"^[0-9]{1,20}$")
 
 
 def _cache_dir() -> Path:
@@ -56,6 +59,28 @@ def _resolve_email(cfg=None):
     return None, "none"
 
 
+def zotero_credentials(cfg=None):
+    """(user id, API key) for the Zotero Web API, or None. Environment first, then config.json; malformed values do
+    not count, because the user id goes into a URL path and the key into a header."""
+    cfg = _load_config_file() if cfg is None else cfg
+    user_id = str(os.environ.get("NOUL_ZOTERO_USER_ID") or cfg.get("zotero_user_id") or "").strip()
+    key = str(os.environ.get("NOUL_ZOTERO_API_KEY") or cfg.get("zotero_api_key") or "").strip()
+    return (user_id, key) if ZOTERO_USER_RE.match(user_id) and ZOTERO_KEY_RE.match(key) else None
+
+
+def _write_private(path: Path, text: str) -> None:
+    """Replace a file with one that has mode 0600 from its creation, so the content never has wider permissions.
+    On Windows the mode does not restrict access: the file inherits the ACL of its folder (the user profile)."""
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".")  # mkstemp creates the file with mode 0600
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
 def _default_workspace() -> str:
     cwd = Path(os.getcwd())
     if cwd == Path(cwd.anchor):
@@ -80,11 +105,21 @@ def get_config() -> dict:
         "config_file": str(_config_file()),
         # The user declined the one-time contact e-mail prompt (MCP elicitation); `clear` resets it.
         "email_prompt_declined": bool(cfg.get("email_prompt_declined")),
+        # Never the key itself: this dictionary is what `configure_noul` and `noul config` show.
+        "zotero_configured": zotero_credentials(cfg) is not None,
+        "zotero_user_id": (zotero_credentials(cfg) or (None,))[0],  # shown so a changed account can be noticed
     }
 
 
 def set_config(
-    email=None, workspace=None, download_dir=None, research_dir=None, clear=False, email_prompt_declined=None
+    email=None,
+    workspace=None,
+    download_dir=None,
+    research_dir=None,
+    clear=False,
+    email_prompt_declined=None,
+    zotero_api_key=None,
+    zotero_user_id=None,
 ) -> dict:
     cfg_file = _config_file()
     if clear:
@@ -109,6 +144,18 @@ def set_config(
             cfg["workspace"] = str(ws_path)
         else:
             cfg.pop("workspace", None)
+    for field, value, pattern in (
+        ("zotero_api_key", zotero_api_key, ZOTERO_KEY_RE),
+        ("zotero_user_id", zotero_user_id, ZOTERO_USER_RE),
+    ):
+        if value is not None:
+            cleaned = str(value).strip()
+            if cleaned and not pattern.match(cleaned):
+                raise _errors.HTTPError(400, f"Invalid {field} (its value is not repeated here).")
+            if cleaned:
+                cfg[field] = cleaned
+            else:
+                cfg.pop(field, None)
     if email_prompt_declined is not None:
         if email_prompt_declined:
             cfg["email_prompt_declined"] = True
@@ -120,11 +167,7 @@ def set_config(
                 cfg[key] = str(value).strip()
             else:
                 cfg.pop(key, None)
-    cfg_file.write_text(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    try:
-        os.chmod(cfg_file, 0o600)
-    except OSError:
-        pass
+    _write_private(cfg_file, json.dumps(cfg, indent=2, ensure_ascii=False) + "\n")
     return get_config()
 
 

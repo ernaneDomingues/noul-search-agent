@@ -85,6 +85,9 @@ def _with_public_bounds(tool):
         prop = schema["properties"].get(key)
         if prop is None:
             continue
+        if cap is None:  # not offered on the public connector
+            del schema["properties"][key]
+            continue
         if prop.get("type") == "array":
             prop["maxItems"] = min(cap, prop.get("maxItems", cap))  # a public cap only ever lowers the limit
         else:
@@ -198,12 +201,13 @@ def resolve_profile(cli_value, default):
 
 
 # Per-call caps on the public connector (cost/abuse control): integers are lowered, lists are truncated.
-PUBLIC_ARG_CAPS: dict[str, dict[str, int]] = {
+# A cap of None removes the argument: `project` reads the server-side store, like the hidden `project_get`.
+PUBLIC_ARG_CAPS: dict[str, dict[str, int | None]] = {
     "search_papers": {"limit": 25, "exclude_ids": 200},
     "related_papers": {"limit": 25},
     "get_paper_references": {"limit": 25},
     "query_fulltexts": {"ids": 5},
-    "export_papers": {"ids": 25},
+    "export_papers": {"ids": 25, "project": None, "status": None},
     "suggest_boolean_queries": {"paper_ids": 10},
     "evidence_meter": {"items": 100},
 }

@@ -122,7 +122,7 @@ _RATE_LIMIT_HINTS = {
     "api.openalex.org": " (rate limited; set OPENALEX_API_KEY and a contact e-mail)",
     "eutils.ncbi.nlm.nih.gov": " (rate limited; set NCBI_API_KEY)",
 }
-_SENSITIVE_HEADERS = ("authorization", "cookie", "x-api-key")
+_SENSITIVE_HEADERS = ("authorization", "cookie", "x-api-key", "zotero-api-key")
 
 # httpx/httpcore log full request URLs (with mailto e-mails and api_key params) at INFO/DEBUG; keep them quiet
 # even when an embedding application turns root logging up. Noul's own logs show host + path only.
@@ -135,6 +135,7 @@ _HOST_INTERVALS = {
     "api.semanticscholar.org": 1.0,
     "eutils.ncbi.nlm.nih.gov": 1 / 3,
     "export.arxiv.org": 3.0,
+    "api.zotero.org": 0.2,
 }
 
 _sleep = time.sleep  # patched in tests
@@ -255,6 +256,12 @@ def _read_capped(response: httpx.Response, max_bytes: int) -> bytes:
     return bytes(buf)
 
 
+def _origin(url: str) -> tuple[str, str | None, int | None]:
+    parts = urllib.parse.urlsplit(url)
+    default = {"https": 443, "http": 80}.get(parts.scheme)
+    return parts.scheme, parts.hostname, parts.port or default
+
+
 def _fetch_once(url, headers, timeout, max_bytes, public_only):
     """One logical GET following up to MAX_REDIRECTS redirects (each re-validated when `public_only`)."""
     for _ in range(MAX_REDIRECTS + 1):
@@ -269,7 +276,8 @@ def _fetch_once(url, headers, timeout, max_bytes, public_only):
         try:
             if response.is_redirect and response.headers.get("Location"):
                 new_url = urllib.parse.urljoin(url, response.headers["Location"])
-                if urllib.parse.urlsplit(new_url).hostname != urllib.parse.urlsplit(url).hostname:
+                # Credentials follow only to the same origin: not to another host, port or to cleartext.
+                if _origin(new_url) != _origin(url):
                     headers = {k: v for k, v in headers.items() if k.lower() not in _SENSITIVE_HEADERS}
                 url = new_url
                 continue
@@ -326,6 +334,41 @@ def _http_get(url, headers=None, timeout=15, binary=False, max_bytes=None, publi
         hint = _RATE_LIMIT_HINTS.get((urllib.parse.urlsplit(url).hostname or "").lower(), "") if status == 429 else ""
         raise _errors.HTTPError(status, f"HTTP Error {status}: {reason}{hint}")
     raise AssertionError("unreachable")
+
+
+def _http_post_json(url, payload, headers=None, timeout=30, max_bytes=5 * 1024 * 1024):
+    """POST JSON and parse the JSON answer. For fixed API hosts: the SSRF guard runs, redirects are refused (they
+    could carry credentials elsewhere) and nothing is retried (a write may have happened). Errors carry the status
+    and reason only, never the headers or the response body."""
+    _validate_public_url(url)
+    host = (urllib.parse.urlsplit(url).hostname or "").lower()
+    _limiter.wait(host)
+    hdrs = {"User-Agent": _user_agent(), "Accept-Encoding": "identity", "Content-Type": "application/json"}
+    hdrs.update(headers or {})
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    try:
+        request = _client().build_request("POST", url, headers=hdrs, content=body, timeout=timeout)
+        response = _client().send(request, stream=True)
+    except _TRANSIENT as exc:
+        code = 504 if isinstance(exc, httpx.TimeoutException) else 502
+        raise _errors.HTTPError(code, f"Network error ({type(exc).__name__}) for {_where(url)}") from None
+    except httpx.HTTPError as exc:
+        raise _errors.HTTPError(502, f"Invalid response ({type(exc).__name__}) from {_where(url)}") from None
+    try:
+        if response.is_redirect:
+            raise _errors.HTTPError(502, f"Refused a redirect from {_where(url)}")
+        if response.status_code >= 400:
+            reason = response.reason_phrase or httpx.codes.get_reason_phrase(response.status_code)
+            raise _errors.HTTPError(response.status_code, f"HTTP Error {response.status_code}: {reason}")
+        try:
+            answer = json.loads(_read_capped(response, max_bytes))
+        except (ValueError, httpx.HTTPError) as exc:
+            raise _errors.HTTPError(502, f"Invalid response ({type(exc).__name__}) from {_where(url)}") from None
+    finally:
+        response.close()
+    if not isinstance(answer, dict):
+        raise _errors.HTTPError(502, f"Invalid response (not an object) from {_where(url)}")
+    return answer
 
 
 def _http_json(url, headers=None, timeout=15):
