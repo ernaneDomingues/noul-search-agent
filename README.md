@@ -74,7 +74,7 @@ Gerado a partir do registro (`src/noul/registry.py`) por `scripts/build_site.py`
 | `save_research_dossier` | Save a persistent research dossier (README.md, papers.json, references.bib) in `output_dir` (inside the workspace; default: configured research_dir, ./research) so the user can converse over the research documentation. | research (todos) | sim |
 | `list_research_dossiers` | List saved research dossiers available for follow-up conversation. | research (todos) | não |
 | `get_research_dossier` | Load a saved research dossier (Markdown report and paper metadata) by slug or topic. | research (todos) | não |
-| `configure_noul` | View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, default download/research folders, and Zotero credentials (the key is never shown back; prefer NOUL_ZOTERO_API_KEY or `noul config` to typing it in chat). | research (todos) | sim |
+| `configure_noul` | View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, default download/research folders. | research (todos) | sim |
 | `evidence_meter` | Compute the Evidence Meter deterministically from YOUR stance classification of each paper: raw counts and percentages plus study-design-weighted percentages (meta-analysis 1.0 … preclinical 0.2). | research (todos) | não |
 | `project_create` | Create a persistent research project for a question. | research (todos) | sim |
 | `project_list` | List the user's research projects, most recently updated first, with paper counts per status. | research (todos) | não |
@@ -128,6 +128,8 @@ Na primeira utilização, informe um e-mail de contato (habilita o Unpaywall e o
 noul config email:voce@universidade.br --workspace ~/pesquisa --download-dir papers
 noul config                                                 # mostra a configuração
 noul config --clear                                         # apaga o arquivo de configuração
+noul config --zotero-user-id ID --zotero-api-key-stdin      # credenciais do Zotero (só pelo terminal ou por variáveis)
+noul config --zotero-remove-key                             # remove a chave do Zotero guardada
 ```
 
 Downloads e dossiês ficam **sempre dentro do workspace** (padrão: diretório atual; caminhos relativos são relativos a ele). Caminhos fora dele retornam `403`.

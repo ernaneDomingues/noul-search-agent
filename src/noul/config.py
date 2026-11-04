@@ -29,6 +29,19 @@ def _config_file() -> Path:
     return _cache_dir() / "config.json"
 
 
+def _is_config_path(path: Path) -> bool:
+    """True for the config file under any spelling or hard link, and for copies beside it (`config.json.bak`)."""
+
+    def same(a: Path, b: Path) -> bool:
+        try:
+            return os.path.samefile(a, b)
+        except OSError:
+            return False
+
+    cfg = _config_file()
+    return same(path, cfg) or (same(path.parent, cfg.parent) and path.name.casefold().startswith(cfg.name))
+
+
 def _load_config_file() -> dict:
     cfg_file = _config_file()
     if not cfg_file.exists():
@@ -120,10 +133,15 @@ def set_config(
     email_prompt_declined=None,
     zotero_api_key=None,
     zotero_user_id=None,
+    keep_zotero=False,
 ) -> dict:
     cfg_file = _config_file()
     if clear:
-        if cfg_file.exists():
+        kept = _load_config_file() if keep_zotero else {}
+        kept = {k: kept[k] for k in ("zotero_api_key", "zotero_user_id") if k in kept}
+        if kept:
+            _write_private(cfg_file, json.dumps(kept, indent=2, ensure_ascii=False) + "\n")
+        elif cfg_file.exists():
             cfg_file.unlink()
         return get_config()
     cfg = _load_config_file()

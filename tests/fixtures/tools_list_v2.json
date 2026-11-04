@@ -6361,7 +6361,7 @@
   {
     "name": "configure_noul",
     "title": "Configure Noul",
-    "description": "View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, default download/research folders, and Zotero credentials (the key is never shown back; prefer NOUL_ZOTERO_API_KEY or `noul config` to typing it in chat). `clear` resets it.",
+    "description": "View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, default download/research folders. Zotero credentials cannot be set here: the user sets NOUL_ZOTERO_API_KEY and NOUL_ZOTERO_USER_ID or runs `noul config --zotero-user-id ID --zotero-api-key-stdin`, so never ask for them in chat. `clear` resets the stored configuration except those credentials.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -6380,14 +6380,6 @@
         "clear": {
           "type": "boolean",
           "default": false
-        },
-        "zotero_api_key": {
-          "type": "string",
-          "description": "Zotero API key with write access. It stays in this conversation's history: prefer NOUL_ZOTERO_API_KEY or `noul config --zotero-api-key-stdin`. An empty value removes it"
-        },
-        "zotero_user_id": {
-          "type": "string",
-          "description": "Numeric Zotero user id. An empty value removes it"
         }
       },
       "required": []

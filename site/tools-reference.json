@@ -474,16 +474,14 @@
     },
     {
       "name": "configure_noul",
-      "description": "View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, default download/research folders, and Zotero credentials (the key is never shown back; prefer NOUL_ZOTERO_API_KEY or `noul config` to typing it in chat). `clear` resets it.",
+      "description": "View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, default download/research folders. Zotero credentials cannot be set here: the user sets NOUL_ZOTERO_API_KEY and NOUL_ZOTERO_USER_ID or runs `noul config --zotero-user-id ID --zotero-api-key-stdin`, so never ask for them in chat. `clear` resets the stored configuration except those credentials.",
       "required": [],
       "Optional": [
         "email",
         "workspace",
         "download_dir",
         "research_dir",
-        "clear",
-        "zotero_api_key",
-        "zotero_user_id"
+        "clear"
       ],
       "cli_equivalent": "noul config"
     },

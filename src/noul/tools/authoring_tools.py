@@ -183,6 +183,8 @@ def _validate_workspace_path(raw_path: str, must_exist: bool = True) -> Path:
         cur = cur.parent
 
     resolved = p.resolve() if p.is_absolute() else (ws / p).resolve()
+    if _config._is_config_path(resolved):  # holds the Zotero key, even with NOUL_ALLOW_ANY_PATH
+        raise _errors.HTTPError(403, "Refusing to access Noul's configuration file.")
     if os.environ.get("NOUL_ALLOW_ANY_PATH") != "1":
         try:
             resolved.relative_to(ws)

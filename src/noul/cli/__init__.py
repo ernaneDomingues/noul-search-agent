@@ -33,6 +33,7 @@ Usage:
   noul project status PROJECT ID1,ID2 included|excluded|candidate --reason R
   noul project note PROJECT "text" [--paper ID]
   noul config [email:you@university.edu] [--email E] [--workspace W] [--download-dir D] [--research-dir R] [--clear]
+              [--zotero-user-id ID] [--zotero-api-key-stdin | --zotero-remove-key]
   noul meter '[{"id":"doi:10.1/x","stance":"supportive"}]'   (or `-` to read the JSON list from stdin)
   noul mcp [--http [PORT]] [--host H]       (MCP server; same as noul-mcp)
   noul install [targets] [--runner python|uvx|npx] [--dry-run] [--uninstall]   (same as noul-install)
@@ -42,10 +43,12 @@ import argparse
 import getpass
 import inspect
 import json
+import os
 import sys
 from pathlib import Path
 
 from noul import __version__, registry
+from noul import config as _config
 from noul import log as _log
 from noul.cli.pretty import (
     _format_pretty_ablation,
@@ -456,11 +459,13 @@ def main(argv=None):
     cfg_p.add_argument("--download-dir")
     cfg_p.add_argument("--research-dir")
     cfg_p.add_argument("--zotero-user-id")
-    cfg_p.add_argument(
+    zotero_key = cfg_p.add_mutually_exclusive_group()
+    zotero_key.add_argument(
         "--zotero-api-key-stdin",
         action="store_true",
         help="Read the Zotero API key from stdin (a command-line argument would stay in the shell history)",
     )
+    zotero_key.add_argument("--zotero-remove-key", action="store_true", help="Remove the stored Zotero API key")
     cfg_p.add_argument("--clear", action="store_true", help="Delete the config file (env vars still apply)")
 
     m_p = sub.add_parser("meter", help="Deterministic Evidence Meter from classified papers")
@@ -798,17 +803,32 @@ def main(argv=None):
             for key in ("email", "workspace", "download_dir", "research_dir"):
                 if getattr(a, key) is not None:
                     kwargs[key] = getattr(a, key)
+            if a.clear:
+                kwargs["clear"] = True
+            zotero = a.zotero_api_key_stdin or a.zotero_remove_key or a.zotero_user_id is not None
+            if zotero and kwargs.get("clear"):
+                raise ValueError("--clear deletes the Zotero settings given with it; nothing changed")
             if a.zotero_user_id is not None:
                 kwargs["zotero_user_id"] = a.zotero_user_id
+            if a.zotero_remove_key:
+                kwargs["zotero_api_key"] = ""
             if a.zotero_api_key_stdin:
                 # No echo at a terminal. An empty value here is a failed pipe, not a request to remove the key.
                 key = getpass.getpass("Zotero API key: ") if sys.stdin.isatty() else sys.stdin.readline()
                 if not key.strip():
                     raise ValueError("No Zotero API key on stdin; nothing changed")
                 kwargs["zotero_api_key"] = key.strip()
-            if a.clear:
-                kwargs["clear"] = True
-            out = _run("configure_noul", **kwargs)
+            if zotero or kwargs.get("clear"):
+                # Not through the tool, which keeps the credentials out of reach of a model that read a hostile paper.
+                out = _config.set_config(**kwargs)
+            else:
+                out = _run("configure_noul", **kwargs)
+            for changed, variable in (
+                (a.zotero_remove_key or a.zotero_api_key_stdin, "NOUL_ZOTERO_API_KEY"),
+                (a.zotero_user_id is not None, "NOUL_ZOTERO_USER_ID"),
+            ):
+                if changed and os.environ.get(variable):
+                    print(f"warning: {variable} is set and takes precedence over the stored value", file=sys.stderr)
         elif a.cmd == "meter":
             out = _run("evidence_meter", _load_meter_items(a.items))
     except Exception as ex:

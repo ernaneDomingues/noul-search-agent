@@ -471,12 +471,6 @@ class ConfigureNoulInput(_ToolInput):
     download_dir: str | None = None
     research_dir: str | None = None
     clear: bool | None = False
-    zotero_api_key: str | None = Field(
-        None,
-        description="Zotero API key with write access. It stays in this conversation's history: prefer "
-        "NOUL_ZOTERO_API_KEY or `noul config --zotero-api-key-stdin`. An empty value removes it",
-    )
-    zotero_user_id: str | None = Field(None, description="Numeric Zotero user id. An empty value removes it")
 
 
 INPUT_MODELS: dict[str, type[_ToolInput]] = {

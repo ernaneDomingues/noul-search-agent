@@ -1277,9 +1277,10 @@ def get_research_dossier(slug, output_dir=None):
     "configure_noul",
     description=(
         "View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall "
-        "and the OpenAlex/Crossref polite pool), workspace folder, default download/research folders, and Zotero "
-        "credentials (the key is never shown back; prefer NOUL_ZOTERO_API_KEY or `noul config` to typing it in "
-        "chat). `clear` resets it."
+        "and the OpenAlex/Crossref polite pool), workspace folder, default download/research folders. Zotero credentials "
+        "cannot be set here: the user sets NOUL_ZOTERO_API_KEY and NOUL_ZOTERO_USER_ID or runs `noul config "
+        "--zotero-user-id ID --zotero-api-key-stdin`, so never ask for them in chat. `clear` resets the stored "
+        "configuration except those credentials."
     ),
     input=_inputs.ConfigureNoulInput,
     writes=True,
@@ -1295,12 +1296,10 @@ def configure_noul(
     download_dir=None,
     research_dir=None,
     clear=False,
-    zotero_api_key=None,
-    zotero_user_id=None,
 ):
     """View or update persistent Noul configuration (email for Unpaywall/polite pool, workspace, default folders).
     Called without arguments it only reads the configuration."""
-    values = (email, workspace, download_dir, research_dir, zotero_api_key, zotero_user_id)
+    values = (email, workspace, download_dir, research_dir)
     if clear or any(v is not None for v in values):
         return _config.set_config(
             email=email,
@@ -1308,8 +1307,7 @@ def configure_noul(
             download_dir=download_dir,
             research_dir=research_dir,
             clear=bool(clear),
-            zotero_api_key=zotero_api_key,
-            zotero_user_id=zotero_user_id,
+            keep_zotero=True,  # a model that read a hostile paper must not be able to drop them
         )
     return _config.get_config()
 

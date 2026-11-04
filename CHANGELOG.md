@@ -13,8 +13,10 @@ e as versões seguem o [Versionamento Semântico](https://semver.org/lang/pt-BR/
 - **Zotero**: a nova ferramenta `zotero_push` (`noul zotero`) cria os artigos na sua biblioteca, numa coleção existente
   se você quiser, pula os que já estão lá e marca os retratados com a etiqueta `retracted`. Precisa de uma chave com
   permissão de escrita: use `NOUL_ZOTERO_API_KEY` e `NOUL_ZOTERO_USER_ID` ou
-  `noul config --zotero-user-id ID --zotero-api-key-stdin`. A chave fica no `config.json` (permissão 0600 no Linux e no macOS; no Windows, as permissões da pasta do usuário) e nunca
-  aparece em resultados, logs ou erros.
+  `noul config --zotero-user-id ID --zotero-api-key-stdin`. A chave fica no `config.json` (permissão 0600 no Linux e no macOS; no Windows, as permissões da pasta do usuário) e não aparece
+  nos resultados de `configure_noul` e `zotero_push`, nos logs nem nos erros. As credenciais não podem ser definidas nem removidas por `configure_noul`, cujo `clear`
+  as preserva, para que o texto de um artigo não leve o modelo a trocar de conta nem a apagá-las; para remover a chave, use
+  `noul config --zotero-remove-key`. As ferramentas também se recusam a ler ou sobrescrever o `config.json`.
 - **Autores completos**: os registros passam a guardar até 100 autores (antes eram 10), e os projetos guardam todos os que
   a fonte devolver, para as exportações saírem completas. `project_get` continua mostrando os 4 primeiros.
 - **Avisos fora do arquivo**: `export_papers` avisa à parte, sem alterar o arquivo, sobre ids não encontrados e artigos

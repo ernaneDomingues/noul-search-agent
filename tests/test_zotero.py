@@ -512,13 +512,115 @@ class SecretTests(Base):
         self.assertIn("not configured", str(caught.exception))
         self.assertEqual(fake.requests, [])
 
+    def test_tools_cannot_reach_the_file_that_holds_the_key(self):
+        from noul import config, registry
+        from noul.errors import HTTPError
+
+        self.addCleanup(lambda: config.set_config(clear=True))
+        config.set_config(zotero_api_key=KEY, zotero_user_id=USER)
+        path = config._config_file()
+        with mock.patch.dict(os.environ, {"NOUL_WORKSPACE": str(path.parent)}):
+            for env in ({}, {"NOUL_ALLOW_ANY_PATH": "1"}):
+                with mock.patch.dict(os.environ, env):
+                    for name, args in (
+                        ("recommend_citations", {"draft_text": "config.json"}),
+                        ("parse_and_draft_rebuttal", {"reviews_input": "config.json"}),
+                        ("sanitize_bibtex", {"bibtex_input": "@article{a,title={T}}", "output_path": "config.json"}),
+                    ):
+                        with self.assertRaises(HTTPError) as caught:
+                            registry.call(name, args)
+                        self.assertEqual(caught.exception.code, 403, name)
+                    reviews = "Reviewer 2: the sample size is too small and the statistics need correction."
+                    answer = registry.call(
+                        "parse_and_draft_rebuttal", {"draft_input": "config.json", "reviews_input": reviews}
+                    )
+                    self.assertNotIn(KEY, json.dumps(answer))
+        self.assertEqual(config._load_config_file()["zotero_api_key"], KEY)
+
+    def test_other_spellings_and_copies_of_the_config_file_are_refused(self):
+        from noul import config
+        from noul.errors import HTTPError
+        from noul.tools import authoring_tools
+
+        self.addCleanup(lambda: config.set_config(clear=True))
+        config.set_config(zotero_api_key=KEY, zotero_user_id=USER)
+        path = config._config_file()
+        link = path.with_name("linked.txt")
+        os.link(path, link)
+        self.addCleanup(link.unlink)
+        with mock.patch.dict(os.environ, {"NOUL_WORKSPACE": str(path.parent)}):
+            for name in ("CONFIG.JSON", "config.json.bak", "config.json.abc123", link.name):
+                with self.assertRaises(HTTPError) as caught:
+                    authoring_tools._validate_workspace_path(name, must_exist=False)
+                self.assertEqual(caught.exception.code, 403, name)
+
+    def test_the_tool_clear_keeps_the_credentials_and_the_cli_clear_does_not(self):
+        import io
+
+        from noul import cli, config, registry
+
+        self.addCleanup(lambda: config.set_config(clear=True))
+        with mock.patch.dict(os.environ, {"NOUL_ZOTERO_API_KEY": "", "NOUL_ZOTERO_USER_ID": ""}):
+            config.set_config(zotero_api_key=KEY, zotero_user_id=USER, research_dir="elsewhere")
+            registry.call("configure_noul", {"clear": True})
+            self.assertEqual(config.zotero_credentials(), (USER, KEY))
+            self.assertNotIn("research_dir", config._load_config_file())
+            with mock.patch("sys.stdout", io.StringIO()):
+                self.assertEqual(cli.main(["config", "--clear"]), 0)
+            self.assertIsNone(config.zotero_credentials())
+            self.assertFalse(config._config_file().exists())
+
+    def test_cli_clear_refuses_zotero_settings_given_with_it(self):
+        import io
+
+        from noul import cli, config
+
+        self.addCleanup(lambda: config.set_config(clear=True))
+        config.set_config(zotero_api_key=KEY, zotero_user_id=USER)
+        with mock.patch("sys.stdin", io.StringIO(KEY)), mock.patch("sys.stderr", io.StringIO()):
+            self.assertEqual(cli.main(["config", "--clear", "--zotero-api-key-stdin"]), 1)
+        self.assertEqual(config._load_config_file()["zotero_api_key"], KEY)
+
+    def test_cli_warns_when_the_environment_still_supplies_a_removed_key(self):
+        import io
+
+        from noul import cli, config
+
+        self.addCleanup(lambda: config.set_config(clear=True))
+        config.set_config(zotero_api_key=KEY, zotero_user_id=USER)
+        with (
+            mock.patch.dict(os.environ, {"NOUL_ZOTERO_API_KEY": KEY}),
+            mock.patch("sys.stdout", io.StringIO()),
+            mock.patch("sys.stderr", io.StringIO()) as err,
+        ):
+            self.assertEqual(cli.main(["config", "--zotero-remove-key"]), 0)
+        self.assertIn("NOUL_ZOTERO_API_KEY", err.getvalue())
+        self.assertNotIn(KEY, err.getvalue())
+
+    def test_a_tool_call_cannot_set_or_remove_the_key(self):
+        from noul import config, registry
+        from noul.errors import HTTPError
+
+        self.addCleanup(lambda: config.set_config(clear=True))
+        config.set_config(zotero_api_key=KEY, zotero_user_id=USER)
+        other = "b" * len(KEY)
+        for field in ("zotero_api_key", "zotero_user_id"):
+            for value in (other, ""):
+                with self.assertRaises(HTTPError) as caught:
+                    registry.call("configure_noul", {field: value})
+                if value:
+                    self.assertNotIn(value, str(caught.exception))
+            self.assertNotIn(field, registry.input_schema("configure_noul")["properties"])
+        self.assertEqual(config._load_config_file()["zotero_api_key"], KEY)
+        self.assertEqual(config._load_config_file()["zotero_user_id"], USER)
+
     def test_config_stores_the_key_privately_and_never_shows_it(self):
         from noul import config, registry
         from noul.errors import HTTPError
 
         self.addCleanup(lambda: config.set_config(clear=True))
         with mock.patch.dict(os.environ, {"NOUL_ZOTERO_API_KEY": "", "NOUL_ZOTERO_USER_ID": ""}):
-            shown = registry.call("configure_noul", {"zotero_api_key": KEY, "zotero_user_id": USER})
+            shown = config.set_config(zotero_api_key=KEY, zotero_user_id=USER)
             self.assertTrue(shown["zotero_configured"])
             self.assertNotIn(KEY, json.dumps(shown))
             self.assertNotIn(KEY, json.dumps(registry.call("configure_noul", {})))
@@ -528,9 +630,9 @@ class SecretTests(Base):
                 self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
             for bad, field in (({"zotero_api_key": "bad key!"}, "bad key!"), ({"zotero_user_id": "1/../2"}, "1/../2")):
                 with self.assertRaises(HTTPError) as caught:
-                    registry.call("configure_noul", bad)
+                    config.set_config(**bad)
                 self.assertNotIn(field, str(caught.exception))
-            registry.call("configure_noul", {"zotero_api_key": ""})
+            config.set_config(zotero_api_key="")
             self.assertIsNone(config.zotero_credentials())
 
     @unittest.skipUnless(os.name == "posix", "POSIX file modes")
@@ -557,6 +659,24 @@ class SecretTests(Base):
         ):
             self.assertEqual(cli.main(["config", "--zotero-api-key-stdin"]), 1)
         self.assertEqual(config._load_config_file()["zotero_api_key"], KEY)
+
+    def test_cli_sets_and_removes_the_key(self):
+        import io
+
+        from noul import cli, config
+
+        self.addCleanup(lambda: config.set_config(clear=True))
+        with (
+            mock.patch.dict(os.environ, {"NOUL_ZOTERO_API_KEY": "", "NOUL_ZOTERO_USER_ID": ""}),
+            mock.patch("sys.stdin", io.StringIO(KEY + "\n")),
+            mock.patch("sys.stdout", io.StringIO()) as shown,
+        ):
+            self.assertEqual(cli.main(["config", "--zotero-user-id", USER, "--zotero-api-key-stdin"]), 0)
+            self.assertEqual(config.zotero_credentials(), (USER, KEY))
+            self.assertNotIn(KEY, shown.getvalue())
+            self.assertEqual(cli.main(["config", "--zotero-remove-key"]), 0)
+            self.assertIsNone(config.zotero_credentials())
+        self.assertNotIn("zotero_api_key", config._load_config_file())
 
     def test_malformed_credentials_do_not_count(self):
         from noul import config
