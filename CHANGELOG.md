@@ -21,7 +21,6 @@ e as versões seguem o [Versionamento Semântico](https://semver.org/lang/pt-BR/
   - `sanitize_bibtex` mantém a entrada, mas a sinaliza (`retracted_entries`).
 - **Skill**: as referências de busca e de revisão explicam como tratar artigos retratados e preprints com versão
   publicada. Entram duas evals novas: MMR e autismo, e a revisão de um artigo retratado.
-
 - **Checagem incompleta não passa por artigo limpo**: se o Crossref não responder, `get_paper`, as ferramentas de
   revisão, `recommend_citations` e `sanitize_bibtex` avisam que a checagem não terminou.
 
