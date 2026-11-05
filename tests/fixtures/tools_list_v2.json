@@ -3794,7 +3794,7 @@
   {
     "name": "sanitize_bibtex",
     "title": "Sanitize BibTeX",
-    "description": "BibTeX sanitizer & preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`).",
+    "description": "BibTeX sanitizer & preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`). With `output_path` it also writes a .bib file inside the workspace, overwriting one that exists.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3806,7 +3806,8 @@
           "default": true
         },
         "output_path": {
-          "type": "string"
+          "type": "string",
+          "description": "Optional .bib file inside the workspace; hidden paths are refused, an existing file is replaced"
         }
       },
       "required": [
@@ -5762,14 +5763,11 @@
   {
     "name": "configure_noul",
     "title": "Configure Noul",
-    "description": "View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, and default download/research folders. `clear` resets it.",
+    "description": "View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool) and default download/research folders. The workspace is shown but cannot be set here: the user sets it in a terminal with `noul config --workspace W` or with NOUL_WORKSPACE. `clear` resets the rest of the stored configuration.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "email": {
-          "type": "string"
-        },
-        "workspace": {
           "type": "string"
         },
         "download_dir": {

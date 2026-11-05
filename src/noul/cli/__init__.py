@@ -39,10 +39,12 @@ Usage:
 import argparse
 import inspect
 import json
+import os
 import sys
 from pathlib import Path
 
 from noul import __version__, registry
+from noul import config as _config
 from noul import log as _log
 from noul.cli.pretty import (
     _format_pretty_ablation,
@@ -106,7 +108,7 @@ def _interactive_clarification(query, domain=None):
 
 
 def _parse_config_pairs(pairs):
-    """`email:you@x.org workspace:~/w` -> kwargs for configure_noul. A bare value containing '@' is the email."""
+    """`email:you@x.org workspace:~/w` -> settings for `noul config`. A bare value containing '@' is the email."""
     out = {}
     for pair in pairs or []:
         if pair.strip().lower() == "clear":
@@ -767,7 +769,15 @@ def main(argv=None):
                     kwargs[key] = getattr(a, key)
             if a.clear:
                 kwargs["clear"] = True
-            out = _run("configure_noul", **kwargs)
+            if kwargs.get("clear") and len(kwargs) > 1:
+                raise ValueError("--clear deletes the settings given with it; nothing changed")
+            if kwargs.get("clear") or "workspace" in kwargs:
+                # Not through the tool, which keeps these out of reach of a model that read a hostile paper.
+                out = _config.set_config(**kwargs)
+            else:
+                out = _run("configure_noul", **kwargs)
+            if "workspace" in kwargs and os.environ.get("NOUL_WORKSPACE"):
+                print("warning: NOUL_WORKSPACE is set and takes precedence over the stored value", file=sys.stderr)
         elif a.cmd == "meter":
             out = _run("evidence_meter", _load_meter_items(a.items))
     except Exception as ex:

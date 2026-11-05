@@ -73,7 +73,7 @@ Gerado a partir do registro (`src/noul/registry.py`) por `scripts/build_site.py`
 | `save_research_dossier` | Save a persistent research dossier (README.md, papers.json, references.bib) in `output_dir` (inside the workspace; default: configured research_dir, ./research) so the user can converse over the research documentation. | research (todos) | sim |
 | `list_research_dossiers` | List saved research dossiers available for follow-up conversation. | research (todos) | não |
 | `get_research_dossier` | Load a saved research dossier (Markdown report and paper metadata) by slug or topic. | research (todos) | não |
-| `configure_noul` | View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, and default download/research folders. | research (todos) | sim |
+| `configure_noul` | View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool) and default download/research folders. | research (todos) | sim |
 | `evidence_meter` | Compute the Evidence Meter deterministically from YOUR stance classification of each paper: raw counts and percentages plus study-design-weighted percentages (meta-analysis 1.0 … preclinical 0.2). | research (todos) | não |
 | `project_create` | Create a persistent research project for a question. | research (todos) | sim |
 | `project_list` | List the user's research projects, most recently updated first, with paper counts per status. | research (todos) | não |
@@ -129,7 +129,7 @@ noul config                                                 # mostra a configura
 noul config --clear                                         # apaga o arquivo de configuração
 ```
 
-Downloads e dossiês ficam **sempre dentro do workspace** (padrão: diretório atual; caminhos relativos são relativos a ele). Caminhos fora dele retornam `403`.
+Downloads e dossiês ficam **sempre dentro do workspace** (padrão: diretório atual; caminhos relativos são relativos a ele). Caminhos fora dele, pastas e arquivos ocultos e a pasta do próprio Noul são recusados. O workspace só muda pelo terminal ou por variável de ambiente, nunca por uma ferramenta.
 
 | Variável | Uso |
 |---|---|

@@ -26,6 +26,28 @@ def _config_file() -> Path:
     return _cache_dir() / "config.json"
 
 
+def _is_noul_home_path(path: Path) -> bool:
+    """True inside Noul's own folder (under any spelling) and for a hard link to its config file, which holds the settings."""
+
+    def same(a: Path, b: Path) -> bool:
+        try:
+            return os.path.samefile(a, b)
+        except OSError:
+            return False
+
+    home = _cache_dir()
+    if same(path, _config_file()) or any(same(part, home) for part in (path, *path.parents)):
+        return True
+    return any(
+        same(path, Path(os.environ[v])) for v in ("NOUL_DB_PATH", "DB_PATH", "NOUL_PROJECTS_DB") if os.environ.get(v)
+    )
+
+
+def _is_hidden_below(path: Path, root: Path) -> bool:
+    """True when a component of `path` under `root` is hidden: such folders hold secrets and tool configuration."""
+    return any(part.startswith(".") for part in path.relative_to(root).parts)
+
+
 def _load_config_file() -> dict:
     cfg_file = _config_file()
     if not cfg_file.exists():
@@ -60,7 +82,11 @@ def _default_workspace() -> str:
     cwd = Path(os.getcwd())
     if cwd == Path(cwd.anchor):
         return str(Path.home() / "Documents" / "Noul")
-    return str(cwd)
+    try:
+        home = Path.home()
+    except RuntimeError:  # a container user without a home folder
+        return str(cwd)
+    return str(home / "Documents" / "Noul") if cwd.resolve() == home.resolve() else str(cwd)
 
 
 def get_config() -> dict:
@@ -68,13 +94,20 @@ def get_config() -> dict:
     email, source = _resolve_email(cfg)
     # An explicit NOUL_WORKSPACE (set by the host, e.g. the Claude Desktop extension's "Noul folder") wins over
     # config.json, as environment variables usually do; without either, the current folder - unless that is a
-    # filesystem root (desktop apps start servers in `/` or C:\), where ~/Documents/Noul is used instead.
-    workspace = os.environ.get("NOUL_WORKSPACE") or cfg.get("workspace") or _default_workspace()
+    # filesystem root or the home folder (desktop apps start servers there), where ~/Documents/Noul is used instead.
+    # A stored value counts only if `noul config` confirmed it: older versions let a tool call write it.
+    env_workspace = os.environ.get("NOUL_WORKSPACE")
+    confirmed = cfg.get("workspace") is not None and cfg.get("workspace") == cfg.get("workspace_confirmed")
+    stored = cfg.get("workspace") if confirmed else None
+    workspace = env_workspace or stored or _default_workspace()
     return {
         "email": email,
         "email_source": source,
         "unpaywall_enabled": bool(email),
         "workspace": str(Path(workspace).expanduser().resolve()),
+        "workspace_source": "env" if env_workspace else "config" if stored else "default",
+        # Saved by an older version and not used: the user decides with `noul config --workspace`.
+        "workspace_ignored": None if confirmed else cfg.get("workspace"),
         "download_dir": cfg.get("download_dir") or "./papers",
         "research_dir": cfg.get("research_dir") or "./research",
         "config_file": str(_config_file()),
@@ -84,11 +117,21 @@ def get_config() -> dict:
 
 
 def set_config(
-    email=None, workspace=None, download_dir=None, research_dir=None, clear=False, email_prompt_declined=None
+    email=None,
+    workspace=None,
+    download_dir=None,
+    research_dir=None,
+    clear=False,
+    email_prompt_declined=None,
+    keep_protected=False,
 ) -> dict:
     cfg_file = _config_file()
     if clear:
-        if cfg_file.exists():
+        kept = _load_config_file() if keep_protected else {}
+        kept = {k: kept[k] for k in ("workspace", "workspace_confirmed") if k in kept}
+        if kept:
+            cfg_file.write_text(json.dumps(kept, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        elif cfg_file.exists():
             cfg_file.unlink()
         return get_config()
     cfg = _load_config_file()
@@ -107,8 +150,10 @@ def set_config(
             if not ws_path.is_dir():
                 raise _errors.HTTPError(400, f"Workspace directory does not exist: {ws_path}")
             cfg["workspace"] = str(ws_path)
+            cfg["workspace_confirmed"] = str(ws_path)  # an older version rewriting `workspace` no longer matches
         else:
             cfg.pop("workspace", None)
+            cfg.pop("workspace_confirmed", None)
     if email_prompt_declined is not None:
         if email_prompt_declined:
             cfg["email_prompt_declined"] = True

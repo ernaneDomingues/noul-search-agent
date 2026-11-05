@@ -41,6 +41,8 @@ class Tool:
     title: str | None = None
     # Same arguments -> same end state (MCP idempotentHint); None: derived (read-only tools are idempotent).
     idempotent: bool | None = None
+    # Arguments that take text or a path to a file on the machine running the server.
+    file_args: tuple[str, ...] = ()
 
 
 REGISTRY: dict[str, Tool] = {}
@@ -94,6 +96,7 @@ def tool(
     network: bool = True,
     profiles: tuple[str, ...] = ("all",),
     write_args: tuple[str, ...] = (),
+    file_args: tuple[str, ...] = (),
     output: type[BaseModel] | None = None,
     destructive: bool = False,
     title: str | None = None,
@@ -117,6 +120,7 @@ def tool(
             destructive,
             title,
             idempotent,
+            tuple(file_args),
         )
         return fn
 
@@ -224,6 +228,17 @@ def catalog(profile: str | None = None) -> list[dict[str, Any]]:
 def write_tools() -> frozenset[str]:
     """Tools that write to disk or change configuration (hidden and blocked over HTTP unless explicitly allowed)."""
     return frozenset(t.name for t in _loaded().values() if t.writes)
+
+
+def call_reads_file(name: Any, args: Any) -> bool:
+    """True when an argument that takes text or a path (`file_args`) holds a path. Servers without write access block
+    these calls: their clients may send inline text, but must not read the files of the machine running the server."""
+    tool = _loaded().get(name) if isinstance(name, str) else None
+    if tool is None or not isinstance(args, dict):
+        return False
+    from noul.tools import authoring_tools
+
+    return any(isinstance(args.get(a), str) and authoring_tools._looks_like_filepath(args[a]) for a in tool.file_args)
 
 
 def call_writes(name: Any, args: Any) -> bool:

@@ -1,4 +1,4 @@
-"""Package layout: no v1 root shims (removed in 2.0.0), `python -m noul`, and the installer works in-process."""
+"""Package layout: no v1 root shims (removed in 2.0.1), `python -m noul`, and the installer works in-process."""
 
 import io
 import json
@@ -23,7 +23,7 @@ def setUpModule():
 
 class ShimTests(unittest.TestCase):
     def test_v1_root_shims_and_legacy_server_are_gone(self):
-        # Removed in 2.0.0: the package `noul` is the only import path, `noul-mcp` the only server.
+        # Removed in 2.0.1: the package `noul` is the only import path, `noul-mcp` the only server.
         for name in ("noul_core.py", "noul_tools.py", "noul_mcp.py", "noul_cli.py", "install.py"):
             with self.subTest(file=name):
                 self.assertFalse((ROOT / name).exists())
@@ -113,7 +113,7 @@ class LauncherTests(unittest.TestCase):
                         env={k: v for k, v in os.environ.items() if k != "PYTHONPATH"},
                     )
                     self.assertEqual(result.returncode, 0, result.stderr)
-                    self.assertIn(f"{name} 2.0.0", result.stdout)
+                    self.assertIn(f"{name} 2.0.1", result.stdout)
                     self.assertNotIn("planted", result.stdout + result.stderr)
 
     def test_installer_falls_back_to_the_absolute_launchers(self):

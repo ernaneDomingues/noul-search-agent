@@ -4,7 +4,7 @@ Scientific research co-assistant exposed as an MCP server, HTTP/OpenAPI server, 
 **Noul has no LLM of its own**: tools retrieve and structure evidence; the client's LLM (Claude, ChatGPT,
 Copilot, Cursor…) reasons and writes the verdicts. Keep it that way.
 
-## Status: v2.0.0
+## Status: v2.0.1
 
 The v2 refactor (`docs/REFACTOR_PLAN.md`, one PR per phase) is complete through Phase 3 (2.0.0, `CHANGELOG.md`).
 Next: **Phase 4** (CSL-JSON/Zotero, retractions, preprint↔published linking, MCP sampling). One PR per phase.

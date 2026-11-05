@@ -26,7 +26,7 @@ rewrite whole sections unless asked.
   (seeds, learning rates, GPU counts, dataset sizes): never present them as the author's settings - turn them into
   placeholders such as `[TODO: learning rate]` and say so.
 - **Bibliography**: `sanitize_bibtex(bibtex_input)` upgrades preprints to their published versions, adds DOIs,
-  fixes escapes and duplicates. Report the changes; writing a file needs `output_path` inside the workspace.
+  fixes escapes and duplicates. Report the changes; writing a file needs a `.bib` `output_path` inside the workspace.
 
 ## Answer
 List the concrete changes you propose (with the original sentence and the revision), the citations you recommend

@@ -498,7 +498,7 @@
           </article>
           <article class="tool-card" data-tool="sanitize_bibtex">
             <h4 class="mono">sanitize_bibtex</h4>
-            <p>BibTeX sanitizer &amp; preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&amp;`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`).</p>
+            <p>BibTeX sanitizer &amp; preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&amp;`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`). With `output_path` it also writes a .bib file inside the workspace, overwriting one that exists.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> bibtex_input | <strong>Optional:</strong> update_preprints, output_path</div>
               <div><strong>CLI:</strong> <code>noul bibtex sanitize &lt;bib&gt;</code></div>
@@ -594,9 +594,9 @@
           </article>
           <article class="tool-card" data-tool="configure_noul">
             <h4 class="mono">configure_noul</h4>
-            <p>View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, and default download/research folders. `clear` resets it.</p>
+            <p>View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool) and default download/research folders. The workspace is shown but cannot be set here: the user sets it in a terminal with `noul config --workspace W` or with NOUL_WORKSPACE. `clear` resets the rest of the stored configuration.</p>
             <div class="tool-meta mono">
-              <div><strong>Required:</strong> none | <strong>Optional:</strong> email, workspace, download_dir, research_dir, clear</div>
+              <div><strong>Required:</strong> none | <strong>Optional:</strong> email, download_dir, research_dir, clear</div>
               <div><strong>CLI:</strong> <code>noul config</code></div>
             </div>
           </article>

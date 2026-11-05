@@ -3,6 +3,25 @@
 Todas as mudanças relevantes do Noul Search. O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/)
 e as versões seguem o [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [2.0.1] — 2026-11
+
+Correção de segurança: veja o aviso publicado na aba *Security* do repositório. Atualize e reinicie os clientes que usam o
+Noul.
+
+### Mudanças incompatíveis
+- **`configure_noul` não aceita mais `workspace`**: o workspace muda só com `noul config --workspace` ou `NOUL_WORKSPACE`, e o
+  `clear` da ferramenta o preserva. `/noul-search-config workspace:...` deixa de funcionar pelo chat. `noul config --clear`
+  recusa outras configurações no mesmo comando.
+- **Um `workspace` salvo antes desta versão deixa de valer** até ser confirmado com `noul config --workspace PASTA`:
+  `noul config` mostra o valor ignorado em `workspace_ignored`, e `workspace_source` indica de onde vem o atual.
+- **Sem workspace definido, a pasta pessoal agora é tratada como a raiz do disco**: o padrão vira `~/Documents/Noul`.
+- **`/noul-search-config` não executa mais comandos no terminal**: mostra o comando para você rodar.
+- **`sanitize_bibtex(output_path=...)` só grava arquivos `.bib`**.
+- **Servidores sem permissão de escrita não leem arquivos locais**: nas ferramentas que aceitam texto ou caminho, eles só
+  aceitam o texto.
+- **Pastas e arquivos ocultos do workspace e a pasta do próprio Noul são recusados** nas ferramentas que leem ou gravam
+  arquivos.
+
 ## [2.0.0] — 2026-11
 
 A 2.0.0 fecha a refatoração descrita em [`docs/REFACTOR_PLAN.md`](docs/REFACTOR_PLAN.md) (Fases 0 a 3, PRs #29 a #40).

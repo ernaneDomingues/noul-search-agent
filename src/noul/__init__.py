@@ -4,4 +4,4 @@ Layout: `config`, `errors`, `ids`, `net/` (HTTP + cache), `providers/` (one modu
 `search/`, `evidence/`, `library/` (full text, graph, downloads, export), `tools/` (feature tools), `schemas/`,
 `prompts/`, `api` (tool registry), `server/`, `cli/` and `install`. Importing `noul` has no side effects."""
 
-__version__ = "2.0.0"
+__version__ = "2.0.1"

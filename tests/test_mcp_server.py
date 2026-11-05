@@ -89,6 +89,22 @@ class McpServerTests(unittest.TestCase):
         self.assertTrue(bad.content[0].text.startswith("InvalidArguments:"))  # not mistaken for a network error
         self.assertTrue(unknown.content[0].text.startswith("NotFound:"))
 
+    def test_local_files_are_not_read_without_write_permission(self):
+        from noul.server.mcp import build_server
+
+        with open(os.path.join(ENV["NOUL_WORKSPACE"], "private.md"), "w", encoding="utf-8") as handle:
+            handle.write("private-notes")
+        self.addCleanup(os.unlink, os.path.join(ENV["NOUL_WORKSPACE"], "private.md"))
+
+        async def calls():
+            async with self.client(build_server(profile="all", allow_write=False)) as c:
+                return await c.call_tool("recommend_citations", {"draft_text": "private.md"})
+
+        result = run(calls)
+        self.assertTrue(result.is_error)
+        self.assertIn("PermissionError", result.content[0].text)
+        self.assertNotIn("private-notes", result.content[0].text)
+
     def test_write_calls_are_refused_without_write_permission(self):
         from noul.server.mcp import build_server
 
