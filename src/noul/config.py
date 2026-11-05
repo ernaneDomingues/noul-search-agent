@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import tempfile
 from pathlib import Path
 
 from noul import errors as _errors
@@ -38,9 +39,9 @@ def _is_noul_home_path(path: Path) -> bool:
     home = _cache_dir()
     if same(path, _config_file()) or any(same(part, home) for part in (path, *path.parents)):
         return True
-    return any(
-        same(path, Path(os.environ[v])) for v in ("NOUL_DB_PATH", "DB_PATH", "NOUL_PROJECTS_DB") if os.environ.get(v)
-    )
+    # Relocated databases, with their -wal files and copies.
+    databases = [Path(os.environ[v]) for v in ("NOUL_DB_PATH", "DB_PATH", "NOUL_PROJECTS_DB") if os.environ.get(v)]
+    return any(same(path.parent, db.parent) and path.name.startswith(db.name) for db in databases)
 
 
 def _is_hidden_below(path: Path, root: Path) -> bool:
@@ -80,13 +81,13 @@ def _resolve_email(cfg=None):
 
 def _default_workspace() -> str:
     cwd = Path(os.getcwd())
-    if cwd == Path(cwd.anchor):
-        return str(Path.home() / "Documents" / "Noul")
     try:
         home = Path.home()
     except RuntimeError:  # a container user without a home folder
-        return str(cwd)
-    return str(home / "Documents" / "Noul") if cwd.resolve() == home.resolve() else str(cwd)
+        return str(Path(tempfile.gettempdir()) / "noul-workspace") if cwd == Path(cwd.anchor) else str(cwd)
+    if cwd == Path(cwd.anchor) or cwd.resolve() == home.resolve():
+        return str(home / "Documents" / "Noul")
+    return str(cwd)
 
 
 def get_config() -> dict:

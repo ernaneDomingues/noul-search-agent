@@ -1077,6 +1077,7 @@ def save_research_dossier(topic, synthesis_markdown, paper_ids=None, output_dir=
     "list_research_dossiers",
     description=("List saved research dossiers available for follow-up conversation."),
     input=_inputs.ListResearchDossiersInput,
+    folder_args=("output_dir",),
     network=False,
     profiles=("research",),
 )
@@ -1122,6 +1123,7 @@ def list_research_dossiers(output_dir=None):
     "get_research_dossier",
     description=("Load a saved research dossier (Markdown report and paper metadata) by slug or topic."),
     input=_inputs.GetResearchDossierInput,
+    folder_args=("output_dir",),
     network=False,
     profiles=("research",),
 )

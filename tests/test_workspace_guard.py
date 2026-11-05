@@ -136,11 +136,15 @@ class StoredWorkspaceTests(Base):
         from noul.tools import authoring_tools
 
         db = self.workspace / "my.db"
-        db.write_text("x", encoding="utf-8")
-        self.addCleanup(db.unlink)
-        with mock.patch.dict(os.environ, {"NOUL_PROJECTS_DB": str(db)}), self.assertRaises(HTTPError) as caught:
-            authoring_tools._validate_workspace_path("my.db")
-        self.assertEqual(caught.exception.code, 403)
+        copy = self.workspace / "my.db.bak"
+        for path in (db, copy):
+            path.write_text("x", encoding="utf-8")
+            self.addCleanup(path.unlink)
+        with mock.patch.dict(os.environ, {"NOUL_PROJECTS_DB": str(db)}):
+            for name in ("my.db", "my.db.bak", "my.db-wal"):
+                with self.subTest(name=name), self.assertRaises(HTTPError) as caught:
+                    authoring_tools._validate_workspace_path(name, must_exist=False)
+                self.assertEqual(caught.exception.code, 403)
 
     def test_a_home_folder_cannot_be_found_in_a_container(self):
         from noul import config
@@ -150,6 +154,13 @@ class StoredWorkspaceTests(Base):
             mock.patch.object(Path, "home", side_effect=RuntimeError),
         ):
             self.assertEqual(config._default_workspace(), str(self.workspace))
+
+    def test_no_home_folder_at_the_filesystem_root_is_not_a_root_workspace(self):
+        from noul import config
+
+        root = Path(self.workspace.anchor)
+        with mock.patch("os.getcwd", return_value=str(root)), mock.patch.object(Path, "home", side_effect=RuntimeError):
+            self.assertNotEqual(Path(config._default_workspace()), root)
 
     def test_the_home_folder_is_not_a_default_workspace(self):
         from noul import config
@@ -216,6 +227,13 @@ class ReadOnlyServerTests(Base):
                 response = client.post(f"/tools/{name}", json=args)
                 self.assertEqual(response.status_code, 403)
                 self.assertNotIn("private-notes", response.text)
+
+    def test_a_server_without_write_access_cannot_choose_the_dossier_folder(self):
+        from noul import registry
+
+        for name in ("list_research_dossiers", "get_research_dossier"):
+            self.assertTrue(registry.call_reads_file(name, {"slug": "x", "output_dir": "."}))
+            self.assertFalse(registry.call_reads_file(name, {"slug": "x"}))
 
     def test_inline_text_still_works_there(self):
         from noul import registry

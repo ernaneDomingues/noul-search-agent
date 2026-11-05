@@ -43,6 +43,8 @@ class Tool:
     idempotent: bool | None = None
     # Arguments that take text or a path to a file on the machine running the server.
     file_args: tuple[str, ...] = ()
+    # Arguments naming a local folder to read from, which clients of a server without write access cannot choose.
+    folder_args: tuple[str, ...] = ()
 
 
 REGISTRY: dict[str, Tool] = {}
@@ -97,6 +99,7 @@ def tool(
     profiles: tuple[str, ...] = ("all",),
     write_args: tuple[str, ...] = (),
     file_args: tuple[str, ...] = (),
+    folder_args: tuple[str, ...] = (),
     output: type[BaseModel] | None = None,
     destructive: bool = False,
     title: str | None = None,
@@ -121,6 +124,7 @@ def tool(
             title,
             idempotent,
             tuple(file_args),
+            tuple(folder_args),
         )
         return fn
 
@@ -236,6 +240,8 @@ def call_reads_file(name: Any, args: Any) -> bool:
     tool = _loaded().get(name) if isinstance(name, str) else None
     if tool is None or not isinstance(args, dict):
         return False
+    if any(args.get(a) not in (None, "") for a in tool.folder_args):
+        return True
     from noul.tools import authoring_tools
 
     return any(isinstance(args.get(a), str) and authoring_tools._looks_like_filepath(args[a]) for a in tool.file_args)
