@@ -41,7 +41,7 @@ def _parse_europepmc_result(it):
         if name:
             authors.append(name)
     if not authors and it.get("authorString"):
-        authors = [s.strip().rstrip(".") for s in str(it["authorString"]).split(",") if s.strip()][:10]
+        authors = [s.strip().rstrip(".") for s in str(it["authorString"]).split(",") if s.strip()][:100]
     citations = int(it.get("citedByCount") or 0)
     is_oa = str(it.get("isOpenAccess") or "").upper() == "Y"
     pdf_url = None

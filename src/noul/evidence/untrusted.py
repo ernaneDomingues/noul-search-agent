@@ -93,12 +93,26 @@ def render(ex: Excerpt) -> str:
     return (f"_{where}_\n" if where else "") + f"> {ex.text}"
 
 
+class UntrustedText(str):
+    """A plain-text tool result that holds third-party text (an export file), with notes that are not part of the
+    file itself, so that the file stays parseable: servers and the CLI show `warnings` next to it."""
+
+    warnings: tuple[str, ...] = ()
+
+    def __new__(cls, text: str, warnings: Any = ()) -> UntrustedText:
+        self = super().__new__(cls, text)
+        self.warnings = tuple(warnings)
+        return self
+
+
 def has_untrusted(payload: Any) -> bool:
     """Whether a tool result carries third-party text: an `untrusted: true` value or an `untrusted_fields` key
     anywhere in it (used to prepend NOTICE to MCP text content)."""
     stack = [payload]
     while stack:
         obj = stack.pop()
+        if isinstance(obj, UntrustedText):
+            return True
         if isinstance(obj, dict):
             if obj.get("untrusted") is True or UNTRUSTED_KEYS & obj.keys():
                 return True

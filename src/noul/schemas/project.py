@@ -78,6 +78,29 @@ class ProjectPapersChange(BaseModel):
     id_map: dict[str, str] = Field(default_factory=dict)  # input id -> id stored in the project
 
 
+class ZoteroItemResult(BaseModel):
+    """One paper in a `zotero_push` result."""
+
+    id: str | None = None
+    title: str | None = None
+    zotero_key: str | None = None
+    reason: str | None = None
+
+
+class ZoteroPushResult(BaseModel):
+    """`zotero_push`: papers created, skipped (already in the library) and failed."""
+
+    zotero_user_id: str | None = None  # the account written to
+    created: list[ZoteroItemResult] = Field(default_factory=list)
+    skipped: list[ZoteroItemResult] = Field(default_factory=list)
+    failed: list[ZoteroItemResult] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    retracted_ids: list[str] = Field(default_factory=list)
+    unchecked_ids: list[str] = Field(default_factory=list)  # Crossref did not answer for these
+    incomplete_ids: list[str] = Field(default_factory=list)  # stored record may list only the first authors
+    untrusted_fields: list[str] = Field(default_factory=list)
+
+
 class ProjectStatusChange(BaseModel):
     """`project_set_status`: ids updated and ids that are not in the project."""
 

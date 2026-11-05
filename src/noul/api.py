@@ -23,6 +23,7 @@ from noul.library import fulltext as _ft
 from noul.library import graph as _graph
 from noul.library import retrieval as _retrieval
 from noul.library import store as _store
+from noul.library import zotero as _zotero
 from noul.net import cache as _cache
 from noul.providers import artifact_radar as _artifact_radar
 from noul.providers import domain_classifier as _domain_classifier
@@ -1000,20 +1001,100 @@ def download_papers(ids, output_dir=None):
 
 @_registry.tool(
     "export_papers",
-    description=("Export papers as bibtex, ris or csv."),
+    description=(
+        "Export papers as bibtex, ris, csv or csl-json (imported by Zotero, Mendeley and Pandoc), given `ids` or a "
+        "research `project` (its included papers, or those of `status`). CSL-JSON notes known retractions."
+    ),
     input=_inputs.ExportPapersInput,
     profiles=("research",),
 )
-def export_papers(ids, format="bibtex"):
-    papers = []
+def export_papers(ids=None, format="bibtex", project=None, status=None):
+    records, missing, partial = _papers_to_send(ids, project, status)
+    papers = [_integrity.enrich(p, network=False) for p in records]
+    if not papers:
+        raise _errors.HTTPError(404, "None of the paper IDs could be found in cache or APIs.")
+    notes = []
+    if missing:
+        notes.append("Left out, could not be found: " + ", ".join(i for i, _ in missing))
+    if partial:
+        notes.append("The stored record may list only the first authors: " + ", ".join(partial))
+    retracted = [str(p.get("id")) for p in papers if _integrity.is_retracted(p)]
+    if retracted:
+        notes.append("Retracted, marked as such in the file: " + ", ".join(retracted))
+    return _untrusted.UntrustedText(_exporting.export(papers, format or "bibtex")[0], notes)
+
+
+def _project_paper(record):
+    """A stored project record completed from the cache (or the sources, for records saved before 2.1 with only the
+    first four authors). Returns (paper, whether its author list may be incomplete)."""
+    cached = _cached_paper(record["id"])
+    if cached:
+        return {**record, **cached, "id": record["id"]}, False
+    if len(record.get("authors") or []) != 4:
+        return record, False
+    try:
+        return {**record, **_resolve(record.get("doi") or record["id"]), "id": record["id"]}, False
+    except Exception:
+        return record, True
+
+
+def _papers_to_send(ids, project, status):
+    """(papers, [(id, reason)] left out, ids whose authors may be incomplete), from `ids` or a project's records."""
+    if bool(ids) == bool(project):
+        raise _errors.HTTPError(400, "Give either `ids` or `project`.")
+    if status and not project:
+        raise _errors.HTTPError(400, "`status` applies to `project`.")
+    if project:
+        records = _project_call(_store.project_records, project, status or "included")
+        if not records:
+            raise _errors.HTTPError(404, f"The project has no {status or 'included'} papers.")
+        papers, partial = [], []
+        for record in records:
+            paper, incomplete = _project_paper(record)
+            papers.append(paper)
+            if incomplete:
+                partial.append(str(record["id"]))
+        return papers, [], partial
+    papers, missing = [], []
     for i in ids:
         try:
             papers.append(_resolve(i))
-        except Exception:
-            pass
-    if not papers:
-        raise _errors.HTTPError(404, "None of the paper IDs could be found in cache or APIs.")
-    return _exporting.export(papers, format)[0]
+        except Exception as exc:
+            found_nothing = getattr(exc, "code", None) == 404
+            missing.append((i, "Paper not found in cache or APIs." if found_nothing else "The sources did not answer."))
+    return papers, missing, []
+
+
+@_registry.tool(
+    "zotero_push",
+    description=(
+        "Create papers in the user's Zotero library (Web API, needs a key with write access), given `ids` or a "
+        "research `project`, optionally in an existing `collection`. Skips papers already in the library (by DOI "
+        "or title; they stay in their collections), tags retracted ones `retracted`, and returns the account, "
+        "`created`, `skipped` and `failed`. At most 200 papers per call. This writes to the user's account: call "
+        "it only when the user asked for it."
+    ),
+    input=_inputs.ZoteroPushInput,
+    writes=True,
+    profiles=("research",),
+    output=_out.ZoteroPushResult,
+    title="Send papers to Zotero",
+)
+def zotero_push(ids=None, project=None, status=None, collection=None):
+    _zotero.check_credentials()  # before any lookup
+    papers, missing, partial = _papers_to_send(ids, project, status)
+    _zotero.check_size(papers)
+    checked = [_integrity.enrich(p, versions=False) for p in papers]
+    unchecked = [p.get("id") for p in checked if p.pop(_integrity.CHECK_FAILED, False)]
+    out = _zotero.push(checked, collection)
+    out["failed"] += [{"id": i, "title": None, "reason": reason} for i, reason in missing]
+    if partial:
+        out["incomplete_ids"] = partial
+        out["warnings"].append("Some records may list only their first authors: see `incomplete_ids`.")
+    if unchecked:
+        out["unchecked_ids"] = [str(i) for i in unchecked]
+        out["warnings"].append(f"{_integrity.CHECK_FAILED_WARNING} See `unchecked_ids`.")
+    return out
 
 
 def _slugify(text):
@@ -1196,8 +1277,10 @@ def get_research_dossier(slug, output_dir=None):
     "configure_noul",
     description=(
         "View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall "
-        "and the OpenAlex/Crossref polite pool), workspace folder, and default download/research folders. "
-        "`clear` resets it."
+        "and the OpenAlex/Crossref polite pool), workspace folder, default download/research folders. Zotero credentials "
+        "cannot be set here: the user sets NOUL_ZOTERO_API_KEY and NOUL_ZOTERO_USER_ID or runs `noul config "
+        "--zotero-user-id ID --zotero-api-key-stdin`, so never ask for them in chat. `clear` resets the stored "
+        "configuration except those credentials."
     ),
     input=_inputs.ConfigureNoulInput,
     writes=True,
@@ -1207,12 +1290,24 @@ def get_research_dossier(slug, output_dir=None):
     idempotent=True,
     title="Configure Noul",
 )
-def configure_noul(email=None, workspace=None, download_dir=None, research_dir=None, clear=False):
+def configure_noul(
+    email=None,
+    workspace=None,
+    download_dir=None,
+    research_dir=None,
+    clear=False,
+):
     """View or update persistent Noul configuration (email for Unpaywall/polite pool, workspace, default folders).
     Called without arguments it only reads the configuration."""
-    if clear or any(v is not None for v in (email, workspace, download_dir, research_dir)):
+    values = (email, workspace, download_dir, research_dir)
+    if clear or any(v is not None for v in values):
         return _config.set_config(
-            email=email, workspace=workspace, download_dir=download_dir, research_dir=research_dir, clear=bool(clear)
+            email=email,
+            workspace=workspace,
+            download_dir=download_dir,
+            research_dir=research_dir,
+            clear=bool(clear),
+            keep_zotero=True,  # a model that read a hostile paper must not be able to drop them
         )
     return _config.get_config()
 
@@ -1370,7 +1465,8 @@ _DOSSIER_JSON_MAX_BYTES = 20 * 1024 * 1024
 
 
 def _paper_record(p):
-    record = _slim(p, abstract_chars=1500)
+    record = _slim(p, abstract_chars=10000)
+    record["authors"] = list(p.get("authors") or [])  # exports need every author; `_slim` keeps a few
     record.pop("rank", None)
     return record
 

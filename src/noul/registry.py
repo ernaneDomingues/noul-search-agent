@@ -285,7 +285,7 @@ def _fold_enum_case(annotation: Any, value: Any) -> Any:
     return fold(value)
 
 
-def call(name: str, args: Any = None, caps: Mapping[str, int] | None = None) -> Any:
+def call(name: str, args: Any = None, caps: Mapping[str, int | None] | None = None) -> Any:
     """Validate `args` against the tool's input model and run it. Errors are `HTTPError` (400/404)."""
     if name not in _loaded():
         raise _errors.HTTPError(404, f"Unknown tool {name}")
@@ -320,6 +320,10 @@ def call(name: str, args: Any = None, caps: Mapping[str, int] | None = None) -> 
     notices = []
     for key, cap in (caps or {}).items():
         value = kwargs.get(key)
+        if cap is None:  # an argument the public connector does not offer (e.g. one that reads server-side data)
+            if value not in (None, ""):
+                raise _errors.HTTPError(403, f"'{key}' is not available on the public connector")
+            continue
         if isinstance(value, list) and len(value) > cap:
             raise _errors.HTTPError(
                 400, f"at most {cap} items in '{key}' on the public connector ({len(value)} given); split the call"

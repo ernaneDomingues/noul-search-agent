@@ -1,6 +1,6 @@
 {
   "version": "2.0.0",
-  "tool_count": 47,
+  "tool_count": 48,
   "tools": [
     {
       "name": "search_papers",
@@ -417,14 +417,27 @@
     },
     {
       "name": "export_papers",
-      "description": "Export papers as bibtex, ris or csv.",
-      "required": [
-        "ids"
-      ],
+      "description": "Export papers as bibtex, ris, csv or csl-json (imported by Zotero, Mendeley and Pandoc), given `ids` or a research `project` (its included papers, or those of `status`). CSL-JSON notes known retractions.",
+      "required": [],
       "Optional": [
-        "format"
+        "ids",
+        "format",
+        "project",
+        "status"
       ],
       "cli_equivalent": "noul export <ids>"
+    },
+    {
+      "name": "zotero_push",
+      "description": "Create papers in the user's Zotero library (Web API, needs a key with write access), given `ids` or a research `project`, optionally in an existing `collection`. Skips papers already in the library (by DOI or title; they stay in their collections), tags retracted ones `retracted`, and returns the account, `created`, `skipped` and `failed`. At most 200 papers per call. This writes to the user's account: call it only when the user asked for it.",
+      "required": [],
+      "Optional": [
+        "ids",
+        "project",
+        "status",
+        "collection"
+      ],
+      "cli_equivalent": "noul zotero_push"
     },
     {
       "name": "save_research_dossier",
@@ -461,7 +474,7 @@
     },
     {
       "name": "configure_noul",
-      "description": "View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, and default download/research folders. `clear` resets it.",
+      "description": "View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, default download/research folders. Zotero credentials cannot be set here: the user sets NOUL_ZOTERO_API_KEY and NOUL_ZOTERO_USER_ID or runs `noul config --zotero-user-id ID --zotero-api-key-stdin`, so never ask for them in chat. `clear` resets the stored configuration except those credentials.",
       "required": [],
       "Optional": [
         "email",

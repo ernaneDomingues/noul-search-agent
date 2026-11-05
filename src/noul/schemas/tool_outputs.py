@@ -22,12 +22,14 @@ from noul.schemas.project import (
     ProjectNoteAdded,
     ProjectPapersChange,
     ProjectStatusChange,
+    ZoteroPushResult,
 )
 from noul.schemas.review import PeerReviewReport
 from noul.schemas.technical import ArxivVersionDiffReport, ClaimsGroundingReport, FailureModesReport
 
 __all__ = [
     "AnalysisResult",
+    "ZoteroPushResult",
     "ArxivVersionDiffReport",
     "BibtexSanitizeReport",
     "CitationInfillerReport",

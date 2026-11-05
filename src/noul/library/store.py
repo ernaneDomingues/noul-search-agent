@@ -334,7 +334,7 @@ def _detail(conn: sqlite3.Connection, ref: str | int, include_papers: bool) -> d
                 {
                     "id": r["paper_id"],
                     "title": meta.get("title"),
-                    "authors": meta.get("authors") or [],
+                    "authors": (meta.get("authors") or [])[:4],  # the record keeps all of them, for exports
                     "year": meta.get("year"),
                     "doi": meta.get("doi"),
                     "evidence": meta.get("evidence"),
@@ -352,6 +352,24 @@ def _detail(conn: sqlite3.Connection, ref: str | int, include_papers: bool) -> d
         for n in conn.execute("SELECT * FROM notes WHERE project_id = ? ORDER BY created_at, id", (row["id"],))
     ]
     return out
+
+
+def project_records(ref: str | int, status: str = "included") -> list[dict[str, Any]]:
+    """The stored paper records of a project (`status` or "all"), ordered like `get_project`."""
+    wanted = None if status == "all" else _status(status)
+    try:
+        with _conn(readonly=True) as conn:
+            row = _project_row(conn, ref)
+            rows = conn.execute(
+                "SELECT pp.paper_id, pp.status, p.metadata_json FROM project_papers pp "
+                "JOIN papers p ON p.id = pp.paper_id WHERE pp.project_id = ? "
+                "ORDER BY CASE pp.status WHEN 'included' THEN 0 WHEN 'candidate' THEN 1 ELSE 2 END, "
+                "pp.added_at, pp.paper_id",
+                (row["id"],),
+            ).fetchall()
+    except ReadOnlyStoreMissing:
+        raise ProjectNotFound(str(ref)) from None
+    return [{**json.loads(r["metadata_json"]), "id": r["paper_id"]} for r in rows if wanted in (None, r["status"])]
 
 
 def _status(status: str) -> str:

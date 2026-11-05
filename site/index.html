@@ -562,10 +562,18 @@
           </article>
           <article class="tool-card" data-tool="export_papers">
             <h4 class="mono">export_papers</h4>
-            <p>Export papers as bibtex, ris or csv.</p>
+            <p>Export papers as bibtex, ris, csv or csl-json (imported by Zotero, Mendeley and Pandoc), given `ids` or a research `project` (its included papers, or those of `status`). CSL-JSON notes known retractions.</p>
             <div class="tool-meta mono">
-              <div><strong>Required:</strong> ids | <strong>Optional:</strong> format</div>
+              <div><strong>Required:</strong> none | <strong>Optional:</strong> ids, format, project, status</div>
               <div><strong>CLI:</strong> <code>noul export &lt;ids&gt;</code></div>
+            </div>
+          </article>
+          <article class="tool-card" data-tool="zotero_push">
+            <h4 class="mono">zotero_push</h4>
+            <p>Create papers in the user&#x27;s Zotero library (Web API, needs a key with write access), given `ids` or a research `project`, optionally in an existing `collection`. Skips papers already in the library (by DOI or title; they stay in their collections), tags retracted ones `retracted`, and returns the account, `created`, `skipped` and `failed`. At most 200 papers per call. This writes to the user&#x27;s account: call it only when the user asked for it.</p>
+            <div class="tool-meta mono">
+              <div><strong>Required:</strong> none | <strong>Optional:</strong> ids, project, status, collection</div>
+              <div><strong>CLI:</strong> <code>noul zotero_push</code></div>
             </div>
           </article>
           <article class="tool-card" data-tool="save_research_dossier">
@@ -594,7 +602,7 @@
           </article>
           <article class="tool-card" data-tool="configure_noul">
             <h4 class="mono">configure_noul</h4>
-            <p>View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, and default download/research folders. `clear` resets it.</p>
+            <p>View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, default download/research folders. Zotero credentials cannot be set here: the user sets NOUL_ZOTERO_API_KEY and NOUL_ZOTERO_USER_ID or runs `noul config --zotero-user-id ID --zotero-api-key-stdin`, so never ask for them in chat. `clear` resets the stored configuration except those credentials.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> none | <strong>Optional:</strong> email, workspace, download_dir, research_dir, clear</div>
               <div><strong>CLI:</strong> <code>noul config</code></div>

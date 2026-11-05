@@ -55,7 +55,7 @@ class ContractTests(unittest.TestCase):
 
         from noul import api, registry
 
-        self.assertEqual(len(registry.REGISTRY), 47)  # 41 v1 tools + 6 project_* tools (3b-2)
+        self.assertEqual(len(registry.REGISTRY), 48)  # 41 v1 tools + 6 project_* tools (3b-2) + zotero_push (4b)
         for name, tool in registry.REGISTRY.items():
             with self.subTest(tool=name):
                 self.assertIs(getattr(api, name), tool.fn)
@@ -76,6 +76,7 @@ class ContractTests(unittest.TestCase):
                 "project_add_papers",
                 "project_set_status",
                 "project_note",
+                "zotero_push",
             },
         )
 
@@ -130,8 +131,8 @@ class ContractTests(unittest.TestCase):
         from noul import registry
 
         names = {p: {t["name"] for t in registry.catalog(p)} for p in registry.PROFILES}
-        self.assertEqual(len(names["all"]), 47)
-        self.assertEqual(len(names["research"]), 23)
+        self.assertEqual(len(names["all"]), 48)
+        self.assertEqual(len(names["research"]), 24)
         self.assertLess(names["research"], names["review"])
         self.assertLess(names["research"], names["write"])
         self.assertEqual(names["review"] | names["write"], names["all"])
@@ -170,7 +171,7 @@ class ContractTests(unittest.TestCase):
         from noul import registry
 
         with_schema = {t["name"] for t in registry.catalog() if t["outputSchema"]}
-        self.assertEqual(len(with_schema), 21)
+        self.assertEqual(len(with_schema), 22)
         sample = registry.call(
             "generate_manuscript_blueprint", {"topic": "Sparse attention", "hypothesis": "It is faster"}
         )

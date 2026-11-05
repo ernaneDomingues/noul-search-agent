@@ -214,7 +214,7 @@ def build_app(
         if not allow_write and _registry.call_writes(name, body):
             return JSONResponse(
                 {
-                    "error": f"Tool '{name}' writes to disk with these arguments and is disabled over HTTP "
+                    "error": f"Tool '{name}' writes (to disk or an external account) with these arguments and is disabled over HTTP "
                     "(set NOUL_HTTP_TOKEN and NOUL_HTTP_ALLOW_WRITE=1 to enable it)."
                 },
                 status_code=403,
@@ -242,6 +242,8 @@ def build_app(
             if concurrency is not None:
                 concurrency.release()
         payload = result if isinstance(result, dict) else {"result": result}
+        if getattr(result, "warnings", None):
+            payload["warnings"] = list(result.warnings)
         return Response(json.dumps(payload, ensure_ascii=False, default=str), media_type="application/json")
 
     routes = [
