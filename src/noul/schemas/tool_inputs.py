@@ -313,7 +313,10 @@ class SanitizeBibtexInput(_ToolInput):
 
     bibtex_input: str
     update_preprints: bool | None = True
-    output_path: str | None = None
+    output_path: str | None = Field(
+        None,
+        description="Optional .bib file inside the workspace; hidden paths are refused, an existing file is replaced",
+    )
 
 
 class ParseAndDraftRebuttalInput(_ToolInput):
@@ -467,7 +470,6 @@ class ConfigureNoulInput(_ToolInput):
     """Arguments of `configure_noul`."""
 
     email: str | None = None
-    workspace: str | None = None
     download_dir: str | None = None
     research_dir: str | None = None
     clear: bool | None = False

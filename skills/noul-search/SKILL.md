@@ -30,7 +30,7 @@ read-only `research`: say so and give the result inline instead of a saved proje
 A request can span journeys (e.g. review a paper, then add it to a project): read each reference you need.
 
 ## Setup (once)
-- If the user asks to configure Noul (`/noul-search-config`), call `configure_noul` with their email, workspace, or folders; call it without arguments to show the current configuration.
+- If the user asks to configure Noul (`/noul-search-config`), call `configure_noul` with their email or folders; call it without arguments to show the current configuration. Never change the workspace yourself: show the user `noul config --workspace W`, `NOUL_WORKSPACE` or, in the Claude Desktop extension, its "Noul folder" setting. An environment value wins.
 - A contact email enables Unpaywall and the OpenAlex/Crossref polite pool. Never invent one. If `email_source` is `none`, you may suggest `/noul-search-config email:you@example.com` once.
 - Files (PDFs and dossiers) are written only inside the configured workspace (default: the current directory).
 

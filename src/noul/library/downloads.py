@@ -11,7 +11,7 @@ from noul.search import engine as _engine
 
 
 def _safe_filename(p):
-    year = p.get("year") or "nd"
+    year = re.sub(r"[^A-Za-z0-9]", "", str(p.get("year") or "")) or "nd"
     first_author = ((p.get("authors") or ["Unknown"])[0]).split()[-1]
     first_author = re.sub(r"[^A-Za-z0-9_-]", "", first_author) or "Author"
     title_short = re.sub(r"[^A-Za-z0-9]+", "_", (p.get("title") or "paper")).strip("_")[:55]

@@ -324,7 +324,7 @@
     },
     {
       "name": "sanitize_bibtex",
-      "description": "BibTeX sanitizer & preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`). Entries whose DOI Crossref reports as retracted are kept but flagged (`retracted_entries`, `warnings`; first 200 entries with a DOI).",
+      "description": "BibTeX sanitizer & preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`). Entries whose DOI Crossref reports as retracted are kept but flagged (`retracted_entries`, `warnings`; first 200 entries with a DOI). With `output_path` it also writes a .bib file inside the workspace, overwriting one that exists.",
       "required": [
         "bibtex_input"
       ],
@@ -474,11 +474,10 @@
     },
     {
       "name": "configure_noul",
-      "description": "View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool), workspace folder, default download/research folders. Zotero credentials cannot be set here: the user sets NOUL_ZOTERO_API_KEY and NOUL_ZOTERO_USER_ID or runs `noul config --zotero-user-id ID --zotero-api-key-stdin`, so never ask for them in chat. `clear` resets the stored configuration except those credentials.",
+      "description": "View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool) and default download/research folders. The workspace, the Zotero user id and whether a Zotero key is configured are shown, but none can be set here: the user sets them in a terminal with `noul config --workspace W` and `noul config --zotero-user-id ID --zotero-api-key-stdin`, or with NOUL_WORKSPACE, NOUL_ZOTERO_USER_ID and NOUL_ZOTERO_API_KEY, so never ask for a key in chat. `clear` resets the rest of the stored configuration.",
       "required": [],
       "Optional": [
         "email",
-        "workspace",
         "download_dir",
         "research_dir",
         "clear"

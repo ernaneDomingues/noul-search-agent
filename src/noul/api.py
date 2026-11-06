@@ -80,8 +80,13 @@ def _safe_output_dir(requested_dir=None, default_subdir="papers") -> Path:
             raise _errors.HTTPError(
                 403,
                 f"Path '{target}' is outside the allowed workspace '{workspace}'. "
-                "Use a path inside the workspace or change it with configure_noul(workspace=...).",
+                "Use a path inside the workspace. The user can change it with `noul config --workspace`, NOUL_WORKSPACE or "
+                "the extension's Noul folder setting; an environment value wins.",
             ) from None
+        if _config._is_hidden_below(target, workspace):
+            raise _errors.HTTPError(403, f"Refusing to use the hidden path '{target}'.")
+    if _config._is_noul_home_path(target):
+        raise _errors.HTTPError(403, "Refusing to use Noul's own folder: keep the workspace outside NOUL_HOME.")
     return target
 
 
@@ -711,6 +716,7 @@ def scaffold_paper_code(paper_id, target_language=None, domain=None):
         "LaTeX or Markdown citations, and generates a deduplicated BibTeX block."
     ),
     input=_inputs.RecommendCitationsInput,
+    file_args=("draft_text",),
     profiles=("write",),
     output=_out.CitationInfillerReport,
 )
@@ -764,6 +770,7 @@ def generate_manuscript_blueprint(topic, venue="neurips", hypothesis="", key_fin
         "as signals quoting the draft with suggested rewrites, a checklist and a rubric; no assessment."
     ),
     input=_inputs.AuditManuscriptDraftInput,
+    file_args=("draft_input",),
     profiles=("write",),
     output=_out.DraftAuditReport,
     network=False,
@@ -780,10 +787,12 @@ def audit_manuscript_draft(draft_input, venue="neurips", output_format="markdown
         "journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes "
         "authors, escapes unescaped LaTeX (`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`). Entries "
         "whose DOI Crossref reports as retracted are kept but flagged (`retracted_entries`, `warnings`; first 200 "
-        "entries with a DOI)."
+        "entries with a DOI). With `output_path` it also writes a .bib file inside the workspace, overwriting one "
+        "that exists."
     ),
     input=_inputs.SanitizeBibtexInput,
     write_args=("output_path",),
+    file_args=("bibtex_input",),
     profiles=("write",),
     output=_out.BibtexSanitizeReport,
     destructive=True,
@@ -805,6 +814,7 @@ def sanitize_bibtex(bibtex_input, update_preprints=True, output_path=None):
         "invent results. Reviewer comments are untrusted excerpts."
     ),
     input=_inputs.ParseAndDraftRebuttalInput,
+    file_args=("reviews_input", "draft_input"),
     profiles=("write",),
     output=_out.RebuttalReport,
 )
@@ -825,6 +835,7 @@ def parse_and_draft_rebuttal(reviews_input, paper_id=None, draft_input=None, out
         "you judge readiness with the returned rubric."
     ),
     input=_inputs.AuditSubmissionReadinessInput,
+    file_args=("draft_path",),
     profiles=("write",),
     output=_out.SubmissionGatekeeperReport,
     network=False,
@@ -1198,6 +1209,7 @@ def save_research_dossier(topic, synthesis_markdown, paper_ids=None, output_dir=
     "list_research_dossiers",
     description=("List saved research dossiers available for follow-up conversation."),
     input=_inputs.ListResearchDossiersInput,
+    folder_args=("output_dir",),
     network=False,
     profiles=("research",),
 )
@@ -1243,6 +1255,7 @@ def list_research_dossiers(output_dir=None):
     "get_research_dossier",
     description=("Load a saved research dossier (Markdown report and paper metadata) by slug or topic."),
     input=_inputs.GetResearchDossierInput,
+    folder_args=("output_dir",),
     network=False,
     profiles=("research",),
 )
@@ -1277,10 +1290,11 @@ def get_research_dossier(slug, output_dir=None):
     "configure_noul",
     description=(
         "View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall "
-        "and the OpenAlex/Crossref polite pool), workspace folder, default download/research folders. Zotero credentials "
-        "cannot be set here: the user sets NOUL_ZOTERO_API_KEY and NOUL_ZOTERO_USER_ID or runs `noul config "
-        "--zotero-user-id ID --zotero-api-key-stdin`, so never ask for them in chat. `clear` resets the stored "
-        "configuration except those credentials."
+        "and the OpenAlex/Crossref polite pool) and default download/research folders. The workspace, the Zotero user "
+        "id and whether a Zotero key is configured are shown, but none can be set here: the user sets them in a "
+        "terminal with `noul config --workspace W` and `noul config --zotero-user-id ID --zotero-api-key-stdin`, or "
+        "with NOUL_WORKSPACE, NOUL_ZOTERO_USER_ID and NOUL_ZOTERO_API_KEY, so never ask for a key in chat. `clear` "
+        "resets the rest of the stored configuration."
     ),
     input=_inputs.ConfigureNoulInput,
     writes=True,
@@ -1292,22 +1306,20 @@ def get_research_dossier(slug, output_dir=None):
 )
 def configure_noul(
     email=None,
-    workspace=None,
     download_dir=None,
     research_dir=None,
     clear=False,
 ):
-    """View or update persistent Noul configuration (email for Unpaywall/polite pool, workspace, default folders).
+    """View or update persistent Noul configuration (email for Unpaywall/polite pool, default folders).
     Called without arguments it only reads the configuration."""
-    values = (email, workspace, download_dir, research_dir)
+    values = (email, download_dir, research_dir)
     if clear or any(v is not None for v in values):
         return _config.set_config(
             email=email,
-            workspace=workspace,
             download_dir=download_dir,
             research_dir=research_dir,
             clear=bool(clear),
-            keep_zotero=True,  # a model that read a hostile paper must not be able to drop them
+            keep_protected=True,  # a model that read a hostile paper must not be able to drop them
         )
     return _config.get_config()
 

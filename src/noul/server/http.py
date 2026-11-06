@@ -219,6 +219,10 @@ def build_app(
                 },
                 status_code=403,
             )
+        if not allow_write and _registry.call_reads_file(name, body):
+            return JSONResponse(
+                {"error": f"Tool '{name}' cannot read files on this server: send the text itself."}, status_code=403
+            )
         caps = _common.public_caps(name) if public else None
         if tool_limiter is not None and (wait := tool_limiter.check("tools")) > 0:
             return JSONResponse(

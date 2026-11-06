@@ -300,6 +300,10 @@ def build_server(
                 "(set NOUL_HTTP_TOKEN and NOUL_HTTP_ALLOW_WRITE=1 to enable it).",
                 is_error=True,
             )
+        if not allow_write and _registry.call_reads_file(name, args):
+            return _text_result(
+                f"PermissionError: Tool '{name}' cannot read files on this server: send the text itself.", is_error=True
+            )
 
         # One-time contact e-mail elicitation (stdio only, Unpaywall tools): back-channel on handshake-era
         # protocols, input_required round trip on 2026-07-28+.

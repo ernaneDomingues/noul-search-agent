@@ -112,7 +112,7 @@ def _interactive_clarification(query, domain=None):
 
 
 def _parse_config_pairs(pairs):
-    """`email:you@x.org workspace:~/w` -> kwargs for configure_noul. A bare value containing '@' is the email."""
+    """`email:you@x.org workspace:~/w` -> settings for `noul config`. A bare value containing '@' is the email."""
     out = {}
     for pair in pairs or []:
         if pair.strip().lower() == "clear":
@@ -806,8 +806,8 @@ def main(argv=None):
             if a.clear:
                 kwargs["clear"] = True
             zotero = a.zotero_api_key_stdin or a.zotero_remove_key or a.zotero_user_id is not None
-            if zotero and kwargs.get("clear"):
-                raise ValueError("--clear deletes the Zotero settings given with it; nothing changed")
+            if kwargs.get("clear") and (zotero or len(kwargs) > 1):
+                raise ValueError("--clear deletes the settings given with it; nothing changed")
             if a.zotero_user_id is not None:
                 kwargs["zotero_user_id"] = a.zotero_user_id
             if a.zotero_remove_key:
@@ -818,14 +818,15 @@ def main(argv=None):
                 if not key.strip():
                     raise ValueError("No Zotero API key on stdin; nothing changed")
                 kwargs["zotero_api_key"] = key.strip()
-            if zotero or kwargs.get("clear"):
-                # Not through the tool, which keeps the credentials out of reach of a model that read a hostile paper.
+            if zotero or kwargs.get("clear") or "workspace" in kwargs:
+                # Not through the tool, which keeps these out of reach of a model that read a hostile paper.
                 out = _config.set_config(**kwargs)
             else:
                 out = _run("configure_noul", **kwargs)
             for changed, variable in (
                 (a.zotero_remove_key or a.zotero_api_key_stdin, "NOUL_ZOTERO_API_KEY"),
                 (a.zotero_user_id is not None, "NOUL_ZOTERO_USER_ID"),
+                ("workspace" in kwargs, "NOUL_WORKSPACE"),
             ):
                 if changed and os.environ.get(variable):
                     print(f"warning: {variable} is set and takes precedence over the stored value", file=sys.stderr)

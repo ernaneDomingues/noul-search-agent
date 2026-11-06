@@ -183,8 +183,8 @@ def _validate_workspace_path(raw_path: str, must_exist: bool = True) -> Path:
         cur = cur.parent
 
     resolved = p.resolve() if p.is_absolute() else (ws / p).resolve()
-    if _config._is_config_path(resolved):  # holds the Zotero key, even with NOUL_ALLOW_ANY_PATH
-        raise _errors.HTTPError(403, "Refusing to access Noul's configuration file.")
+    if _config._is_noul_home_path(resolved):  # holds the Zotero key, even with NOUL_ALLOW_ANY_PATH
+        raise _errors.HTTPError(403, "Refusing to access Noul's own folder: keep the workspace outside NOUL_HOME.")
     if os.environ.get("NOUL_ALLOW_ANY_PATH") != "1":
         try:
             resolved.relative_to(ws)
@@ -193,6 +193,8 @@ def _validate_workspace_path(raw_path: str, must_exist: bool = True) -> Path:
                 400,
                 f"Path '{resolved}' is outside the allowed workspace '{ws}'.",
             ) from None
+        if _config._is_hidden_below(resolved, ws):
+            raise _errors.HTTPError(403, f"Refusing to access the hidden path '{raw_str}'.")
     if resolved.is_symlink():
         raise _errors.HTTPError(400, f"Refusing to access symbolic link '{resolved}'.")
     if must_exist and not resolved.is_file():
@@ -1400,6 +1402,8 @@ def sanitize_bibtex(
     out_file: Path | None = None
     if output_path is not None and str(output_path).strip():
         out_file = _validate_workspace_path(str(output_path).strip(), must_exist=False)
+        if out_file.suffix.lower() != ".bib":
+            raise _errors.HTTPError(400, "output_path must be a .bib file.")
 
     # Group duplicates by (norm_doi | arxiv_id | norm_title)
     groups: list[list[dict]] = []

@@ -5,6 +5,20 @@ e as versões seguem o [Versionamento Semântico](https://semver.org/lang/pt-BR/
 
 ## [Não publicado]
 
+### Mudanças incompatíveis
+- **`configure_noul` não aceita mais `workspace`**: o workspace muda só com `noul config --workspace` ou `NOUL_WORKSPACE`, e o
+  `clear` da ferramenta o preserva. `/noul-search-config workspace:...` deixa de funcionar pelo chat. `noul config --clear`
+  recusa outras configurações no mesmo comando.
+- **Um `workspace` salvo antes desta versão deixa de valer** até ser confirmado com `noul config --workspace PASTA`:
+  `noul config` mostra o valor ignorado em `workspace_ignored`, e `workspace_source` indica de onde vem o atual.
+- **Sem workspace definido, a pasta pessoal agora é tratada como a raiz do disco**: o padrão vira `~/Documents/Noul`.
+- **`/noul-search-config` não executa mais comandos no terminal**: mostra o comando para você rodar.
+- **`sanitize_bibtex(output_path=...)` só grava arquivos `.bib`**.
+- **Servidores sem permissão de escrita não leem arquivos locais**: nas ferramentas que aceitam texto ou caminho, eles só
+  aceitam o texto.
+- **Pastas e arquivos ocultos do workspace e a pasta do próprio Noul são recusados** nas ferramentas que leem ou gravam
+  arquivos.
+
 ### Novidades
 - **CSL-JSON**: `export_papers(format="csl-json")` e `noul export --format csl-json`, formato que o Zotero, o Mendeley e o
   Pandoc importam. Artigos retratados conhecidos levam a nota `RETRACTED`.

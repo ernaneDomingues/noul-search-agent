@@ -29,8 +29,8 @@ def _config_file() -> Path:
     return _cache_dir() / "config.json"
 
 
-def _is_config_path(path: Path) -> bool:
-    """True for the config file under any spelling or hard link, and for copies beside it (`config.json.bak`)."""
+def _is_noul_home_path(path: Path) -> bool:
+    """True inside Noul's own folder (under any spelling) and for a hard link to its config file, which holds the key."""
 
     def same(a: Path, b: Path) -> bool:
         try:
@@ -38,8 +38,17 @@ def _is_config_path(path: Path) -> bool:
         except OSError:
             return False
 
-    cfg = _config_file()
-    return same(path, cfg) or (same(path.parent, cfg.parent) and path.name.casefold().startswith(cfg.name))
+    home = _cache_dir()
+    if same(path, _config_file()) or any(same(part, home) for part in (path, *path.parents)):
+        return True
+    # Relocated databases, with their -wal files and copies.
+    databases = [Path(os.environ[v]) for v in ("NOUL_DB_PATH", "DB_PATH", "NOUL_PROJECTS_DB") if os.environ.get(v)]
+    return any(same(path.parent, db.parent) and path.name.startswith(db.name) for db in databases)
+
+
+def _is_hidden_below(path: Path, root: Path) -> bool:
+    """True when a component of `path` under `root` is hidden: such folders hold secrets and tool configuration."""
+    return any(part.startswith(".") for part in path.relative_to(root).parts)
 
 
 def _load_config_file() -> dict:
@@ -96,8 +105,12 @@ def _write_private(path: Path, text: str) -> None:
 
 def _default_workspace() -> str:
     cwd = Path(os.getcwd())
-    if cwd == Path(cwd.anchor):
-        return str(Path.home() / "Documents" / "Noul")
+    try:
+        home = Path.home()
+    except RuntimeError:  # a container user without a home folder
+        return str(Path(tempfile.gettempdir()) / "noul-workspace") if cwd == Path(cwd.anchor) else str(cwd)
+    if cwd == Path(cwd.anchor) or cwd.resolve() == home.resolve():
+        return str(home / "Documents" / "Noul")
     return str(cwd)
 
 
@@ -106,13 +119,20 @@ def get_config() -> dict:
     email, source = _resolve_email(cfg)
     # An explicit NOUL_WORKSPACE (set by the host, e.g. the Claude Desktop extension's "Noul folder") wins over
     # config.json, as environment variables usually do; without either, the current folder - unless that is a
-    # filesystem root (desktop apps start servers in `/` or C:\), where ~/Documents/Noul is used instead.
-    workspace = os.environ.get("NOUL_WORKSPACE") or cfg.get("workspace") or _default_workspace()
+    # filesystem root or the home folder (desktop apps start servers there), where ~/Documents/Noul is used instead.
+    # A stored value counts only if `noul config` confirmed it: older versions let a tool call write it.
+    env_workspace = os.environ.get("NOUL_WORKSPACE")
+    confirmed = cfg.get("workspace") is not None and cfg.get("workspace") == cfg.get("workspace_confirmed")
+    stored = cfg.get("workspace") if confirmed else None
+    workspace = env_workspace or stored or _default_workspace()
     return {
         "email": email,
         "email_source": source,
         "unpaywall_enabled": bool(email),
         "workspace": str(Path(workspace).expanduser().resolve()),
+        "workspace_source": "env" if env_workspace else "config" if stored else "default",
+        # Saved by an older version and not used: the user decides with `noul config --workspace`.
+        "workspace_ignored": None if confirmed else cfg.get("workspace"),
         "download_dir": cfg.get("download_dir") or "./papers",
         "research_dir": cfg.get("research_dir") or "./research",
         "config_file": str(_config_file()),
@@ -133,12 +153,14 @@ def set_config(
     email_prompt_declined=None,
     zotero_api_key=None,
     zotero_user_id=None,
-    keep_zotero=False,
+    keep_protected=False,
 ) -> dict:
     cfg_file = _config_file()
     if clear:
-        kept = _load_config_file() if keep_zotero else {}
-        kept = {k: kept[k] for k in ("zotero_api_key", "zotero_user_id") if k in kept}
+        kept = _load_config_file() if keep_protected else {}
+        kept = {
+            k: kept[k] for k in ("workspace", "workspace_confirmed", "zotero_api_key", "zotero_user_id") if k in kept
+        }
         if kept:
             _write_private(cfg_file, json.dumps(kept, indent=2, ensure_ascii=False) + "\n")
         elif cfg_file.exists():
@@ -160,8 +182,10 @@ def set_config(
             if not ws_path.is_dir():
                 raise _errors.HTTPError(400, f"Workspace directory does not exist: {ws_path}")
             cfg["workspace"] = str(ws_path)
+            cfg["workspace_confirmed"] = str(ws_path)  # an older version rewriting `workspace` no longer matches
         else:
             cfg.pop("workspace", None)
+            cfg.pop("workspace_confirmed", None)
     for field, value, pattern in (
         ("zotero_api_key", zotero_api_key, ZOTERO_KEY_RE),
         ("zotero_user_id", zotero_user_id, ZOTERO_USER_RE),
