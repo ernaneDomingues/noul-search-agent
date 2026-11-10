@@ -4,10 +4,11 @@ Scientific research co-assistant exposed as an MCP server, HTTP/OpenAPI server, 
 **Noul has no LLM of its own**: tools retrieve and structure evidence; the client's LLM (Claude, ChatGPT,
 Copilot, Cursor…) reasons and writes the verdicts. Keep it that way.
 
-## Status: v2.0.0
+## Status: v2.1.0
 
-The v2 refactor (`docs/REFACTOR_PLAN.md`, one PR per phase) is complete through Phase 3 (2.0.0, `CHANGELOG.md`).
-Next: **Phase 4** (CSL-JSON/Zotero, retractions, preprint↔published linking, MCP sampling). One PR per phase.
+The v2 refactor (`docs/REFACTOR_PLAN.md`, one PR per phase) is complete: Phases 0–3 shipped as 2.0.0 and Phase 4
+(retractions, preprint↔published links, CSL-JSON/Zotero, project archive/delete and search history) as 2.1.0
+(`CHANGELOG.md`). MCP sampling was decided against (see the plan). No phase is open: new work gets its own branch and PR.
 
 | Path | Role |
 |---|---|
@@ -18,7 +19,7 @@ Next: **Phase 4** (CSL-JSON/Zotero, retractions, preprint↔published linking, M
 | `src/noul/evidence/`, `src/noul/library/` | study-design classifier + impact band; full text, citation graph, downloads, export |
 | `src/noul/tools/` | feature tools (Phases 1–6 of v1) |
 | `src/noul/registry.py` | the tool registry: `@tool(...)`, `call()` (Pydantic validation + logging), `input_schema()`, `catalog()`, `write_tools()` |
-| `src/noul/api.py` | the 48 tool functions, each decorated with `@_registry.tool(...)`; `TOOLS`/`call` re-exported for v1 callers |
+| `src/noul/api.py` | the 50 tool functions, each decorated with `@_registry.tool(...)`; `TOOLS`/`call` re-exported for v1 callers |
 | `src/noul/schemas/tool_inputs.py` | one Pydantic input model per tool — the source of the MCP `inputSchema` |
 | `src/noul/log.py` | `noul` logger, stderr only, level from `NOUL_LOG_LEVEL` |
 | `src/noul/server/mcp.py`, `http.py`, `common.py` | MCP server on the official SDK (stdio; prompts, progress, e-mail elicitation) and the Starlette HTTP app (Streamable HTTP `/mcp`, REST/OpenAPI, `Guard` middleware for Host/Origin/Bearer/body cap); profiles via `--profile`/`NOUL_TOOL_PROFILE` |

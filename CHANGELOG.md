@@ -3,23 +3,25 @@
 Todas as mudanças relevantes do Noul Search. O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/)
 e as versões seguem o [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [Não publicado]
+## [2.1.0] — 2026-11
 
-### Mudanças incompatíveis
-- **`configure_noul` não aceita mais `workspace`**: o workspace muda só com `noul config --workspace` ou `NOUL_WORKSPACE`, e o
-  `clear` da ferramenta o preserva. `/noul-search-config workspace:...` deixa de funcionar pelo chat. `noul config --clear`
-  recusa outras configurações no mesmo comando.
-- **Um `workspace` salvo antes desta versão deixa de valer** até ser confirmado com `noul config --workspace PASTA`:
-  `noul config` mostra o valor ignorado em `workspace_ignored`, e `workspace_source` indica de onde vem o atual.
-- **Sem workspace definido, a pasta pessoal agora é tratada como a raiz do disco**: o padrão vira `~/Documents/Noul`.
-- **`/noul-search-config` não executa mais comandos no terminal**: mostra o comando para você rodar.
-- **`sanitize_bibtex(output_path=...)` só grava arquivos `.bib`**.
-- **Servidores sem permissão de escrita não leem arquivos locais**: nas ferramentas que aceitam texto ou caminho, eles só
-  aceitam o texto.
-- **Pastas e arquivos ocultos do workspace e a pasta do próprio Noul são recusados** nas ferramentas que leem ou gravam
-  arquivos.
+A 2.1.0 fecha a Fase 4 do [`docs/REFACTOR_PLAN.md`](docs/REFACTOR_PLAN.md) (PRs #42, #43 e o da Fase 4c).
 
 ### Novidades
+- **Histórico de buscas do projeto**: `search_papers(project=...)` (`noul search --project`) registra a busca no projeto
+  (consulta, filtros, quantos artigos foram encontrados, devolvidos e adicionados) e inclui os artigos devolvidos como
+  candidatos, sem mexer no status dos que já estavam lá. `project_get` mostra as 50 buscas mais recentes em `searches`
+  e o total em `search_count`: é a base para relatar a triagem (buscas → candidatos → incluídos e excluídos com motivo).
+  Em servidores sem permissão de escrita e no conector público esse argumento não existe.
+- **Arquivar projeto**: `project_archive` (`noul project archive`, `--undo` para desfazer) tira o projeto de
+  `project_list` e da lista de *resources* MCP sem apagar nada; `project_list(include_archived=true)` e
+  `noul project list --all` mostram todos, e `noul://project/<slug>` continua legível.
+- **Excluir projeto**: `project_delete` (`noul project delete SLUG --yes`) apaga o projeto com status, motivos, notas e
+  histórico de buscas. Exige o slug exato e duas chamadas: a primeira não apaga nada, mostra o que seria apagado e devolve um
+  `preview_token`; a segunda leva `confirm: true` (só o booleano) e esse token, e é recusada se o projeto mudou no
+  meio. A CLI faz as duas com `--yes`. Os arquivos de dossiê já exportados para o workspace ficam onde estão.
+- **Instruções plantadas em pareceres**: a referência de submissão da skill manda tratar como dado, e avisar o autor,
+  qualquer linha de um parecer dirigida ao assistente. Entra uma eval nova (`submission-rebuttal-injected-instruction`).
 - **CSL-JSON**: `export_papers(format="csl-json")` e `noul export --format csl-json`, formato que o Zotero, o Mendeley e o
   Pandoc importam. Artigos retratados conhecidos levam a nota `RETRACTED`.
 - **Exportar um projeto**: `export_papers(project=..., status=...)` e `noul export --project`, em qualquer formato, só com
@@ -53,9 +55,38 @@ e as versões seguem o [Versionamento Semântico](https://semver.org/lang/pt-BR/
 - **Checagem incompleta não passa por artigo limpo**: se o Crossref não responder, `get_paper`, as ferramentas de
   revisão, `recommend_citations` e `sanitize_bibtex` avisam que a checagem não terminou.
 
+### Mudanças de comportamento
+- **`search_papers` deixa de se anunciar como somente leitura** (`readOnlyHint: false`) em servidores com permissão de
+  escrita, porque `project` grava no projeto. Sem `project` ela continua sem gravar nada. Clientes que aprovam sozinhos
+  só ferramentas de leitura podem passar a pedir confirmação para a busca.
+- **Servidores sem permissão de escrita** deixam de listar os argumentos que gravam (`project` em `search_papers` e
+  `output_path` em `sanitize_bibtex`), tiram da descrição a frase sobre eles e anunciam essas ferramentas como somente leitura.
+- **O `projects.db` é migrado** para a versão 2 do esquema no primeiro uso (coluna `archived_at`), inclusive quando esse
+  primeiro uso é uma leitura; os dados são mantidos. Um arquivo que não é um banco do Noul deixa de ser convertido em um
+  por uma leitura.
+
 Os contratos só ganham campos; nenhum campo existente muda. Uma mudança de comportamento: se todos os artigos
 passados ao `evidence_meter` forem retratados, ele responde com erro 400 que lista os ids e os avisos de retratação,
 em vez de percentuais.
+
+## [2.0.1] — 2026-11
+
+Correção de segurança: veja o aviso publicado na aba *Security* do repositório. Atualize e reinicie os clientes que usam o
+Noul.
+
+### Mudanças incompatíveis
+- **`configure_noul` não aceita mais `workspace`**: o workspace muda só com `noul config --workspace` ou `NOUL_WORKSPACE`, e o
+  `clear` da ferramenta o preserva. `/noul-search-config workspace:...` deixa de funcionar pelo chat. `noul config --clear`
+  recusa outras configurações no mesmo comando.
+- **Um `workspace` salvo antes desta versão deixa de valer** até ser confirmado com `noul config --workspace PASTA`:
+  `noul config` mostra o valor ignorado em `workspace_ignored`, e `workspace_source` indica de onde vem o atual.
+- **Sem workspace definido, a pasta pessoal agora é tratada como a raiz do disco**: o padrão vira `~/Documents/Noul`.
+- **`/noul-search-config` não executa mais comandos no terminal**: mostra o comando para você rodar.
+- **`sanitize_bibtex(output_path=...)` só grava arquivos `.bib`**.
+- **Servidores sem permissão de escrita não leem arquivos locais**: nas ferramentas que aceitam texto ou caminho, eles só
+  aceitam o texto.
+- **Pastas e arquivos ocultos do workspace e a pasta do próprio Noul são recusados** nas ferramentas que leem ou gravam
+  arquivos.
 
 ## [2.0.0] — 2026-11
 

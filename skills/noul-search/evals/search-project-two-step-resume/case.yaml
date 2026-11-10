@@ -1,6 +1,7 @@
 schema_version: "1.1"
 name: search-project-two-step-resume
 expected_outcome: |
-  A persistent research project created with project_create, candidate papers added with project_add_papers,
+  A persistent research project created with project_create, the searches logged in it with
+  search_papers(project=...) so their results become candidates (project_add_papers for papers found another way),
   inclusion/exclusion decisions with reasons via project_set_status, a note via project_note, and the project
   shown again via project_get (or the noul://project resource) with papers, statuses, reasons and the note.

@@ -41,9 +41,9 @@ class McpServerTests(unittest.TestCase):
             async with self.client(build_server(profile=profile, allow_write=allow_write)) as c:
                 return {t.name for t in (await c.list_tools()).tools}
 
-        self.assertEqual(len(run(names, "all", True)), 48)
+        self.assertEqual(len(run(names, "all", True)), 50)
         research = run(names, "research", True)
-        self.assertEqual(len(research), 24)
+        self.assertEqual(len(research), 26)
         self.assertTrue({"save_research_dossier", "download_papers"} <= research)  # the research flow saves
         self.assertIn("search_papers", research)
         self.assertNotIn("review_paper", research)
@@ -61,13 +61,33 @@ class McpServerTests(unittest.TestCase):
         tools = run(tools)
         search = tools["search_papers"]
         self.assertEqual(search.title, "Search papers")
-        self.assertTrue(search.annotations.read_only_hint)
+        self.assertFalse(search.annotations.read_only_hint)  # `project` logs the search in a research project
+        self.assertIn("project", search.input_schema["properties"])
         self.assertTrue(search.annotations.open_world_hint)
         self.assertFalse(tools["download_papers"].annotations.read_only_hint)
         self.assertTrue(tools["configure_noul"].annotations.destructive_hint)
         self.assertIsNotNone(tools["sanitize_bibtex"].output_schema)
         self.assertIsNone(search.output_schema)
         self.assertEqual(search.input_schema["required"], ["query"])
+
+    def test_a_server_without_write_access_offers_read_tools_without_their_write_arguments(self):
+        from noul.server.mcp import build_server
+
+        async def tools():
+            async with self.client(build_server(allow_write=False)) as c:
+                listed = {t.name: t for t in (await c.list_tools()).tools}
+                refused = await c.call_tool("search_papers", {"query": "creatine memory", "project": "any"})
+                return listed, refused
+
+        listed, refused = run(tools)
+        for name, arg in (("search_papers", "project"), ("sanitize_bibtex", "output_path")):
+            with self.subTest(tool=name):
+                self.assertNotIn(arg, listed[name].input_schema["properties"])
+                self.assertNotIn(f"`{arg}`", listed[name].description)  # nor a description of what it would do
+                self.assertTrue(listed[name].annotations.read_only_hint)
+                self.assertFalse(listed[name].annotations.destructive_hint)
+        self.assertTrue(refused.is_error)
+        self.assertTrue(refused.content[0].text.startswith("PermissionError:"))
 
     def test_call_returns_structured_content_and_errors_are_flagged(self):
         from noul.server.mcp import build_server

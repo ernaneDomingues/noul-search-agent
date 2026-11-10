@@ -5,7 +5,7 @@ MCP `inputSchema` from them (`registry.input_schema`). Edit the model, never a J
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 
 class _StrictModel(BaseModel):
@@ -66,6 +66,12 @@ class SearchPapersInput(_ToolInput):
     )
     clarify: bool | None = Field(
         False, description="If the query is broad, add `clarification_suggested` questions to the response."
+    )
+    project: str | None = Field(
+        None,
+        min_length=1,
+        max_length=120,
+        description="Research project slug: log this search in it and add the returned papers as candidates",
     )
 
 
@@ -536,6 +542,30 @@ class ProjectCreateInput(_ToolInput):
 
 class ProjectListInput(_ToolInput):
     """Arguments of `project_list`."""
+
+    include_archived: bool | None = Field(False, description="True also lists archived projects")
+
+
+class ProjectArchiveInput(_ToolInput):
+    """Arguments of `project_archive`."""
+
+    project: str = _PROJECT
+    archived: bool | None = Field(True, description="False restores an archived project")
+
+
+class ProjectDeleteInput(_ToolInput):
+    """Arguments of `project_delete`."""
+
+    project: str = Field(
+        ..., min_length=1, max_length=60, description="The exact project slug (from project_list); no id or title"
+    )
+    # Strict: only the JSON boolean confirms a deletion, never a string or number that reads as true.
+    confirm: StrictBool = Field(
+        False, description="True deletes. False (default) deletes nothing and returns what would be deleted"
+    )
+    preview_token: str | None = Field(
+        None, min_length=1, max_length=64, description="With confirm: the `preview_token` the preview call returned"
+    )
 
 
 class ProjectGetInput(_ToolInput):

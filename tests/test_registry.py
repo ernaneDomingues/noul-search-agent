@@ -55,7 +55,9 @@ class ContractTests(unittest.TestCase):
 
         from noul import api, registry
 
-        self.assertEqual(len(registry.REGISTRY), 48)  # 41 v1 tools + 6 project_* tools (3b-2) + zotero_push (4b)
+        self.assertEqual(
+            len(registry.REGISTRY), 50
+        )  # 41 v1 tools + 6 project_* (3b-2) + zotero_push (4b) + archive/delete (4c)
         for name, tool in registry.REGISTRY.items():
             with self.subTest(tool=name):
                 self.assertIs(getattr(api, name), tool.fn)
@@ -76,6 +78,8 @@ class ContractTests(unittest.TestCase):
                 "project_add_papers",
                 "project_set_status",
                 "project_note",
+                "project_archive",
+                "project_delete",
                 "zotero_push",
             },
         )
@@ -131,8 +135,8 @@ class ContractTests(unittest.TestCase):
         from noul import registry
 
         names = {p: {t["name"] for t in registry.catalog(p)} for p in registry.PROFILES}
-        self.assertEqual(len(names["all"]), 48)
-        self.assertEqual(len(names["research"]), 24)
+        self.assertEqual(len(names["all"]), 50)
+        self.assertEqual(len(names["research"]), 26)
         self.assertLess(names["research"], names["review"])
         self.assertLess(names["research"], names["write"])
         self.assertEqual(names["review"] | names["write"], names["all"])
@@ -146,15 +150,26 @@ class ContractTests(unittest.TestCase):
 
         tools = {t["name"]: t["annotations"] for t in registry.catalog()}
         self.assertEqual(
-            tools["search_papers"],
+            tools["get_paper"],
             {
-                "title": "Search papers",
+                "title": "Get paper",
                 "readOnlyHint": True,
                 "destructiveHint": False,
                 "idempotentHint": True,
                 "openWorldHint": True,
             },
         )
+        described = {t["name"]: t["description"] for t in registry.catalog()}
+        for tool in registry.REGISTRY.values():  # every write argument is optional and explained
+            for arg in tool.write_args:
+                with self.subTest(tool=tool.name, arg=arg):
+                    self.assertFalse(tool.input.model_fields[arg].is_required())
+                    self.assertIn(f"`{arg}`", described[tool.name])
+        self.assertFalse(tools["search_papers"]["readOnlyHint"])  # writes with project
+        self.assertFalse(tools["search_papers"]["destructiveHint"])  # it only adds candidates and a log entry
+        self.assertTrue(tools["project_delete"]["destructiveHint"])
+        self.assertFalse(tools["project_delete"]["idempotentHint"])
+        self.assertFalse(tools["project_archive"]["destructiveHint"])  # reversible
         self.assertFalse(tools["download_papers"]["readOnlyHint"])
         self.assertFalse(tools["sanitize_bibtex"]["readOnlyHint"])  # writes with output_path
         self.assertTrue(tools["configure_noul"]["destructiveHint"])
@@ -171,7 +186,7 @@ class ContractTests(unittest.TestCase):
         from noul import registry
 
         with_schema = {t["name"] for t in registry.catalog() if t["outputSchema"]}
-        self.assertEqual(len(with_schema), 22)
+        self.assertEqual(len(with_schema), 24)
         sample = registry.call(
             "generate_manuscript_blueprint", {"topic": "Sparse attention", "hypothesis": "It is faster"}
         )

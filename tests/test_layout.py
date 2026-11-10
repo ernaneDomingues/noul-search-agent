@@ -113,7 +113,7 @@ class LauncherTests(unittest.TestCase):
                         env={k: v for k, v in os.environ.items() if k != "PYTHONPATH"},
                     )
                     self.assertEqual(result.returncode, 0, result.stderr)
-                    self.assertIn(f"{name} 2.0.0", result.stdout)
+                    self.assertIn(f"{name} 2.1.0", result.stdout)
                     self.assertNotIn("planted", result.stdout + result.stderr)
 
     def test_installer_falls_back_to_the_absolute_launchers(self):

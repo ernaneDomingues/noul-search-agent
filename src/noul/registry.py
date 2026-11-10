@@ -45,6 +45,12 @@ class Tool:
     file_args: tuple[str, ...] = ()
     # Arguments naming a local folder to read from, which clients of a server without write access cannot choose.
     folder_args: tuple[str, ...] = ()
+    # What the write arguments do: part of the description only where the server offers them.
+    write_note: str = ""
+
+
+def full_description(tool: Tool) -> str:
+    return f"{tool.description} {tool.write_note}" if tool.write_note else tool.description
 
 
 REGISTRY: dict[str, Tool] = {}
@@ -104,12 +110,18 @@ def tool(
     destructive: bool = False,
     title: str | None = None,
     idempotent: bool | None = None,
+    write_note: str = "",
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Register the decorated function as tool `name` (the function itself is returned unchanged)."""
 
     def register(fn: Callable[..., Any]) -> Callable[..., Any]:
         if name in REGISTRY:
             raise ValueError(f"tool {name!r} registered twice")
+        if write_note and not write_args:
+            raise ValueError(f"tool {name!r}: write_note needs write_args")
+        required = [a for a in write_args if a in input.model_fields and input.model_fields[a].is_required()]
+        if required:  # servers without write access drop these arguments from the schema
+            raise ValueError(f"tool {name!r}: write arguments must be optional ({', '.join(required)})")
         REGISTRY[name] = Tool(
             name,
             description,
@@ -125,6 +137,7 @@ def tool(
             idempotent,
             tuple(file_args),
             tuple(folder_args),
+            write_note,
         )
         return fn
 
@@ -215,7 +228,7 @@ def catalog(profile: str | None = None) -> list[dict[str, Any]]:
         {
             "name": t.name,
             "title": tool_title(t),
-            "description": t.description,
+            "description": full_description(t),
             "inputSchema": input_schema(t.name),
             "outputSchema": output_schema(t.name),
             "annotations": tool_annotations(t),

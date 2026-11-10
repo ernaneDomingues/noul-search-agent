@@ -72,7 +72,22 @@ def visible_tools(profile=None, allow_write=True, public=False):
         for t in _registry.catalog(profile)
         if (allow_write or not t["writes"]) and not (public and t["name"] in PUBLIC_HIDDEN_TOOLS)
     ]
+    if not allow_write:
+        tools = [_without_write_args(t) for t in tools]
     return [_with_public_bounds(t) for t in tools] if public else tools
+
+
+def _without_write_args(tool):
+    """A read tool as a server without write access offers it: the arguments that would make it write (e.g.
+    `project` of search_papers, refused on such a server) leave the schema, and the hints say it only reads."""
+    if not tool["write_args"]:
+        return tool
+    schema = copy.deepcopy(tool["inputSchema"])
+    for key in tool["write_args"]:
+        schema["properties"].pop(key, None)
+    annotations = {**tool["annotations"], "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True}
+    description = _registry.REGISTRY[tool["name"]].description  # without the note on the write arguments
+    return {**tool, "description": description, "inputSchema": schema, "annotations": annotations}
 
 
 def _with_public_bounds(tool):
@@ -203,7 +218,7 @@ def resolve_profile(cli_value, default):
 # Per-call caps on the public connector (cost/abuse control): integers are lowered, lists are truncated.
 # A cap of None removes the argument: `project` reads the server-side store, like the hidden `project_get`.
 PUBLIC_ARG_CAPS: dict[str, dict[str, int | None]] = {
-    "search_papers": {"limit": 25, "exclude_ids": 200},
+    "search_papers": {"limit": 25, "exclude_ids": 200, "project": None},
     "related_papers": {"limit": 25},
     "get_paper_references": {"limit": 25},
     "query_fulltexts": {"ids": 5},
