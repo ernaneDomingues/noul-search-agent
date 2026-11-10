@@ -1,6 +1,6 @@
 {
   "name": "noul-search-agent",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Scientific research co-assistant (MCP server, CLI, skill and subagent) across CS/AI, Biomedical, Economics & STEM: 47 MCP tools for literature search, Evidence Meter, persistent research projects, technical extraction, peer-review evidence, code/protocol scaffolding, academic writing and pre-submission checks. Runs through uv (installs Python and dependencies automatically).",
   "license": "Apache-2.0",
   "author": "Ernane Domingues",

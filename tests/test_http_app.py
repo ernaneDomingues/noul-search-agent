@@ -138,7 +138,7 @@ class HttpAppTests(unittest.TestCase):
             self.assertEqual(c.post("/tools/nope", json={}, headers=AUTH).status_code, 404)
             self.assertEqual(c.post("/tools/search_papers", json={"query": 3}, headers=AUTH).status_code, 400)
         with client(profile="all") as c:
-            self.assertEqual(len(c.get("/tools", headers=AUTH).json()["tools"]), 39)  # 48 minus 9 write tools
+            self.assertEqual(len(c.get("/tools", headers=AUTH).json()["tools"]), 39)  # 50 minus 11 write tools
 
     def test_writes_need_token_and_explicit_opt_in(self):
         args = {"bibtex_input": "@misc{a, title={T}}", "output_path": "out.bib"}

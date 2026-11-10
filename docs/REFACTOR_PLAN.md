@@ -116,6 +116,17 @@ Os arquivos da raiz `noul_core.py`, `noul_tools.py`, `noul_mcp.py`, `noul_cli.py
 - Detecção de retratações via Crossref `update-to` e ligação entre preprint e versão publicada.
 - UI própria ou extensão do VS Code: decisão adiada, só se o MCP não cobrir a necessidade.
 
+**Estado: concluída na 2.1.0**, em três PRs:
+- **4a (#42):** retratações (OpenAlex, PubMed, Europe PMC e Crossref) e ligação entre preprint e versão publicada.
+- **4b (#43):** CSL-JSON, exportação de projetos e `zotero_push`.
+- **4c:** `project_archive` e `project_delete`, histórico de buscas com `search_papers(project=...)` e a eval de
+  instrução plantada num parecer.
+
+**MCP *sampling*: decidido não implementar** (03/11/2026). Os clientes do Noul já são agentes com LLM, que leem a
+rubrica devolvida pela ferramenta e julgam sozinhos; quase nenhum cliente oferece *sampling*, e usá-lo poria o Noul
+a pedir vereditos a um modelo, o que contraria a premissa de não ter LLM próprio. Reabrir só se surgir um cliente
+sem agente que precise disso.
+
 ## Arquivos críticos
 
 `noul_core.py`, `noul_tools.py`, `noul_mcp.py`, `noul_cli.py`, `install.py`, `noul/core.py`, `noul/tools/*.py`, `noul/schemas/_compat.py`, `pyproject.toml`, `scripts/build_site.py`, `skills/noul-search/SKILL.md`, `agents/*.md`, `.claude-plugin/plugin.json` (o `mcpServers` passa a usar `noul-mcp`/`uvx`), `Dockerfile`, `.github/workflows/ci.yml`, `tests/_support.py`.

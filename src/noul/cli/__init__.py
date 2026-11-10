@@ -28,7 +28,8 @@ Usage:
   noul dossier save --topic "Topic" --file report.md [--ids ID1,ID2] [--dir ./research]
   noul dossier list [--dir ./research]
   noul dossier show SLUG [--dir ./research]
-  noul project create "Title" [--question Q] | list | show PROJECT
+  noul project create "Title" [--question Q] | list [--all] | show PROJECT
+  noul project archive PROJECT [--undo] | delete SLUG [--yes]
   noul project add PROJECT ID1,ID2 [--status candidate|included|excluded] [--reason R]
   noul project status PROJECT ID1,ID2 included|excluded|candidate --reason R
   noul project note PROJECT "text" [--paper ID]
@@ -198,6 +199,7 @@ def main(argv=None):
     s.add_argument("--limit", type=int, default=15, help="papers per page, 1-40 (default: 15)")
     s.add_argument("--offset", type=int, default=0, help="results to skip, >= 0")
     s.add_argument("--domain", help=DOMAIN_HELP)
+    s.add_argument("--project", help="Log the search in this research project and add the results as candidates")
     s.add_argument("--pretty", action="store_true")
     s.add_argument(
         "--interactive",
@@ -431,7 +433,14 @@ def main(argv=None):
     p_create = proj_sub.add_parser("create")
     p_create.add_argument("title")
     p_create.add_argument("--question", default=None)
-    proj_sub.add_parser("list")
+    p_list = proj_sub.add_parser("list")
+    p_list.add_argument("--all", action="store_true", help="Include archived projects")
+    p_archive = proj_sub.add_parser("archive", help="Hide a project from the list (nothing is deleted)")
+    p_archive.add_argument("project")
+    p_archive.add_argument("--undo", action="store_true", help="Restore an archived project")
+    p_delete = proj_sub.add_parser("delete", help="Permanently delete a project (statuses, notes, search history)")
+    p_delete.add_argument("project", help="The exact project slug")
+    p_delete.add_argument("--yes", action="store_true", help="Delete; without it, only show what would be deleted")
     p_show = proj_sub.add_parser("show")
     p_show.add_argument("project")
     p_show.add_argument("--pretty", action="store_true", help="Markdown summary")
@@ -526,6 +535,7 @@ def main(argv=None):
                 a.limit,
                 a.offset,
                 domain=a.domain,
+                project=a.project,
             )
             if refined:
                 out["clarification"] = {
@@ -784,7 +794,17 @@ def main(argv=None):
             if a.project_cmd == "create":
                 out = _run("project_create", a.title, a.question)
             elif a.project_cmd == "list":
-                out = _run("project_list")
+                out = _run("project_list", a.all)
+            elif a.project_cmd == "archive":
+                out = _run("project_archive", a.project, not a.undo)
+            elif a.project_cmd == "delete":
+                out = _run("project_delete", a.project)  # the preview
+                if a.yes:
+                    out = _run("project_delete", a.project, True, out["preview_token"])
+                else:
+                    for key in ("next_step", "preview_token"):  # for a client model's second call
+                        out.pop(key, None)
+                    print("Nothing deleted: run the command again with --yes to delete this project.", file=sys.stderr)
             elif a.project_cmd == "show":
                 if a.pretty:
                     from noul import api as _api

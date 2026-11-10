@@ -16,12 +16,15 @@ from noul.schemas.code import CodeScaffold
 from noul.schemas.evidence import AnalysisResult
 from noul.schemas.fulltext import FulltextResult, QueryFulltextsResult
 from noul.schemas.project import (
+    ProjectArchived,
     ProjectCreated,
+    ProjectDeleted,
     ProjectDetail,
     ProjectList,
     ProjectNoteAdded,
     ProjectPapersChange,
     ProjectStatusChange,
+    ProjectSummary,
     ZoteroPushResult,
 )
 from noul.schemas.review import PeerReviewReport
@@ -40,12 +43,15 @@ __all__ = [
     "FulltextResult",
     "ManuscriptBlueprint",
     "PeerReviewReport",
+    "ProjectArchived",
     "ProjectCreated",
+    "ProjectDeleted",
     "ProjectDetail",
     "ProjectList",
     "ProjectNoteAdded",
     "ProjectPapersChange",
     "ProjectStatusChange",
+    "ProjectSummary",
     "QueryFulltextsResult",
     "RebuttalReport",
     "RelatedWorkSynthesis",

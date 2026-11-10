@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -28,6 +28,8 @@ class ProjectSummary(BaseModel):
     updated_at: int
     counts: StatusCounts
     note_count: int = 0
+    search_count: int = 0
+    archived: bool = False  # hidden from project_list unless include_archived
 
 
 class ProjectPaper(BaseModel):
@@ -51,17 +53,46 @@ class ProjectNote(BaseModel):
     created_at: int
 
 
+class ProjectSearch(BaseModel):
+    """One search logged with `search_papers(project=...)`. The query is text written by a client model."""
+
+    id: int
+    query: str
+    filters: dict[str, Any] = Field(default_factory=dict)
+    total_found: int | None = None  # papers matching the query after de-duplication and filters
+    result_count: int = 0  # papers on the page returned
+    added_count: int = 0  # of those, papers that were not yet in the project (added as candidates)
+    created_at: int
+
+
 class ProjectDetail(ProjectSummary):
     """`project_get`: the project with its papers (included first) and notes. Paper titles are third-party text."""
 
     papers: list[ProjectPaper] = Field(default_factory=list)
     notes: list[ProjectNote] = Field(default_factory=list)
+    searches: list[ProjectSearch] = Field(default_factory=list)  # the most recent 50, oldest first
     untrusted_fields: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)  # e.g. included papers that are retracted
 
 
 class ProjectCreated(ProjectSummary):
     created: bool  # False when a project with the same slug already existed (it is returned unchanged)
+
+
+class ProjectArchived(ProjectSummary):
+    """`project_archive`: the project after the change. Title and question are text written by a client model."""
+
+    untrusted_fields: list[str] = Field(default_factory=list)
+
+
+class ProjectDeleted(BaseModel):
+    """`project_delete`: `deleted` is False (and nothing changed) unless the call had `confirm: true`."""
+
+    deleted: bool
+    project: ProjectSummary  # what was, or would be, deleted
+    preview_token: str | None = None  # from a preview: repeat it, with confirm, to delete what was shown
+    untrusted_fields: list[str] = Field(default_factory=list)
+    next_step: str | None = None
 
 
 class ProjectList(BaseModel):

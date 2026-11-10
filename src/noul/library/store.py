@@ -1,5 +1,5 @@
 """Persistent research projects (v2 Phase 3b): a question, the papers considered for it with an inclusion
-status and reason, notes, and (for later use) searches, extractions and drafts.
+status and reason, notes, the searches that found them, and (for later use) extractions and drafts.
 
 One SQLite file per user next to config.json (`projects.db`, overridable with NOUL_PROJECTS_DB), separate from
 the HTTP cache: the cache table is pruned on hosted instances (NOUL_CACHE_MAX_ROWS), a project must never be.
@@ -7,6 +7,8 @@ The schema is versioned (`schema_version`) and migrated forward on first use; mi
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
 import re
@@ -89,6 +91,13 @@ MIGRATIONS: list[tuple[int, str]] = [
         CREATE INDEX notes_project ON notes(project_id, created_at);
         """,
     ),
+    (
+        2,
+        """
+        ALTER TABLE projects ADD COLUMN archived_at INTEGER;
+        CREATE INDEX searches_project ON searches(project_id, created_at);
+        """,
+    ),
 ]
 SCHEMA_VERSION = MIGRATIONS[-1][0]
 
@@ -103,8 +112,15 @@ class ReadOnlyStoreMissing(FileNotFoundError):
     """No projects.db yet (read tools return empty results instead of creating it)."""
 
 
+class StoreNeedsMigration(sqlite3.OperationalError):
+    """The store was written by an older version: a read falls back to a writable connection, which migrates it."""
+
+
 MAX_PROJECTS = 1000
 MAX_NOTES_PER_PROJECT = 5000
+MAX_SEARCHES_PER_PROJECT = 2000
+MAX_QUERY = 2000
+SEARCH_HISTORY = 50  # most recent searches shown by get_project (`search_count` has the total)
 
 
 def db_path() -> Path:
@@ -143,10 +159,21 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.isolation_level = previous
 
 
+def _readonly_version(conn: sqlite3.Connection) -> int:
+    try:
+        return conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0] or 0
+    except sqlite3.OperationalError:
+        if conn.execute("SELECT COUNT(*) FROM sqlite_master").fetchone()[0] == 0:
+            raise ReadOnlyStoreMissing("empty store") from None  # created but never written
+        raise  # some other database: reads do not turn it into a Noul store
+
+
 @contextmanager
 def _conn(readonly: bool = False) -> Iterator[sqlite3.Connection]:
-    """A connection to the store. `readonly` opens the file read-only (raises ReadOnlyStoreMissing when it does
-    not exist yet), so read tools never create or migrate it."""
+    """A connection to the store. `readonly` opens the file read-only, so read tools never create it (they raise
+    ReadOnlyStoreMissing when it does not exist yet) and never change its data. One exception: a store written
+    by an older version raises StoreNeedsMigration, and the readers then open it once for writing to migrate
+    the schema (fixed DDL, no caller data)."""
     path = db_path()
     if readonly:
         if not path.is_file():
@@ -163,6 +190,8 @@ def _conn(readonly: bool = False) -> Iterator[sqlite3.Connection]:
             _private(path)
             with _lock:  # cheap when up to date (one SELECT); a deleted file is re-created at the current version
                 _migrate(conn)
+        elif _readonly_version(conn) < SCHEMA_VERSION:  # a newer store is read as it is
+            raise StoreNeedsMigration(str(path))
         yield conn
         conn.commit()
     finally:
@@ -234,6 +263,7 @@ def _counts(conn: sqlite3.Connection, project_id: int) -> dict[str, int]:
 
 def _summary(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
     notes = conn.execute("SELECT COUNT(*) FROM notes WHERE project_id = ?", (row["id"],)).fetchone()[0]
+    searches = conn.execute("SELECT COUNT(*) FROM searches WHERE project_id = ?", (row["id"],)).fetchone()[0]
     return {
         "id": row["id"],
         "slug": row["slug"],
@@ -243,6 +273,8 @@ def _summary(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
         "updated_at": row["updated_at"],
         "counts": _counts(conn, row["id"]),
         "note_count": notes,
+        "search_count": searches,
+        "archived": row["archived_at"] is not None,
     }
 
 
@@ -292,18 +324,23 @@ def create_project(title: str, question: str | None = None, slug: str | None = N
         return {**_summary(conn, _project_row(conn, slug)), "created": True}
 
 
-def list_projects() -> list[dict[str, Any]]:
+def list_projects(include_archived: bool = False) -> list[dict[str, Any]]:
+    """Projects, most recently updated first; archived ones only with `include_archived`."""
+    where = "" if include_archived else "WHERE archived_at IS NULL "
+
+    def rows_of(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+        rows = conn.execute(f"SELECT * FROM projects {where}ORDER BY updated_at DESC, id DESC").fetchall()
+        return [_summary(conn, r) for r in rows]
+
     try:
         with _conn(readonly=True) as conn:
-            rows = conn.execute("SELECT * FROM projects ORDER BY updated_at DESC, id DESC").fetchall()
-            return [_summary(conn, r) for r in rows]
+            return rows_of(conn)
     except ReadOnlyStoreMissing:
         return []
-    except sqlite3.OperationalError:  # a store created by an older version: migrate it once
+    except StoreNeedsMigration:
         pass
     with _conn() as conn:
-        rows = conn.execute("SELECT * FROM projects ORDER BY updated_at DESC, id DESC").fetchall()
-        return [_summary(conn, r) for r in rows]
+        return rows_of(conn)
 
 
 def get_project(ref: str | int, include_papers: bool = True) -> dict[str, Any]:
@@ -313,7 +350,7 @@ def get_project(ref: str | int, include_papers: bool = True) -> dict[str, Any]:
             return _detail(conn, ref, include_papers)
     except ReadOnlyStoreMissing:
         raise ProjectNotFound(str(ref)) from None
-    except sqlite3.OperationalError:  # a store created by an older version: migrate it once
+    except StoreNeedsMigration:
         with _conn() as conn:
             return _detail(conn, ref, include_papers)
 
@@ -351,24 +388,59 @@ def _detail(conn: sqlite3.Connection, ref: str | int, include_papers: bool) -> d
         {"id": n["id"], "paper_id": n["paper_id"], "text": n["text"], "created_at": n["created_at"]}
         for n in conn.execute("SELECT * FROM notes WHERE project_id = ? ORDER BY created_at, id", (row["id"],))
     ]
+    recent = conn.execute(
+        "SELECT * FROM searches WHERE project_id = ? ORDER BY created_at DESC, id DESC LIMIT ?",
+        (row["id"], SEARCH_HISTORY),
+    ).fetchall()
+    out["searches"] = [_search_entry(s) for s in reversed(recent)]
     return out
+
+
+def _json(text: str | None, kind: type) -> Any:
+    """A stored JSON value of the expected type, or an empty one (a damaged row must not hide the project)."""
+    try:
+        value = json.loads(text or "null")
+    except ValueError:
+        return kind()
+    return value if isinstance(value, kind) else kind()
+
+
+def _search_entry(row: sqlite3.Row) -> dict[str, Any]:
+    params = _json(row["params_json"], dict)
+    filters, total, added = params.get("filters"), params.get("total_found"), params.get("added_count")
+    return {
+        "id": row["id"],
+        "query": row["query"],
+        "filters": filters if isinstance(filters, dict) else {},
+        "total_found": total if isinstance(total, int) else None,
+        "result_count": len(_json(row["result_ids_json"], list)),
+        "added_count": added if isinstance(added, int) else 0,
+        "created_at": row["created_at"],
+    }
 
 
 def project_records(ref: str | int, status: str = "included") -> list[dict[str, Any]]:
     """The stored paper records of a project (`status` or "all"), ordered like `get_project`."""
     wanted = None if status == "all" else _status(status)
+
+    def rows_of(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+        row = _project_row(conn, ref)
+        return conn.execute(
+            "SELECT pp.paper_id, pp.status, p.metadata_json FROM project_papers pp "
+            "JOIN papers p ON p.id = pp.paper_id WHERE pp.project_id = ? "
+            "ORDER BY CASE pp.status WHEN 'included' THEN 0 WHEN 'candidate' THEN 1 ELSE 2 END, "
+            "pp.added_at, pp.paper_id",
+            (row["id"],),
+        ).fetchall()
+
     try:
         with _conn(readonly=True) as conn:
-            row = _project_row(conn, ref)
-            rows = conn.execute(
-                "SELECT pp.paper_id, pp.status, p.metadata_json FROM project_papers pp "
-                "JOIN papers p ON p.id = pp.paper_id WHERE pp.project_id = ? "
-                "ORDER BY CASE pp.status WHEN 'included' THEN 0 WHEN 'candidate' THEN 1 ELSE 2 END, "
-                "pp.added_at, pp.paper_id",
-                (row["id"],),
-            ).fetchall()
+            rows = rows_of(conn)
     except ReadOnlyStoreMissing:
         raise ProjectNotFound(str(ref)) from None
+    except StoreNeedsMigration:
+        with _conn() as conn:
+            rows = rows_of(conn)
     return [{**json.loads(r["metadata_json"]), "id": r["paper_id"]} for r in rows if wanted in (None, r["status"])]
 
 
@@ -386,26 +458,109 @@ def add_papers(ref: str | int, papers: list[dict], status: str = "candidate", re
     reason = _clip(reason, MAX_REASON) or None
     if len(papers) > MAX_IDS:
         raise ValueError(f"at most {MAX_IDS} papers per call")
+    with _conn() as conn:
+        row = _project_row(conn, ref)
+        added, already = _add(conn, row["id"], papers, status, reason)
+        _touch(conn, row["id"])
+        return {"project": _summary(conn, _project_row(conn, row["slug"])), "added": added, "already_present": already}
+
+
+def _add(
+    conn: sqlite3.Connection, project_id: int, papers: list[dict], status: str, reason: str | None
+) -> tuple[list[str], list[str]]:
+    """(ids added, ids already in the project): records are stored or refreshed, existing statuses are kept."""
     now = _now()
     added: list[str] = []
     already: list[str] = []
+    for paper in papers:
+        pid = str(paper["id"])
+        conn.execute(
+            "INSERT INTO papers (id, metadata_json, updated_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(id) DO UPDATE SET metadata_json = excluded.metadata_json, updated_at = excluded.updated_at",
+            (pid, json.dumps(paper, ensure_ascii=False, default=str), now),
+        )
+        cur = conn.execute(
+            "INSERT OR IGNORE INTO project_papers (project_id, paper_id, status, reason, added_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (project_id, pid, status, reason, now, now),
+        )
+        (added if cur.rowcount else already).append(pid)
+    return added, already
+
+
+def record_search(ref: str | int, query: str, filters: dict[str, Any], total_found: int, papers: list[dict]) -> dict:
+    """Log a search in the project and add the papers it returned as candidates, in one transaction. Papers
+    already in the project keep their status. The log is the project's search history (query, filters, how many
+    were found, returned and new), so the screening can be reported afterwards."""
+    query = _clip(query, MAX_QUERY) or ""
+    if not query:
+        raise ValueError("query must not be empty")
+    if len(papers) > MAX_IDS:
+        raise ValueError(f"at most {MAX_IDS} papers per call")
     with _conn() as conn:
         row = _project_row(conn, ref)
-        for paper in papers:
-            pid = str(paper["id"])
-            conn.execute(
-                "INSERT INTO papers (id, metadata_json, updated_at) VALUES (?, ?, ?) "
-                "ON CONFLICT(id) DO UPDATE SET metadata_json = excluded.metadata_json, updated_at = excluded.updated_at",
-                (pid, json.dumps(paper, ensure_ascii=False, default=str), now),
-            )
-            cur = conn.execute(
-                "INSERT OR IGNORE INTO project_papers (project_id, paper_id, status, reason, added_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (row["id"], pid, status, reason, now, now),
-            )
-            (added if cur.rowcount else already).append(pid)
+        logged = conn.execute("SELECT COUNT(*) FROM searches WHERE project_id = ?", (row["id"],)).fetchone()[0]
+        if logged >= MAX_SEARCHES_PER_PROJECT:
+            raise ValueError(f"at most {MAX_SEARCHES_PER_PROJECT} searches per project")
+        label = query if len(query) <= 200 else query[:200] + "…"
+        added, already = _add(conn, row["id"], papers, "candidate", f"Found by the search: {label}")
+        params = {"filters": filters, "total_found": int(total_found), "added_count": len(added)}
+        cur = conn.execute(
+            "INSERT INTO searches (project_id, query, params_json, result_ids_json, created_at) VALUES (?, ?, ?, ?, ?)",
+            (
+                row["id"],
+                query,
+                json.dumps(params, ensure_ascii=False, default=str),
+                json.dumps([str(p["id"]) for p in papers]),
+                _now(),
+            ),
+        )
         _touch(conn, row["id"])
-        return {"project": _summary(conn, _project_row(conn, row["slug"])), "added": added, "already_present": already}
+        return {
+            "project": _summary(conn, _project_row(conn, row["slug"])),
+            "search_id": cur.lastrowid,
+            "added": added,
+            "already_present": already,
+        }
+
+
+def archive_project(ref: str | int, archived: bool = True) -> dict[str, Any]:
+    """Hide a project from the default list (or bring it back). Nothing is deleted and it stays readable and
+    writable by slug."""
+    with _conn() as conn:
+        row = _project_row(conn, ref)
+        if (row["archived_at"] is not None) != archived:
+            conn.execute("UPDATE projects SET archived_at = ? WHERE id = ?", (_now() if archived else None, row["id"]))
+        return _summary(conn, _project_row(conn, row["slug"]))
+
+
+def _preview_token(summary: dict[str, Any]) -> str:
+    """Names the state of a project that a delete preview showed. Not a secret: it only ties the deletion to a
+    preview of the same state, so nothing is deleted unseen or after it changed."""
+    state = json.dumps([summary[k] for k in ("id", "slug", "updated_at", "counts", "note_count", "search_count")])
+    return hashlib.sha256(state.encode()).hexdigest()[:16]
+
+
+def delete_project(ref: str | int, token: str | None = None) -> dict[str, Any]:
+    """Delete a project with its paper statuses, reasons, notes and search history. `ref` must be the exact slug
+    (no fuzzy or numeric lookup: a near miss must not delete another project). Without `token` nothing is
+    deleted: the result says what would be and carries the `preview_token` the deleting call must repeat (it
+    stops matching when the project changes). Paper records no other project uses are removed too."""
+    with _conn() as conn:
+        row = conn.execute("SELECT * FROM projects WHERE slug = ?", (str(ref),)).fetchone()
+        if row is None:
+            raise ProjectNotFound(str(ref))
+        summary = _summary(conn, row)
+        if token is None:
+            return {"deleted": False, "project": summary, "preview_token": _preview_token(summary)}
+        if not hmac.compare_digest(str(token), _preview_token(summary)):
+            raise ValueError(
+                "preview_token does not match the project as it is now: call project_delete without confirm, "
+                "show the user what would be deleted, then repeat with the preview_token it returns"
+            )
+        conn.execute("DELETE FROM projects WHERE id = ?", (row["id"],))  # children go with it (ON DELETE CASCADE)
+        conn.execute("DELETE FROM papers WHERE id NOT IN (SELECT paper_id FROM project_papers)")
+        return {"deleted": True, "project": summary}
 
 
 def set_status(ref: str | int, paper_ids: list[str], status: str, reason: str | None = None) -> dict:
@@ -457,7 +612,13 @@ def meta_get(key: str) -> str | None:
         with _conn(readonly=True) as conn:
             row = conn.execute("SELECT v FROM meta WHERE k = ?", (key,)).fetchone()
             return row["v"] if row else None
-    except (ReadOnlyStoreMissing, sqlite3.OperationalError):
+    except ReadOnlyStoreMissing:
+        return None
+    except StoreNeedsMigration:  # the flags of an older store still count: migrate it once
+        with _conn() as conn:
+            row = conn.execute("SELECT v FROM meta WHERE k = ?", (key,)).fetchone()
+            return row["v"] if row else None
+    except sqlite3.OperationalError:
         return None
 
 
