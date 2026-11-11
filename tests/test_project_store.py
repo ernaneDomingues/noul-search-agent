@@ -7,7 +7,7 @@ import re
 import sqlite3
 import threading
 import unittest
-from contextlib import redirect_stdout
+from contextlib import closing, redirect_stdout
 from unittest import mock
 
 import _support
@@ -46,7 +46,7 @@ class StoreTests(unittest.TestCase):
         self.store.create_project("First")
         if os.name == "posix":  # Windows has no POSIX modes; the user's profile ACLs apply there
             self.assertEqual(self.store.db_path().stat().st_mode & 0o777, 0o600)  # notes may be unpublished research
-        with sqlite3.connect(self.store.db_path()) as conn:
+        with closing(sqlite3.connect(self.store.db_path())) as conn, conn:
             versions = [r[0] for r in conn.execute("SELECT version FROM schema_version")]
             tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         self.assertEqual(versions, list(range(1, self.store.SCHEMA_VERSION + 1)))
@@ -63,7 +63,7 @@ class StoreTests(unittest.TestCase):
         ):
             self.store.create_project("Second")  # a write connection migrates
             self.store.create_project("Third")  # next connection: nothing to do
-            with sqlite3.connect(self.store.db_path()) as conn:
+            with closing(sqlite3.connect(self.store.db_path())) as conn, conn:
                 versions = [r[0] for r in conn.execute("SELECT version FROM schema_version")]
                 pinned = conn.execute("SELECT pinned FROM projects").fetchall()
         self.assertEqual(versions, list(range(1, current + 2)))
@@ -76,7 +76,7 @@ class StoreTests(unittest.TestCase):
         self.store.meta_set("dossiers_imported", "1")
 
         def downgrade():  # back to the 2.0 schema
-            with sqlite3.connect(self.store.db_path()) as conn:
+            with closing(sqlite3.connect(self.store.db_path())) as conn, conn:
                 conn.execute("DELETE FROM schema_version WHERE version > 1")
                 conn.execute("ALTER TABLE projects DROP COLUMN archived_at")
                 conn.execute("DROP INDEX searches_project")
@@ -131,7 +131,7 @@ class StoreTests(unittest.TestCase):
         token = self.store.delete_project("gone")["preview_token"]
         self.assertTrue(self.store.delete_project("gone", token)["deleted"])
         self.assertEqual([p["slug"] for p in self.store.list_projects()], [keep["slug"]])
-        with sqlite3.connect(self.store.db_path()) as conn:
+        with closing(sqlite3.connect(self.store.db_path())) as conn, conn:
             papers = [r[0] for r in conn.execute("SELECT id FROM papers")]
             leftovers = [
                 conn.execute(f"SELECT COUNT(*) FROM {t} WHERE project_id = ?", (gone["id"],)).fetchone()[0]
@@ -144,11 +144,11 @@ class StoreTests(unittest.TestCase):
 
     def test_reads_leave_other_newer_and_damaged_stores_alone(self):
         path = self.store.db_path()
-        with sqlite3.connect(path) as conn:  # some other application's database
+        with closing(sqlite3.connect(path)) as conn, conn:  # some other application's database
             conn.execute("CREATE TABLE theirs (x)")
         with self.assertRaises(sqlite3.OperationalError):
             self.store.list_projects()
-        with sqlite3.connect(path) as conn:
+        with closing(sqlite3.connect(path)) as conn, conn:
             self.assertEqual([r[0] for r in conn.execute("SELECT name FROM sqlite_master")], ["theirs"])
         path.unlink()
         sqlite3.connect(path).close()  # created, never written
@@ -156,7 +156,7 @@ class StoreTests(unittest.TestCase):
 
         slug = self.store.create_project("Newer")["slug"]
         self.store.record_search(slug, "q", {}, 0, [])
-        with sqlite3.connect(path) as conn:
+        with closing(sqlite3.connect(path)) as conn, conn:
             conn.execute("INSERT INTO schema_version (version) VALUES (99)")  # written by a later Noul
             conn.execute("UPDATE searches SET params_json = '[1', result_ids_json = '{}'")  # a damaged row
         before = path.read_bytes()
