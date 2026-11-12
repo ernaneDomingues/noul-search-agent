@@ -1,61 +1,61 @@
-# Conector público no Google Cloud Run
+# Public connector on Google Cloud Run
 
-O conector público é o servidor Noul em **modo público e só de leitura** (`NOUL_PUBLIC=1`). Qualquer pessoa pode usá-lo
-colando a URL `https://<serviço>/mcp` no Claude.ai, no Claude Desktop (Conectores) ou no ChatGPT (modo
-desenvolvedor), sem instalar nada.
+The public connector is the Noul server in **public, read-only mode** (`NOUL_PUBLIC=1`). Anyone can use it by
+pasting the URL `https://<service>/mcp` into Claude.ai, Claude Desktop (Connectors) or ChatGPT (developer mode),
+with nothing to install.
 
-- **O que expõe:** 12 ferramentas do perfil `research`. Ficam de fora as ferramentas que gravam arquivos e as que listam
-  ou leem dossiês salvos no servidor. Não há recursos MCP nem login.
-- **Transporte:** Streamable HTTP *stateless* com respostas JSON. Não há sessões nem streams SSE longos, então qualquer
-  instância atende qualquer requisição.
-- **Limites:**
-  - **chamadas de ferramenta por instância:** 300/min, com rajada de 60. É o controle de custo das APIs; quando estoura,
-    o modelo recebe `RateLimited: …` e sabe esperar;
-  - **chamadas simultâneas:** no máximo 8 por instância;
-  - **inundação por cliente:** proteção de 600 requisições/min por IP (IPv6 agrupado por /64). Os clientes hospedados
-    (Claude.ai, ChatGPT) compartilham IPs de saída, então esse não é o limite principal;
-  - **tetos por chamada, anunciados no schema:** 25 resultados por busca e 5 textos completos por pergunta. Listas acima
-    do teto são recusadas, e números acima dele são reduzidos com um aviso (`notice`).
-- **Memória:** o cache SQLite fica em `/tmp`, que no Cloud Run consome a RAM da instância. Por isso ele é limitado a
-  2.000 entradas (`NOUL_CACHE_MAX_ROWS`), e os downloads ficam limitados a 15 MB (`NOUL_MAX_DOWNLOAD_MB`).
-- **Custo:** escala a zero (`--min-instances 0`), então sem uso o custo é praticamente nulo. `--max-instances` limita o
-  gasto máximo.
-- **Dados:** o servidor não guarda dados de usuários.
+- **What it exposes:** 12 tools from the `research` profile. Tools that write files and tools that list or read
+  dossiers saved on the server are left out. There are no MCP resources and no login.
+- **Transport:** stateless Streamable HTTP with JSON responses. There are no sessions and no long SSE streams, so
+  any instance can serve any request.
+- **Limits:**
+  - **tool calls per instance:** 300/min, with a burst of 60. This is the cost control for the upstream APIs; when
+    it is exceeded, the model receives `RateLimited: …` and knows to wait;
+  - **concurrent calls:** at most 8 per instance;
+  - **per-client flooding:** a guard of 600 requests/min per IP (IPv6 grouped by /64). Hosted clients (Claude.ai,
+    ChatGPT) share egress IPs, so this is not the main limit;
+  - **per-call caps, announced in the schema:** 25 results per search and 5 full texts per question. Lists above
+    the cap are refused, and numbers above it are reduced with a `notice`.
+- **Memory:** the SQLite cache lives in `/tmp`, which on Cloud Run uses the instance's RAM. It is therefore limited
+  to 2,000 entries (`NOUL_CACHE_MAX_ROWS`), and downloads are limited to 15 MB (`NOUL_MAX_DOWNLOAD_MB`).
+- **Cost:** it scales to zero (`--min-instances 0`), so with no traffic the cost is close to nothing.
+  `--max-instances` caps the maximum spend.
+- **Data:** the server stores no user data.
 
-O deploy é feito pelo workflow `.github/workflows/deploy-connector.yml`, disparado manualmente ou a cada tag `v*`. Ele
-roda no *environment* `production`, que exige aprovação, e se autentica por **Workload Identity Federation**, sem chaves
-JSON. A configuração abaixo é feita **uma única vez**.
+Deployment is done by the workflow `.github/workflows/deploy-connector.yml`, triggered manually or by every `v*`
+tag. It runs in the `production` environment, which requires approval, and authenticates through **Workload Identity
+Federation**, with no JSON keys. The setup below is done **once**.
 
-## 1. Projeto e APIs
+## 1. Project and APIs
 
 ```bash
-export PROJECT_ID=noul-connector          # escolha um ID único
-export REGION=us-central1                 # ou southamerica-east1 (São Paulo)
+export PROJECT_ID=noul-connector          # pick a unique ID
+export REGION=us-central1                 # or southamerica-east1 (São Paulo)
 export GITHUB_REPO=ernaneDomingues/noul-search-agent
 export GITHUB_REPO_ID=1434740215           # gh api repos/$GITHUB_REPO -q .id
 export GITHUB_OWNER_ID=112431431           # gh api repos/$GITHUB_REPO -q .owner.id
 
-gcloud projects create "$PROJECT_ID"      # ou use um projeto existente
-gcloud billing projects link "$PROJECT_ID" --billing-account=<ID-DA-CONTA-DE-FATURAMENTO>
+gcloud projects create "$PROJECT_ID"      # or use an existing project
+gcloud billing projects link "$PROJECT_ID" --billing-account=<BILLING-ACCOUNT-ID>
 gcloud config set project "$PROJECT_ID"
 gcloud services enable run.googleapis.com artifactregistry.googleapis.com \
   iamcredentials.googleapis.com secretmanager.googleapis.com
 export PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
 ```
 
-## 2. Repositório de imagens
+## 2. Image repository
 
 ```bash
 gcloud artifacts repositories create noul --repository-format=docker --location="$REGION"
 ```
 
-## 3. Contas de serviço com permissões mínimas
+## 3. Service accounts with minimal permissions
 
-O deployer **não** recebe papéis amplos no projeto. Ele só pode:
+The deployer gets **no** broad roles on the project. It can only:
 
-- enviar imagens para o repositório `noul`;
-- implantar serviços Cloud Run (`run.developer`, que não altera IAM);
-- agir como a conta `noul-runtime`, e nenhuma outra.
+- push images to the `noul` repository;
+- deploy Cloud Run services (`run.developer`, which cannot change IAM);
+- act as the `noul-runtime` account, and no other.
 
 ```bash
 gcloud iam service-accounts create noul-deployer --display-name="Noul deployer"
@@ -71,14 +71,14 @@ gcloud iam service-accounts add-iam-policy-binding "$RUNTIME" \
   --member="serviceAccount:$DEPLOYER" --role=roles/iam.serviceAccountUser
 ```
 
-## 4. Workload Identity Federation (GitHub → GCP, sem chaves)
+## 4. Workload Identity Federation (GitHub → GCP, no keys)
 
-A condição só emite credenciais para:
+The condition only issues credentials to:
 
-- este repositório e este dono, identificados por ID numérico, que não pode ser reutilizado por outra conta;
-- **este workflow**;
-- o *environment* `production`;
-- o branch `master` ou tags `v*`.
+- this repository and this owner, identified by numeric ID, which another account cannot reuse;
+- **this workflow**;
+- the `production` environment;
+- the `master` branch or `v*` tags.
 
 ```bash
 gcloud iam workload-identity-pools create github --location=global --display-name="GitHub Actions"
@@ -93,29 +93,29 @@ gcloud iam service-accounts add-iam-policy-binding "$DEPLOYER" \
   --member="principalSet://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/github/attribute.repository/$GITHUB_REPO"
 ```
 
-## 5. Segredos (opcionais, mas recomendados)
+## 5. Secrets (optional, but recommended)
 
-Um e-mail de contato e chaves de API melhoram as cotas, porque o conector compartilha um IP entre todos os usuários.
-Crie apenas os que tiver. Configure também, nos painéis de cada API, **alertas ou cotas** para as chaves.
+A contact e-mail and API keys improve the quotas, because the connector shares one IP among all its users. Create
+only the ones you have. Also set **alerts or quotas** for the keys in each API's dashboard.
 
 ```bash
-printf 'voce@universidade.br' | gcloud secrets create noul-email --data-file=-
-printf '<chave>' | gcloud secrets create s2-api-key --data-file=-          # Semantic Scholar
-printf '<chave>' | gcloud secrets create openalex-api-key --data-file=-    # OpenAlex
-printf '<chave>' | gcloud secrets create ncbi-api-key --data-file=-        # PubMed / NCBI
+printf 'you@university.edu' | gcloud secrets create noul-email --data-file=-
+printf '<key>' | gcloud secrets create s2-api-key --data-file=-          # Semantic Scholar
+printf '<key>' | gcloud secrets create openalex-api-key --data-file=-    # OpenAlex
+printf '<key>' | gcloud secrets create ncbi-api-key --data-file=-        # PubMed / NCBI
 for s in noul-email s2-api-key openalex-api-key ncbi-api-key; do
   gcloud secrets add-iam-policy-binding "$s" --member="serviceAccount:$RUNTIME" \
     --role=roles/secretmanager.secretAccessor 2>/dev/null
 done
 ```
 
-## 6. GitHub: *environment*, proteção de tags e variáveis
+## 6. GitHub: environment, tag protection and variables
 
 ```bash
-# environment `production` exigindo sua aprovação em cada deploy
+# `production` environment that requires your approval for each deploy
 gh api -X PUT "repos/$GITHUB_REPO/environments/production" \
   -F "reviewers[][type]=User" -F "reviewers[][id]=$(gh api user -q .id)"
-# só administradores criam tags v* (cada tag v* dispara um deploy)
+# only administrators create v* tags (every v* tag triggers a deploy)
 gh api -X POST "repos/$GITHUB_REPO/rulesets" --input - <<'JSON'
 {"name": "release tags", "target": "tag", "enforcement": "active",
  "conditions": {"ref_name": {"include": ["refs/tags/v*"], "exclude": []}},
@@ -128,24 +128,24 @@ gh variable set GCP_REGION --body "$REGION"
 gh variable set GCP_WIF_PROVIDER --body "projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/github/providers/noul-repo"
 gh variable set GCP_DEPLOY_SERVICE_ACCOUNT --body "$DEPLOYER"
 gh variable set GCP_RUNTIME_SERVICE_ACCOUNT --body "$RUNTIME"
-# só os segredos que você criou no passo 5:
+# only the secrets you created in step 5:
 gh variable set GCP_RUN_SECRETS --body "NOUL_EMAIL=noul-email:latest,S2_API_KEY=s2-api-key:latest,OPENALEX_API_KEY=openalex-api-key:latest,NCBI_API_KEY=ncbi-api-key:latest"
-# opcionais: GCP_SERVICE_NAME (padrão noul-connector), GCP_ARTIFACT_REPO (padrão noul), GCP_MAX_INSTANCES (padrão 3)
+# optional: GCP_SERVICE_NAME (default noul-connector), GCP_ARTIFACT_REPO (default noul), GCP_MAX_INSTANCES (default 3)
 ```
 
-Essas são *variables*, não *secrets*: nenhum valor é sigiloso, porque o acesso é controlado pelo Workload Identity e
-pelo *environment*.
+These are variables, not secrets: none of the values is confidential, because access is controlled by Workload
+Identity and by the environment.
 
 ## 7. Deploy
 
 ```bash
 gh workflow run "Deploy public connector (Cloud Run)" --ref master
-gh run watch          # aprove o deploy quando o GitHub pedir (environment production)
+gh run watch          # approve the deploy when GitHub asks (production environment)
 ```
 
-## 8. Acesso público (uma única vez, após o primeiro deploy)
+## 8. Public access (once, after the first deploy)
 
-O deployer não altera IAM. Torne o serviço público uma vez, com a sua conta:
+The deployer cannot change IAM. Make the service public once, with your own account:
 
 ```bash
 gcloud run services add-iam-policy-binding noul-connector --region "$REGION" \
@@ -154,44 +154,44 @@ URL=$(gcloud run services describe noul-connector --region "$REGION" --format='v
 echo "$URL/mcp"
 ```
 
-Anote a URL do MCP: ela vai na página "Instalar" do site (`site/config.json`, Fase 2b-2).
+Write down the MCP URL: it goes into the site's install page (`connector_url` in `site/config.json`, then run
+`python scripts/build_site.py`).
 
-Para conferir:
+To check:
 
 ```bash
 curl -s "$URL/healthz"                                                              # {"status":"ok",...}
 curl -s "$URL/tools" | python3 -c 'import sys,json; print(len(json.load(sys.stdin)["tools"]))'   # 12
-curl -s -o /dev/null -w '%{http_code}\n' "$URL/mcp"                                 # 405 (só POST)
+curl -s -o /dev/null -w '%{http_code}\n' "$URL/mcp"                                 # 405 (POST only)
 ```
 
-## 9. Adicionar o conector
+## 9. Add the connector
 
-- **Claude.ai / Claude Desktop:** Configurações → Conectores → Adicionar conector personalizado → URL `$URL/mcp`, sem
-  autenticação. Nos planos gratuitos há limite de conectores personalizados; em Team/Enterprise, quem adiciona é um
-  administrador.
-- **ChatGPT:** Settings → Apps & Connectors → Advanced settings → Developer mode → Create, com a URL `$URL/mcp` e
-  "No authentication". O modo desenvolvedor depende do plano. As ferramentas são todas `readOnlyHint`, então não pedem
-  confirmação de escrita.
+- **Claude.ai / Claude Desktop:** Settings → Connectors → Add custom connector → URL `$URL/mcp`, no
+  authentication. Free plans limit the number of custom connectors; on Team/Enterprise an administrator adds it.
+- **ChatGPT:** Settings → Apps & Connectors → Advanced settings → Developer mode → Create, with the URL `$URL/mcp`
+  and "No authentication". Developer mode depends on the plan. Every tool is `readOnlyHint`, so none asks for a write
+  confirmation.
 
-## Proxy, domínio e IP do cliente
+## Proxy, domain and client IP
 
-- Na URL `*.run.app` e nos *domain mappings*, o front-end do Google acrescenta o IP real do cliente como **última**
-  entrada do `X-Forwarded-For`, por isso `NOUL_TRUSTED_PROXY=1`.
-- Atrás de um **Application Load Balancer** externo (necessário para Cloud Armor, ou onde não há *domain mapping*), o
-  cabeçalho vira `<cliente>, <ip-do-balanceador>`. Nesse caso, use `NOUL_TRUSTED_PROXY=2`.
-- **Domínio próprio:** `gcloud beta run domain-mappings create --service noul-connector --domain mcp.seudominio.org
-  --region "$REGION"`. O comando está em *preview* e não existe em todas as regiões; a alternativa é um ALB com NEG
-  serverless.
+- On the `*.run.app` URL and on domain mappings, Google's front end appends the real client IP as the **last**
+  entry of `X-Forwarded-For`, hence `NOUL_TRUSTED_PROXY=1`.
+- Behind an external **Application Load Balancer** (needed for Cloud Armor, or where domain mapping is not
+  available), the header becomes `<client>, <load-balancer-ip>`. In that case use `NOUL_TRUSTED_PROXY=2`.
+- **Custom domain:** `gcloud beta run domain-mappings create --service noul-connector --domain mcp.yourdomain.org
+  --region "$REGION"`. The command is in preview and is not available in every region; the alternative is an ALB with
+  a serverless NEG.
 
-## Operação
+## Operations
 
-- **Logs:** `gcloud run services logs read noul-connector --region "$REGION"`. Por padrão só aparecem avisos. Com
-  `NOUL_LOG_LEVEL=INFO`, aparecem os nomes das ferramentas, nunca argumentos nem e-mails.
-- **Ajustes** (variáveis do serviço; o deploy usa `--update-env-vars` e preserva o que você definir):
-  - `NOUL_TOOL_RATE_LIMIT` e `NOUL_TOOL_RATE_BURST`: chamadas de ferramenta por instância;
+- **Logs:** `gcloud run services logs read noul-connector --region "$REGION"`. By default only warnings appear.
+  With `NOUL_LOG_LEVEL=INFO` the tool names appear, never arguments or e-mails.
+- **Tuning** (service variables; the deploy uses `--update-env-vars` and keeps what you set):
+  - `NOUL_TOOL_RATE_LIMIT` and `NOUL_TOOL_RATE_BURST`: tool calls per instance;
   - `NOUL_MAX_CONCURRENCY`;
-  - `NOUL_RATE_LIMIT` e `NOUL_RATE_BURST`: proteção contra inundação por cliente;
-  - `NOUL_CACHE_MAX_ROWS` e `NOUL_MAX_DOWNLOAD_MB`.
+  - `NOUL_RATE_LIMIT` and `NOUL_RATE_BURST`: per-client flood guard;
+  - `NOUL_CACHE_MAX_ROWS` and `NOUL_MAX_DOWNLOAD_MB`.
 
-  Exemplo: `gcloud run services update noul-connector --region "$REGION" --update-env-vars NOUL_TOOL_RATE_LIMIT=120`.
-- **Desligar o conector:** `gcloud run services delete noul-connector --region "$REGION"`.
+  Example: `gcloud run services update noul-connector --region "$REGION" --update-env-vars NOUL_TOOL_RATE_LIMIT=120`.
+- **Shut the connector down:** `gcloud run services delete noul-connector --region "$REGION"`.

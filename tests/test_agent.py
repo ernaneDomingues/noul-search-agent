@@ -543,12 +543,11 @@ class AgentTestSuite(unittest.TestCase):
             self.assertEqual(run("--dry-run").returncode, 0)
             self.assertEqual(config.read_text(encoding="utf-8"), original)
             self.assertFalse(config.with_suffix(".json.bak").exists())
-            for runner in ("uvx", "npx"):
+            for runner in ("uvx",):
                 result = run("--runner", runner)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 entry = json.loads(config.read_text(encoding="utf-8"))["mcpServers"]["noul"]
-                expected_command = "cmd" if runner == "npx" and os.name == "nt" else runner
-                self.assertEqual(entry["command"], expected_command)
+                self.assertEqual(entry["command"], runner)
                 self.assertEqual(entry["args"][-2:], ["noul-search-agent", "mcp"])
                 self.assertEqual(config.with_suffix(".json.bak").read_text(encoding="utf-8"), original)
             config.write_text("{ broken JSON", encoding="utf-8")

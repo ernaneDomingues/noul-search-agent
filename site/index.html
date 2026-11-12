@@ -1,38 +1,40 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="dark">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Noul Search Agent — Deterministic Multi-Model Search Agent &amp; Autonomous Scientific Research Assistant</title>
-  <meta name="description" content="Agente determinístico de busca científica multi-modelo, servidor MCP (stdio + HTTP/OpenAPI), auditoria peer-review, geração de código PyTorch/Statsmodels/R e copiloto de escrita acadêmica." />
-  <meta property="og:title" content="Noul Search Agent — Autonomous Scientific Research Assistant" />
-  <meta property="og:description" content="Deterministic Multi-Model Search Agent &amp; Autonomous Scientific Research Assistant (OpenAlex, Semantic Scholar, PubMed, EuropePMC, arXiv, Crossref, Unpaywall). MCP Ready." />
+  <title>Noul Search Agent — Scientific research co-assistant for your AI assistant</title>
+  <meta name="description" content="Noul searches six open scholarly sources, reads full texts and structures the evidence so the AI assistant you already use can answer, review and write with citations. MCP server, CLI and Claude Code plugin." />
+  <meta property="og:title" content="Noul Search Agent — Scientific research co-assistant" />
+  <meta property="og:description" content="Evidence from OpenAlex, Semantic Scholar, PubMed, Europe PMC, arXiv and Crossref for the AI assistant you already use. MCP server, CLI and Claude Code plugin." />
   <meta property="og:type" content="website" />
   <meta property="og:image" content="og-card.svg" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Noul Search Agent" />
-  <meta name="twitter:description" content="Deterministic Multi-Model Search Agent &amp; Autonomous Scientific Research Assistant." />
+  <meta name="twitter:description" content="Scientific research co-assistant for the AI assistant you already use." />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header class="site-header">
     <div class="container nav-bar">
       <a href="#" class="brand">
-        <img src="favicon.svg" alt="Noul Logo" />
+        <img src="favicon.svg" alt="Noul logo" />
         <span>Noul Search Agent</span>
       </a>
       <nav>
         <ul class="nav-links">
-          <li><a href="#personas">Perfis de Uso</a></li>
-          <li><a href="install.html">Instalar</a></li>
-          <li><a href="#quickstart">Instalação 1-Click</a></li>
-          <li><a href="#architecture">Arquitetura</a></li>
-          <li><a href="#tools-catalog">Catálogo MCP</a></li>
-          <li><a href="#roadmap">Roadmap</a></li>
+          <li><a href="#personas">Who it is for</a></li>
+          <li><a href="install.html">Install</a></li>
+          <li><a href="#quickstart">Developers</a></li>
+          <li><a href="#architecture">How it works</a></li>
+          <li><a href="#tools-catalog">Tool catalog</a></li>
         </ul>
       </nav>
-      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Alternar tema">☀️ Modo Claro</button>
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle theme">Light mode</button>
     </div>
   </header>
 
@@ -42,23 +44,23 @@
       <div class="container">
         <div class="badge-row">
           <span class="badge">v2.1.0</span>
-          <span class="badge emerald">MIT License</span>
-          <span class="badge indigo">MCP Ready (stdio + HTTP/OpenAPI)</span>
-          <span class="badge">Python 3.10+ (Zero Deps)</span>
-          <span class="badge emerald">CI Passing</span>
+          <span class="badge emerald">Apache-2.0 License</span>
+          <span class="badge indigo">MCP server (stdio + HTTP/OpenAPI)</span>
+          <span class="badge">Python 3.10+</span>
+          <span class="badge emerald">No API key required</span>
         </div>
         <h1>Noul Search Agent</h1>
         <p class="hero-subtitle">
-          Deterministic Multi-Model Search Agent &amp; Autonomous Scientific Research Assistant — da busca federada em 6 bases científicas à auditoria multi-persona, geração de código executável e submissão blindada contra <em>desk-reject</em>.
+          A scientific research co-assistant for the AI assistant you already use. Noul searches six open scholarly sources, reads full texts and structures the evidence; your assistant reasons over it and answers with citations. Noul has no LLM of its own.
         </p>
         <div class="cta-group">
-          <a href="install.html" class="btn btn-primary">⚡ Instalar (sem terminal)</a>
-          <a href="https://github.com/ernaneDomingues/noul-search-agent" class="btn btn-secondary" target="_blank" rel="noopener">📦 Ver no GitHub</a>
-          <a href="https://github.com/ernaneDomingues/noul-search-agent/releases" class="btn btn-secondary" target="_blank" rel="noopener">🏷️ Releases</a>
+          <a href="install.html" class="btn btn-primary">Install (no terminal needed)</a>
+          <a href="https://github.com/ernaneDomingues/noul-search-agent" class="btn btn-secondary" target="_blank" rel="noopener">View on GitHub</a>
+          <a href="https://github.com/ernaneDomingues/noul-search-agent/releases" class="btn btn-secondary" target="_blank" rel="noopener">Releases</a>
         </div>
 
         <!-- Interactive Terminal Simulator -->
-        <div class="terminal-window" aria-label="Simulador interativo de terminal">
+        <div class="terminal-window" aria-label="Terminal demo with illustrative output">
           <div class="terminal-header">
             <div class="window-dots">
               <span class="dot red"></span>
@@ -66,121 +68,125 @@
               <span class="dot green"></span>
             </div>
             <div class="terminal-tabs" role="tablist">
-              <button class="term-tab active" data-scenario="compare" type="button">noul compare</button>
+              <button class="term-tab active" data-scenario="search" type="button">noul search</button>
+              <button class="term-tab" data-scenario="meter" type="button">noul meter</button>
               <button class="term-tab" data-scenario="review" type="button">noul review</button>
-              <button class="term-tab" data-scenario="scaffold" type="button">noul scaffold</button>
               <button class="term-tab" data-scenario="gatekeeper" type="button">noul gatekeeper audit</button>
             </div>
           </div>
-          <pre id="terminal-screen" class="terminal-body mono">$ noul compare arxiv:2305.14314 arxiv:2405.11001 --pretty</pre>
+          <pre id="terminal-screen" class="terminal-body mono">$ noul search "creatine supplementation working memory" --types meta-analysis,rct --pretty</pre>
         </div>
+        <p class="section-lead">The demo shows the shape of the output with illustrative values, not real results.</p>
       </div>
     </section>
 
-    <!-- Showcase Matrix by User Persona -->
+    <!-- Who it is for -->
     <section id="personas" class="section">
       <div class="container">
-        <h2 class="section-title">Matriz de Funcionalidades por Perfil</h2>
+        <h2 class="section-title">Who it is for</h2>
         <p class="section-lead">
-          Roteamento automático por domínio científico (<code>computer_science</code>, <code>biomedical</code>, <code>economics</code>, <code>general_stem</code>) com ferramentas especializadas para cada fluxo de pesquisa.
+          Noul detects the scientific domain of each paper (<code>computer_science</code>, <code>biomedical</code>, <code>economics</code>, <code>general_stem</code>) and adapts its rubrics and extraction to it. Tools return evidence (excerpts, signals, checklists); your assistant makes the call.
         </p>
         <div class="persona-grid">
           <article class="card">
-            <span class="card-tag">Engenheiros de IA &amp; Construtores</span>
-            <h3>Paper-to-Code &amp; Viabilidade de Hardware</h3>
-            <p>Traduza equações e arquiteturas diretamente em módulos PyTorch validados sintaticamente e dimensione sua infraestrutura de GPU antes do deploy.</p>
+            <span class="card-tag">Researchers, clinicians &amp; students</span>
+            <h3>Answers grounded in the literature</h3>
+            <p>Ask a question in plain language and get a cited synthesis that says how strong the evidence is.</p>
             <ul>
-              <li>Scaffolder <code>nn.Module</code> com validação <code>ast.parse</code> e testes de shape (<code>noul scaffold</code>)</li>
-              <li>Calculadora determinística de VRAM em <strong>FP16, INT8 e INT4</strong> + KV Cache (<code>noul hardware</code>)</li>
-              <li>Extrator de tabelas de benchmark e ablação (<code>noul benchmarks</code>, <code>noul ablation</code>)</li>
-              <li>Radar de código aberto, pesos no Hugging Face e datasets (<code>noul artifacts</code>)</li>
+              <li>Search across six sources, ranked by study design and citations</li>
+              <li><strong>Evidence Meter</strong> weighted by study design, from meta-analyses to preclinical work</li>
+              <li>Retraction and expression-of-concern notices, and preprint-to-published links</li>
+              <li>Research projects that remember what you included, excluded and why</li>
             </ul>
           </article>
 
           <article class="card">
-            <span class="card-tag">Médicos &amp; Pesquisadores de Saúde</span>
-            <h3>Auditoria Clínica &amp; Medicina Baseada em Evidências</h3>
-            <p>Avalie ensaios clínicos randomizados (RCTs), revisões sistemáticas e estudos observacionais com rigor metodológico e pirâmide de evidências.</p>
+            <span class="card-tag">Authors &amp; reviewers</span>
+            <h3>Review, write and submit</h3>
+            <p>Evidence for a critical review, and help from the first outline to the response to reviewers.</p>
             <ul>
-              <li>Comitê de revisão com rubricas <strong>CONSORT, STROBE e PRISMA</strong> (<code>noul review --domain bio</code>)</li>
-              <li>Extração de protocolos operacionais de intervenção e pipeline analítico ITT (<code>noul scaffold --target protocol</code>)</li>
-              <li><strong>Evidence Meter</strong> ponderado por desenho de estudo (Meta-análise 1.0 → Pré-clínico 0.2)</li>
-              <li>Grounding estrito de alegações numéricas contra o texto literal (<code>noul ground</code>)</li>
+              <li>Review rubrics per domain: NeurIPS/ICLR, <strong>CONSORT, STROBE and PRISMA</strong>, causal econometrics (<code>noul review</code>)</li>
+              <li>Numeric claims checked against the paper's own text (<code>noul ground</code>)</li>
+              <li>Citations and related work (<code>noul cite</code>, <code>noul related-work</code>), BibTeX clean-up (<code>noul bibtex sanitize</code>)</li>
+              <li>Rebuttal templates that never invent results (<code>noul rebuttal parse</code>) and pre-submission checks (<code>noul gatekeeper audit</code>)</li>
             </ul>
           </article>
 
           <article class="card">
-            <span class="card-tag">Economistas &amp; Analistas de Políticas</span>
-            <h3>Identificação Causal &amp; Econometria Reprodutível</h3>
-            <p>Inspecione estratégias de identificação causal, pressupostos de tendências paralelas e gere especificações econométricas prontas para rodar.</p>
+            <span class="card-tag">AI engineers &amp; builders</span>
+            <h3>From paper to implementation</h3>
+            <p>Pull the technical content out of a paper and turn it into a starting point for code.</p>
             <ul>
-              <li>Auditoria de estratégias <strong>DiD, IV, RDD e Controles Sintéticos</strong> (<code>noul review --domain econ</code>)</li>
-              <li>Detecção de ameaças de endogeneidade, viés de seleção e variáveis omitidas (<code>noul failures</code>)</li>
-              <li>Geração de scripts em <strong>Python (<code>statsmodels</code>)</strong> e <strong>R (<code>fixest</code>)</strong> com erros-padrão clusterizados</li>
-              <li>Matriz de testes de robustez, placebo e falsificação</li>
+              <li>Benchmark and ablation tables, equations and prompts (<code>noul benchmarks</code>, <code>noul ablation</code>)</li>
+              <li>VRAM estimates in <strong>FP16, INT8 and INT4</strong> (<code>noul hardware</code>)</li>
+              <li>Scaffolds in PyTorch, <code>statsmodels</code> and R <code>fixest</code>, or a clinical protocol (<code>noul scaffold</code>)</li>
+              <li>Open code, model weights and datasets linked from the paper (<code>noul artifacts</code>)</li>
             </ul>
           </article>
 
           <article class="card">
-            <span class="card-tag">Autores Acadêmicos &amp; Revisores</span>
-            <h3>Copiloto IMRaD, BibTeX, Rebuttal &amp; Gatekeeper</h3>
-            <p>Acelere a redação científica do esqueleto inicial até a carta de resposta aos revisores e a blindagem preventiva contra <em>desk-reject</em>.</p>
+            <span class="card-tag">Developers</span>
+            <h3>An MCP server you can build on</h3>
+            <p>Fifty typed tools behind one registry, exposed over MCP, HTTP/OpenAPI and a CLI.</p>
             <ul>
-              <li>Infilling contextual de citações com justificativa e BibTeX (<code>noul cite</code>)</li>
-              <li>Síntese narrativa comparativa de <em>Related Work</em> em Markdown/LaTeX (<code>noul related-work</code>)</li>
-              <li>Saneador de <code>.bib</code> que atualiza preprints do arXiv para NeurIPS/ICML/periódicos (<code>noul bibtex sanitize</code>)</li>
-              <li>Copiloto de Rebuttal (<code>noul rebuttal parse</code>) &amp; Gatekeeper Double-Blind (<code>noul gatekeeper audit</code>)</li>
+              <li>Official MCP SDK: stdio and Streamable HTTP, annotations, prompts and output schemas</li>
+              <li>Tool profiles (<code>research</code>, <code>review</code>, <code>write</code>, <code>all</code>) to keep the model's context small</li>
+              <li>Claude Code plugin with a skill and subagents; installer for other agents</li>
+              <li>SSRF guard, workspace confinement and write tools blocked over HTTP by default</li>
             </ul>
           </article>
         </div>
       </div>
     </section>
 
-    <!-- 1-Click Quickstart & MCP Setup -->
+    <!-- Developer quickstart -->
     <section id="quickstart" class="section">
       <div class="container">
-        <h2 class="section-title">Guia de Inicialização e Configuração (1-Click Setup)</h2>
+        <h2 class="section-title">Developer quickstart</h2>
         <p class="section-lead">
-          Execute instantaneamente via <code>uvx</code> ou <code>npx</code> sem poluir seu ambiente Python global, ou conecte o servidor MCP ao seu assistente favorito.
+          Not a developer? Use the <a href="install.html">install page</a>: it needs no terminal. The options below need <a href="https://docs.astral.sh/uv/">uv</a>, which installs Python and the dependencies for you.
         </p>
 
         <div class="quickstart-grid">
           <div class="code-box">
             <div class="code-box-header">
-              <span>Execução Instantânea via uvx (Python)</span>
-              <button class="copy-btn" data-copy-target="cmd-uvx" type="button">Copiar</button>
+              <span>Claude Code plugin</span>
+              <button class="copy-btn" data-copy-target="cmd-plugin" type="button">Copy</button>
             </div>
-            <pre id="cmd-uvx" class="mono">uvx noul-search-agent search "kv cache quantization" --pretty</pre>
+            <pre id="cmd-plugin" class="mono">/plugin marketplace add ernaneDomingues/noul-search-agent
+/plugin install noul-search-agent@noul</pre>
           </div>
 
           <div class="code-box">
             <div class="code-box-header">
-              <span>Execução Instantânea via npx (Node.js Wrapper)</span>
-              <button class="copy-btn" data-copy-target="cmd-npx" type="button">Copiar</button>
+              <span>Every supported agent, from source</span>
+              <button class="copy-btn" data-copy-target="cmd-source" type="button">Copy</button>
             </div>
-            <pre id="cmd-npx" class="mono">npx noul-search-agent install --all</pre>
+            <pre id="cmd-source" class="mono">git clone https://github.com/ernaneDomingues/noul-search-agent
+cd noul-search-agent &amp;&amp; uv run noul-install --all</pre>
           </div>
         </div>
 
         <div class="config-tabs-bar" role="tablist">
           <button class="cfg-tab active" data-target="cfg-claude" type="button">Claude Desktop / Claude Code</button>
           <button class="cfg-tab" data-target="cfg-cursor" type="button">Cursor (.cursor/mcp.json)</button>
-          <button class="cfg-tab" data-target="cfg-gemini" type="button">Gemini CLI &amp; Antigravity</button>
+          <button class="cfg-tab" data-target="cfg-cli" type="button">Terminal</button>
         </div>
 
         <div id="cfg-claude" class="cfg-panel active">
           <div class="code-box">
             <div class="code-box-header">
               <span>claude_desktop_config.json / .mcp.json</span>
-              <button class="copy-btn" data-copy-target="json-claude" type="button">Copiar JSON</button>
+              <button class="copy-btn" data-copy-target="json-claude" type="button">Copy JSON</button>
             </div>
             <pre id="json-claude" class="mono">{
   "mcpServers": {
     "noul": {
-      "command": "uvx",
-      "args": ["noul-search-agent", "mcp"],
+      "command": "uv",
+      "args": ["run", "--project", "/path/to/noul-search-agent", "noul-mcp"],
       "env": {
-        "NOUL_EMAIL": "researcher@university.edu"
+        "NOUL_EMAIL": "researcher@university.edu",
+        "NOUL_WORKSPACE": "/path/to/your/workspace"
       }
     }
   }
@@ -192,76 +198,67 @@
           <div class="code-box">
             <div class="code-box-header">
               <span>.cursor/mcp.json</span>
-              <button class="copy-btn" data-copy-target="json-cursor" type="button">Copiar JSON</button>
+              <button class="copy-btn" data-copy-target="json-cursor" type="button">Copy JSON</button>
             </div>
             <pre id="json-cursor" class="mono">{
   "mcpServers": {
     "noul": {
-      "command": "npx",
-      "args": ["-y", "noul-search-agent", "mcp"]
+      "command": "uv",
+      "args": ["run", "--project", "/path/to/noul-search-agent", "noul-mcp"]
     }
   }
 }</pre>
           </div>
         </div>
 
-        <div id="cfg-gemini" class="cfg-panel">
+        <div id="cfg-cli" class="cfg-panel">
           <div class="code-box">
             <div class="code-box-header">
-              <span>~/.gemini/settings.json &amp; ~/.gemini/antigravity/mcp_config.json</span>
-              <button class="copy-btn" data-copy-target="json-gemini" type="button">Copiar JSON</button>
+              <span>CLI and local HTTP/OpenAPI server</span>
+              <button class="copy-btn" data-copy-target="cmd-cli" type="button">Copy</button>
             </div>
-            <pre id="json-gemini" class="mono">{
-  "mcpServers": {
-    "noul": {
-      "command": "python3",
-      "args": ["-m", "noul_mcp"],
-      "env": {
-        "NOUL_WORKSPACE": "/caminho/do/seu/workspace"
-      }
-    }
-  }
-}</pre>
+            <pre id="cmd-cli" class="mono">uv run noul search "kv cache quantization" --pretty
+uv run noul-mcp --http 8765   # MCP at /mcp, OpenAPI at /openapi.json</pre>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Architecture & Ecosystem -->
+    <!-- How it works -->
     <section id="architecture" class="section">
       <div class="container">
-        <h2 class="section-title">Arquitetura e Relação com o Ecossistema</h2>
+        <h2 class="section-title">How it works</h2>
         <p class="section-lead">
-          O <code>noul-search-agent</code> opera 100% localmente sobre a biblioteca padrão do Python (SQLite WAL cache, proteção SSRF e confinamento de workspace), integrando 6 provedores científicos abertos ao ecossistema <strong>The AI Research Journal</strong>.
+          Noul runs on your machine, inside your assistant. It calls open scholarly APIs, caches results in SQLite and writes files only inside the workspace you choose. Text from papers, PDFs and reviews is marked as untrusted data, so your assistant does not treat it as instructions.
         </p>
         <div class="arch-diagram mono">
 <pre>
 ┌───────────────────────────────────────────────────────────────────────────────────────────┐
-│                   HOST AI AGENTS &amp; IDEs (Claude, Cursor, Gemini, Antigravity, CLI)        │
+│        YOUR AI ASSISTANT (Claude, ChatGPT, Copilot, Cursor, Gemini, any MCP client)       │
+│                 reasons over the evidence and writes the answer                           │
 └──────────────────────────────────────────────┬────────────────────────────────────────────┘
-                                               │ JSON-RPC 2.0 (stdio) / HTTP OpenAPI 3.1
+                                               │ MCP (stdio / Streamable HTTP) · OpenAPI · CLI
                                                ▼
 ┌───────────────────────────────────────────────────────────────────────────────────────────┐
-│                         NOUL SEARCH AGENT RUNTIME (Stdlib-Only Core)                      │
+│                          NOUL: retrieves and structures evidence                          │
 │  ┌─────────────────────────┐  ┌──────────────────────────┐  ┌──────────────────────────┐  │
-│  │ Discovery &amp; Synthesis   │  │ Technical &amp; Code Engine  │  │ Academic Authoring Suite │  │
-│  │ • search_papers         │  │ • extract_benchmark_tbls │  │ • recommend_citations    │  │
-│  │ • compare_papers        │  │ • estimate_hardware_spec │  │ • synthesize_related_wrk │  │
-│  │ • get_thematic_insights │  │ • review_paper (3-Pers.) │  │ • sanitize_bibtex        │  │
-│  │ • generate_hypotheses   │  │ • scaffold_implementation│  │ • parse_and_draft_rebut. │  │
-│  │ • evidence_meter        │  │ • diff_arxiv_versions    │  │ • audit_submission_ready │  │
+│  │ Search &amp; evidence       │  │ Reading &amp; review         │  │ Writing &amp; submission     │  │
+│  │ • search_papers         │  │ • get_fulltext           │  │ • recommend_citations    │  │
+│  │ • evidence_meter        │  │ • review_paper           │  │ • synthesize_related_work│  │
+│  │ • related_papers        │  │ • verify_paper_claims    │  │ • sanitize_bibtex        │  │
+│  │ • project_* (projects)  │  │ • extract_benchmark_tables│ │ • parse_and_draft_rebuttal│ │
 │  └─────────────────────────┘  └──────────────────────────┘  └──────────────────────────┘  │
 │  ┌─────────────────────────────────────────────────────────────────────────────────────┐  │
-│  │ SQLite WAL Cache (kv) • SSRF Public-IP Guard • Workspace Anti-Symlink Confinement   │  │
+│  │ SQLite cache • SSRF guard • workspace confinement • untrusted-text marking          │  │
 │  └─────────────────────────────────────────────────────────────────────────────────────┘  │
 └───────────────┬──────────────────────────────┬──────────────────────────────┬─────────────┘
                 │                              │                              │
                 ▼                              ▼                              ▼
 ┌──────────────────────────────┐ ┌───────────────────────────┐ ┌────────────────────────────┐
-│ 6 Open Scientific APIs       │ │ Open-Artifact Radar       │ │ The AI Research Journal    │
-│ • OpenAlex • SemanticScholar │ │ • GitHub / GitLab         │ │ • Persistent Dossiers      │
-│ • PubMed   • Europe PMC      │ │ • Hugging Face Hub        │ │ • Atomic Obsidian Vaults   │
-│ • arXiv    • Crossref/Unpayw.│ │ • Zenodo / Figshare / OSF │ │ • Reproducible Workflows   │
+│ Open scholarly sources       │ │ Open-artifact radar       │ │ Your workspace             │
+│ • OpenAlex • SemanticScholar │ │ • GitHub / GitLab         │ │ • PDFs and dossiers        │
+│ • PubMed   • Europe PMC      │ │ • Hugging Face Hub        │ │ • BibTeX, RIS, CSL-JSON    │
+│ • arXiv    • Crossref/Unpayw.│ │ • Zenodo / Figshare / OSF │ │ • Obsidian notes, Zotero   │
 └──────────────────────────────┘ └───────────────────────────┘ └────────────────────────────┘
 </pre>
         </div>
@@ -271,12 +268,12 @@
     <!-- Interactive MCP Tools Catalog -->
     <section id="tools-catalog" class="section">
       <div class="container">
-        <h2 class="section-title">Portal de Documentação Técnica — Catálogo MCP &amp; CLI</h2>
+        <h2 class="section-title">Tool catalog (MCP and CLI)</h2>
         <p class="section-lead">
-          Todas as ferramentas abaixo são expostas simultaneamente via protocolo MCP (<code>noul-mcp</code>) e via linha de comando (<code>noul</code>).
+          Every tool below is available through the MCP server (<code>noul-mcp</code>) and from the command line (<code>noul</code>).
         </p>
         <div class="catalog-controls">
-          <input id="tool-search" class="search-input" type="search" placeholder="Filtrar ferramentas por nome, descrição, parâmetro ou subcomando CLI..." aria-label="Filtrar ferramentas MCP" />
+          <input id="tool-search" class="search-input" type="search" placeholder="Filter tools by name, description, parameter or CLI subcommand..." aria-label="Filter MCP tools" />
         </div>
         <!-- TOOLS_CATALOG_START -->
         <div class="tools-grid">
@@ -684,76 +681,12 @@
         <!-- TOOLS_CATALOG_END -->
       </div>
     </section>
-
-    <!-- Roadmap & Changelog -->
-    <section id="roadmap" class="section">
-      <div class="container">
-        <h2 class="section-title">Changelog &amp; Roadmap (Fases 0 a 6)</h2>
-        <p class="section-lead">
-          Evolução completa do <code>noul-search-agent</code> desde o núcleo de busca federada até o copiloto autônomo de autoria e submissão científica.
-        </p>
-        <table class="roadmap-table">
-          <thead>
-            <tr>
-              <th>Fase / Release</th>
-              <th>Issues</th>
-              <th>Entregas Principais</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><strong>Fase 0 — Core &amp; Hardening P0</strong></td>
-              <td>Baseline</td>
-              <td>Busca federada (6 APIs), Evidence Meter determinístico, proteção SSRF, confinamento de workspace e servidor MCP stdio/HTTP.</td>
-              <td>✅ Concluído</td>
-            </tr>
-            <tr>
-              <td><strong>Fase 1 — Contratos &amp; Radar</strong></td>
-              <td>#01, #02, #03, #19</td>
-              <td> Schemas dual-mode (Pydantic v2 / stdlib), Classificador de Domínio Científico, Radar de Artefatos Abertos e Grafo de Citações.</td>
-              <td>✅ Concluído</td>
-            </tr>
-            <tr>
-              <td><strong>Fase 2 — Síntese &amp; Obsidian</strong></td>
-              <td>#04, #05, #06, #07</td>
-              <td>Matriz Comparativa (<code>compare_papers</code>), Insights Temáticos, Exportador Obsidian com Wikilinks e Expansão Booleana.</td>
-              <td>✅ Concluído</td>
-            </tr>
-            <tr>
-              <td><strong>Fase 3 — Extração Técnica</strong></td>
-              <td>#08, #09, #10, #11, #12, #13</td>
-              <td>Extrator de Benchmarks, Calculadora de VRAM/KV Cache, Grounding Literal, Extrator de Equações/Algoritmos, Ablações e Prompts.</td>
-              <td>✅ Concluído</td>
-            </tr>
-            <tr>
-              <td><strong>Fase 4 — Modos de Falha &amp; Diff</strong></td>
-              <td>#14, #15</td>
-              <td>Detector de Modos de Falha e Pressupostos Críticos (<code>detect_failure_modes</code>) e Diff Temporal de Versões do arXiv (<code>diff_arxiv_versions</code>).</td>
-              <td>✅ Concluído</td>
-            </tr>
-            <tr>
-              <td><strong>Fase 5 — Revisão &amp; Scaffolder</strong></td>
-              <td>#16, #17, #18, #20, #21</td>
-              <td>Comitê Peer-Review Multi-Persona, Scaffolder Poliglota (PyTorch, Statsmodels, R, Protocolo Clínico) e Motor de Hipóteses.</td>
-              <td>✅ Concluído</td>
-            </tr>
-            <tr>
-              <td><strong>Fase 6 — Copiloto de Autoria &amp; Pages</strong></td>
-              <td>#22, #23, #24, #25, #26, #27, #28</td>
-              <td>Citation Infiller, IMRaD Draft Auditor, Related Work Synthesizer, BibTeX Sanitizer, Rebuttal Copilot, Submission Gatekeeper e Portal GitHub Pages.</td>
-              <td>✅ Concluído (v2.0.0)</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
   </main>
 
   <footer class="site-footer">
     <div class="container">
       <p>
-        <strong>Noul Search Agent</strong> • Distribuído sob a Licença Apache-2.0 • Parte do ecossistema <em>The AI Research Journal</em>.
+        <strong>Noul Search Agent</strong> • Apache-2.0 License • <a href="https://github.com/ernaneDomingues/noul-search-agent">Source code</a> • Literature summaries on health topics are not medical advice.
       </p>
     </div>
   </footer>

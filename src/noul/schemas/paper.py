@@ -1,4 +1,4 @@
-"""Canonical paper entities (docs/TECHNICAL_SPECIFICATION.md §3.2)."""
+"""Canonical paper entities."""
 
 from datetime import date
 

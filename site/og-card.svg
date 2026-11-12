@@ -1,24 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#070B14"/>
-      <stop offset="55%" stop-color="#0F172A"/>
-      <stop offset="100%" stop-color="#1E1B4B"/>
-    </linearGradient>
-    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#38BDF8"/>
-      <stop offset="50%" stop-color="#818CF8"/>
-      <stop offset="100%" stop-color="#34D399"/>
-    </linearGradient>
+    <pattern id="noul-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#18181B" stroke-width="1"/>
+    </pattern>
   </defs>
-  <rect width="1200" height="630" fill="url(#bg)"/>
-  <rect x="40" y="40" width="1120" height="550" rx="24" stroke="#334155" stroke-width="2" fill="#0B1120" fill-opacity="0.7"/>
-  <text x="90" y="135" fill="#38BDF8" font-family="monospace" font-size="22" font-weight="bold">MCP READY • STDIO + HTTP/OPENAPI • ZERO EXTERNAL DEPS</text>
-  <text x="90" y="220" fill="#F8FAFC" font-family="sans-serif" font-size="64" font-weight="800">Noul Search Agent</text>
-  <text x="90" y="280" fill="#94A3B8" font-family="sans-serif" font-size="28">Deterministic Multi-Model Search Agent &amp; Autonomous Scientific Research Assistant</text>
-  <rect x="90" y="320" width="1020" height="4" fill="url(#accent)" rx="2"/>
-  <text x="90" y="385" fill="#E2E8F0" font-family="monospace" font-size="22">$ noul search | compare | review | scaffold | cite | gatekeeper audit</text>
-  <text x="90" y="445" fill="#34D399" font-family="monospace" font-size="20">✓ OpenAlex • Semantic Scholar • PubMed • EuropePMC • arXiv • Crossref • Unpaywall</text>
-  <text x="90" y="490" fill="#A855F7" font-family="monospace" font-size="20">✓ CS/AI (PyTorch + VRAM) • Biomedicine (CONSORT/STROBE) • Economics (DiD/IV) • Authoring</text>
-  <text x="90" y="545" fill="#64748B" font-family="sans-serif" font-size="18">github.com/ernaneDomingues/noul-search-agent • Part of The AI Research Journal Ecosystem</text>
+  <rect width="1200" height="630" fill="#09090B"/>
+  <rect width="1200" height="630" fill="url(#noul-grid)"/>
+  <rect x="40" y="40" width="1120" height="550" rx="24" stroke="#27272A" stroke-width="2"/>
+  <path d="M 64 76 V 64 H 76 M 1136 76 V 64 H 1124 M 64 554 V 566 H 76 M 1136 554 V 566 H 1124" stroke="#A1A1AA" stroke-width="2"/>
+  <g transform="translate(90, 96)">
+    <rect x="0" y="0" width="192" height="192" rx="32" fill="#121216" stroke="#27272A" stroke-width="2"/>
+    <path d="M 148.0 68.0 A 56 56 0 1 1 124.0 44.0" stroke="#FAFAFA" stroke-width="14" stroke-linecap="square"/>
+    <line x1="44" y1="148" x2="140" y2="52" stroke="#FF5500" stroke-width="14" stroke-linecap="square"/>
+    <rect x="146" y="32" width="14" height="14" fill="#FF5500"/>
+  </g>
+  <g transform="translate(330, 148)" stroke="#FAFAFA" stroke-width="16" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M 0 88 V 0 L 72 88 V 0"/>
+    <circle cx="164" cy="44" r="44"/>
+    <path d="M 264 0 V 52 C 264 74 280 88 300 88 C 320 88 336 74 336 52 V 0"/>
+    <path d="M 392 0 V 88 H 456"/>
+    <rect x="480" y="76" width="14" height="14" fill="#FF5500" stroke="none"/>
+  </g>
+  <text x="90" y="372" fill="#FAFAFA" font-family="Inter, sans-serif" font-size="44" font-weight="800">Noul Search Agent</text>
+  <text x="90" y="420" fill="#A1A1AA" font-family="Inter, sans-serif" font-size="26">Scientific research co-assistant for the AI assistant you already use</text>
+  <rect x="90" y="450" width="1020" height="2" fill="#27272A"/>
+  <text x="90" y="496" fill="#FAFAFA" font-family="'JetBrains Mono', monospace" font-size="20">$ noul search | meter | review | cite | rebuttal | gatekeeper audit</text>
+  <text x="90" y="536" fill="#A1A1AA" font-family="'JetBrains Mono', monospace" font-size="17" font-weight="600" letter-spacing="0.2em">MCP SERVER<tspan fill="#FF5500">.</tspan> CLI<tspan fill="#FF5500">.</tspan> PLUGIN<tspan fill="#FF5500">.</tspan> NO API KEY<tspan fill="#FF5500">.</tspan></text>
 </svg>

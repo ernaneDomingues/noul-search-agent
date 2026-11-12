@@ -83,21 +83,19 @@ def _inline_list(payload: dict) -> str:
 
 
 def _readme_table(payload: dict) -> str:
-    rows = ["", "| Ferramenta | O que faz | Perfil | Grava em disco |", "|---|---|---|---|"]
+    rows = ["", "| Tool | What it does | Profile | Writes to disk |", "|---|---|---|---|"]
     flags = {t["name"]: t for t in registry.catalog()}
 
     def writes(name):
         if flags[name]["writes"]:
-            return "sim"
+            return "yes"
         args = flags[name]["write_args"]
-        return "só com " + ", ".join(f"`{a}`" for a in args) if args else "não"
+        return "only with " + ", ".join(f"`{a}`" for a in args) if args else "no"
 
     for t in payload["tools"]:
         first = re.split(r"(?<=[.!?])\s", t["description"], maxsplit=1)[0].replace("|", "\\|")
         profile = (
-            "research (todos)"
-            if "research" in flags[t["name"]]["profiles"]
-            else ", ".join(flags[t["name"]]["profiles"])
+            "research (all)" if "research" in flags[t["name"]]["profiles"] else ", ".join(flags[t["name"]]["profiles"])
         )
         rows.append(f"| `{t['name']}` | {first} | {profile} | {writes(t['name'])} |")
     return "\n".join(rows) + "\n"
@@ -157,7 +155,7 @@ def _https(value: str, key: str, optional: bool = False) -> str:
 
 
 def render_install_html(cfg: dict) -> str:
-    """The "Instalar" page: zero-install connector first, then Claude Desktop, VS Code/Cursor, executables, devs."""
+    """The install page: zero-install connector first, then Claude Desktop, VS Code/Cursor, executables, devs."""
     esc = html.escape
     url = _https(cfg.get("connector_url") or "", "connector_url", optional=True)
     rel = esc(_https(cfg["release_base"], "release_base").rstrip("/"))
@@ -165,25 +163,25 @@ def render_install_html(cfg: dict) -> str:
     if url:
         links = deeplinks(url)
         connector = f"""
-          <div class="code-box"><div class="code-box-header"><span>URL do conector</span>
-            <button class="copy-btn" type="button" data-copy-target="connector-url">Copiar</button></div>
+          <div class="code-box"><div class="code-box-header"><span>Connector URL</span>
+            <button class="copy-btn" type="button" data-copy-target="connector-url">Copy</button></div>
             <pre id="connector-url" class="mono">{esc(url)}</pre></div>
           <ol>
-            <li><strong>Claude.ai ou Claude Desktop:</strong> Configurações → Conectores → <em>Adicionar conector personalizado</em> → cole a URL → Adicionar.
-              <span class="install-note">No plano gratuito há limite de conectores personalizados; em Team/Enterprise, quem adiciona é um administrador.</span></li>
-            <li><strong>ChatGPT:</strong> Settings → Apps &amp; Connectors → Advanced settings → ative o <em>Developer mode</em> → Create → cole a URL → <em>No authentication</em>.
-              <span class="install-note">O modo desenvolvedor depende do plano (pagos).</span></li>
-            <li>Pergunte, por exemplo: <em>"O que a literatura diz sobre creatina e memória?"</em></li>
+            <li><strong>Claude.ai or Claude Desktop:</strong> Settings → Connectors → <em>Add custom connector</em> → paste the URL → Add.
+              <span class="install-note">Free plans limit the number of custom connectors; on Team/Enterprise an administrator adds it.</span></li>
+            <li><strong>ChatGPT:</strong> Settings → Apps &amp; Connectors → Advanced settings → turn on <em>Developer mode</em> → Create → paste the URL → <em>No authentication</em>.
+              <span class="install-note">Developer mode is only available on paid plans.</span></li>
+            <li>Ask, for example: <em>"What does the literature say about creatine and memory?"</em></li>
           </ol>"""
         editors = f"""
-          <p>Um clique adiciona o conector público ao editor (sem instalar nada):</p>
-          <a class="btn btn-primary" href="{esc(links["vscode"])}">Adicionar ao VS Code</a>
-          <a class="btn btn-secondary" href="{esc(links["cursor"])}">Adicionar ao Cursor</a>"""
+          <p>One click adds the public connector to your editor (nothing to install):</p>
+          <a class="btn btn-primary" href="{esc(links["vscode"])}">Add to VS Code</a>
+          <a class="btn btn-secondary" href="{esc(links["cursor"])}">Add to Cursor</a>"""
     else:
         connector = """
-          <p class="connector-pending">O conector público ainda não está no ar. Enquanto isso, use uma das opções abaixo.</p>"""
+          <p class="connector-pending">The public connector is not live yet. Until then, use one of the options below.</p>"""
         editors = """
-          <p class="connector-pending">Os botões de um clique aparecem aqui quando o conector público estiver no ar.</p>"""
+          <p class="connector-pending">The one-click buttons will appear here once the public connector is live.</p>"""
     downloads = [
         ("windows", "Windows (x64)", "noul-windows-x64.exe"),
         ("macos", "macOS (Apple Silicon)", "noul-macos-arm64.tar.gz"),
@@ -197,13 +195,16 @@ def render_install_html(cfg: dict) -> str:
         for (o, label, _), p in zip(downloads, ("win32", "darwin", "linux"), strict=True)
     )
     return f"""<!DOCTYPE html>
-<html lang="pt-BR" data-theme="dark">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Instalar o Noul</title>
-  <meta name="description" content="Use o Noul no Claude, ChatGPT, VS Code, Cursor ou no terminal: do jeito mais simples para o seu ambiente." />
+  <title>Install Noul</title>
+  <meta name="description" content="Use Noul in Claude, ChatGPT, VS Code, Cursor or the terminal: the simplest way for your setup." />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -211,58 +212,58 @@ def render_install_html(cfg: dict) -> str:
   <header class="site-header">
     <div class="container nav-bar">
       <a href="index.html" class="brand"><img src="favicon.svg" alt="Noul" /><span>Noul Search Agent</span></a>
-      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Alternar tema">☀️ Modo Claro</button>
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle theme">Light mode</button>
     </div>
   </header>
   <main>
     <section class="section">
       <div class="container">
-        <h1 class="section-title">Instalar o Noul</h1>
-        <p class="section-lead">Escolha onde você já conversa com uma IA. O caminho mais simples vem primeiro; nenhum exige terminal.
-          <span class="install-note">Sistema detectado: <span id="detected-os">—</span>.</span></p>
+        <h1 class="section-title">Install Noul</h1>
+        <p class="section-lead">Pick the place where you already talk to an AI. The simplest route comes first; none of them needs a terminal.
+          <span class="install-note">Detected system: <span id="detected-os">—</span>.</span></p>
         <div class="install-grid">
           <article class="card install-card" id="connector">
-            <span class="card-tag">Recomendado • sem instalar nada</span>
-            <h3>Claude.ai, Claude Desktop ou ChatGPT</h3>
-            <p>Cole o endereço do conector público (busca e leitura de artigos, só leitura).</p>{connector}
+            <span class="card-tag">Recommended • nothing to install</span>
+            <h3>Claude.ai, Claude Desktop or ChatGPT</h3>
+            <p>Paste the address of the public connector (paper search and reading, read-only).</p>{connector}
           </article>
           <article class="card install-card" id="claude-desktop">
-            <span class="card-tag">Claude Desktop • completo</span>
-            <h3>Extensão para o Claude Desktop</h3>
-            <p>Inclui downloads de PDFs, dossiês, revisão e escrita. Baixe e dê <strong>dois cliques</strong>; o Claude Desktop pede só o seu e-mail (opcional) e a pasta do Noul. É o caminho recomendado no macOS.</p>
-            <a class="btn btn-primary" href="{rel}/noul.mcpb">Baixar noul.mcpb</a>
-            <p class="install-note">Se o Claude Desktop recusar o arquivo acima, use a versão para o seu sistema:</p>
+            <span class="card-tag">Claude Desktop • full version</span>
+            <h3>Claude Desktop extension</h3>
+            <p>Includes PDF downloads, dossiers, review and writing tools. Download it and <strong>double-click</strong>; Claude Desktop only asks for your e-mail (optional) and the Noul folder. This is the recommended route on macOS.</p>
+            <a class="btn btn-primary" href="{rel}/noul.mcpb">Download noul.mcpb</a>
+            <p class="install-note">If Claude Desktop rejects the file above, use the build for your system:</p>
             <ul class="download-list">
 {mcpb_items}
             </ul>
           </article>
           <article class="card install-card" id="editors">
             <span class="card-tag">VS Code • Cursor</span>
-            <h3>No seu editor</h3>{editors}
-            <p class="install-note">Versão completa no editor: baixe o programa abaixo e abra-o; um assistente detecta os seus aplicativos e pergunta onde instalar.</p>
+            <h3>In your editor</h3>{editors}
+            <p class="install-note">Full version in the editor: download the program below and open it; a wizard detects your apps and asks where to install.</p>
           </article>
           <article class="card install-card" id="executables">
-            <span class="card-tag">Executável • sem Python</span>
-            <h3>Programa único</h3>
-            <p>Abra o programa (no Windows, dois cliques): um assistente pergunta em quais aplicativos instalar o Noul e copia-o para uma pasta fixa do seu usuário.
-              No macOS e no Linux, extraia o <code>.tar.gz</code> e rode <code>./noul</code> no terminal.</p>
+            <span class="card-tag">Executable • no Python needed</span>
+            <h3>Single program</h3>
+            <p>Open the program (on Windows, double-click it): a wizard asks which apps should get Noul and copies it to a fixed folder in your user profile.
+              On macOS and Linux, extract the <code>.tar.gz</code> and run <code>./noul</code> in a terminal.</p>
             <ul class="download-list">
 {exe_items}
             </ul>
-            <p class="install-note"><strong>Windows:</strong> se aparecer "O Windows protegeu o computador", clique em <em>Mais informações → Executar assim mesmo</em>.
-              <strong>macOS:</strong> na primeira vez, vá em Ajustes do Sistema → Privacidade e Segurança → <em>Abrir Mesmo Assim</em>.
-              Os arquivos ainda não são assinados digitalmente. O <a href="{rel}/SHA256SUMS">SHA256SUMS</a> só detecta downloads corrompidos;
-              para confirmar que um arquivo foi gerado por este repositório, use <code>gh attestation verify &lt;arquivo&gt; --repo {esc(repo.removeprefix("https://github.com/"))}</code>.</p>
+            <p class="install-note"><strong>Windows:</strong> if "Windows protected your PC" appears, click <em>More info → Run anyway</em>.
+              <strong>macOS:</strong> the first time, go to System Settings → Privacy &amp; Security → <em>Open Anyway</em>.
+              The files are not digitally signed yet. <a href="{rel}/SHA256SUMS">SHA256SUMS</a> only detects corrupted downloads;
+              to confirm that a file was built by this repository, run <code>gh attestation verify &lt;file&gt; --repo {esc(repo.removeprefix("https://github.com/"))}</code>.</p>
           </article>
           <article class="card install-card" id="developers">
-            <span class="card-tag">Desenvolvedores</span>
-            <h3>Plugin, uv ou código-fonte</h3>
+            <span class="card-tag">Developers</span>
+            <h3>Plugin, uv or source code</h3>
             <div class="code-box"><div class="code-box-header"><span>Claude Code</span>
-              <button class="copy-btn" type="button" data-copy-target="cmd-plugin">Copiar</button></div>
+              <button class="copy-btn" type="button" data-copy-target="cmd-plugin">Copy</button></div>
               <pre id="cmd-plugin" class="mono">/plugin marketplace add ernaneDomingues/noul-search-agent
 /plugin install noul-search-agent@noul</pre></div>
-            <div class="code-box"><div class="code-box-header"><span>Todos os agentes (requer uv)</span>
-              <button class="copy-btn" type="button" data-copy-target="cmd-uv">Copiar</button></div>
+            <div class="code-box"><div class="code-box-header"><span>Every agent (requires uv)</span>
+              <button class="copy-btn" type="button" data-copy-target="cmd-uv">Copy</button></div>
               <pre id="cmd-uv" class="mono">git clone {esc(repo)} &amp;&amp; cd noul-search-agent
 uv run noul-install</pre></div>
           </article>
@@ -270,7 +271,7 @@ uv run noul-install</pre></div>
       </div>
     </section>
   </main>
-  <footer class="site-footer"><div class="container"><p><strong>Noul Search Agent</strong> • Licença Apache-2.0 • <a href="{esc(repo)}">Código-fonte</a></p></div></footer>
+  <footer class="site-footer"><div class="container"><p><strong>Noul Search Agent</strong> • Apache-2.0 License • <a href="{esc(repo)}">Source code</a></p></div></footer>
   <script src="app.js"></script>
   <script src="install.js"></script>
 </body>

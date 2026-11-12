@@ -1,208 +1,256 @@
-# noul-search-agent
+# Noul Search Agent
 
-Agente autônomo de pesquisa científica, inteligência documental e copiloto de escrita acadêmica (*Co-Scientist*) multidisciplinar com classificação de nível de evidência, **Evidence Meter (Noul Meter)** determinístico, extração profunda de tabelas/equações/VRAM/ablação/prompts, revisão crítica *multi-persona* adaptável por domínio, geração poliglota de código e protocolos (`PyTorch`, `Statsmodels`, `R`, `CONSORT/STROBE`), copiloto de autoria e submissão (`Citation Infiller`, `Related Work Synthesizer`, `IMRaD Blueprint & Auditor`, `BibTeX Sanitizer`, `Rebuttal Copilot` e `Submission Gatekeeper`), download de PDFs Open Access e dossiês de pesquisa em Markdown. Funciona como **skill + subagente + servidor MCP (50 tools) + servidor HTTP/OpenAPI + CLI** para **Antigravity**, **Claude Code**, **Claude Desktop**, **GitHub Copilot**, **Codex CLI**, **Gemini CLI** e **ChatGPT Actions**.
+Noul is a scientific research co-assistant that runs inside the AI assistant you already use (Claude, ChatGPT, Copilot, Cursor, Gemini and other MCP clients). It searches six open scholarly sources, reads full texts, structures the evidence and helps you review papers, write and prepare submissions.
 
-- **Portal & Documentação Pública**: [https://ernanedomingues.github.io/noul-search-agent/](https://ernanedomingues.github.io/noul-search-agent/)
+**Noul has no LLM of its own.** Its tools retrieve and structure evidence (passages with section and page, signals, checklists); the model in your assistant reasons over that evidence and writes the answer. No API key is required.
 
-Zero chaves de API obrigatórias e nenhum LLM próprio: o LLM do agente que você já usa classifica a postura dos estudos e redige a síntese citada. Requer Python 3.10+ com `pydantic` e `pypdf`; o caminho recomendado é o [`uv`](https://docs.astral.sh/uv/), que instala o Python e as dependências automaticamente.
+- **Website and install page:** <https://ernanedomingues.github.io/noul-search-agent/>
+- **Releases:** <https://github.com/ernaneDomingues/noul-search-agent/releases>
 
-## Componentes
-| Arquivo | Função |
-|---|---|
-| `src/noul/search/`, `src/noul/providers/` | Motor de busca (`OpenAlex`, `PubMed`, `Semantic Scholar`, `Crossref`, `arXiv`, `Europe PMC`, `Unpaywall`), um módulo por fonte, deduplicação e ranqueamento; classificador de domínio, radar de artefatos, parser de PDF/tabelas e cliente temporal do arXiv |
-| `src/noul/evidence/`, `src/noul/library/`, `src/noul/net/` | Classificação de desenho de estudo e faixas de impacto; texto completo, grafo de citações, downloads e exportação; HTTP com proteção SSRF e cache SQLite |
-| `src/noul/registry.py`, `src/noul/api.py`, `src/noul/schemas/tool_inputs.py` | **50 ferramentas MCP**: registro único (`@tool`), funções e modelos de entrada Pydantic, usados pelo MCP, pelo HTTP/OpenAPI e pela CLI (`noul tool <nome> --args '<json>'`) |
-| `src/noul/tools/`, `src/noul/schemas/`, `src/noul/prompts/` | Ferramentas das Fases 1 a 6, contratos Pydantic v2 e rubricas (`NeurIPS/ICLR`, `CONSORT/STROBE/PRISMA`, `Econometria Causal`) |
-| `src/noul/server/` | Servidor MCP no SDK oficial (`mcp.py`: stdio, *prompts*, progresso, *elicitation*) e servidor HTTP endurecido (`http.py`: Streamable HTTP em `/mcp`, OpenAPI em `/openapi.json`, `/healthz`, `POST /tools/<nome>`) |
-| `src/noul/cli/` | CLI (`noul`, ou `python -m noul`) para terminal (`--pretty`, `search --interactive`) ou agentes sem MCP; também expõe `mcp` e `install` |
-| `src/noul/install.py`, `src/noul/_bin/` | Instalador idempotente em nível de usuário (`noul-install`) e os *launchers* de caminho absoluto que ele usa quando não há *console script* (checkout do código-fonte) |
-| `site/` & `scripts/build_site.py` | Landing Page responsiva (Modo Claro/Escuro), simulador de terminal interativo e catálogo sincronizado das 50 ferramentas MCP publicado via GitHub Pages (`.github/workflows/deploy-pages.yml`) |
-| `skills/noul-search/` | Skill em camadas: `SKILL.md` (roteador e regras comuns), `references/` (busca, revisão, escrita, submissão) e `evals/` (3 a 5 casos por jornada, no formato do `claude plugin eval`) |
-| `agents/`, `commands/` | Subagentes/extensões (Claude, Copilot, Codex, Gemini) e o comando `/noul-search-config` |
-| `.claude-plugin/`, `plugin.json`, `pyproject.toml`, `package.json` + `bin/noul.js`, `Dockerfile` | Distribuição: plugin do Claude Code / Antigravity, PyPI (`pip`/`pipx`/`uvx`), npm (`npx`) e contêiner (Cloud Run) |
+## Who it is for
 
-## Ferramentas MCP
+| You are | What you get | Start here |
+|---|---|---|
+| **A researcher, clinician or student** who wants answers grounded in the literature | Cited syntheses, an Evidence Meter weighted by study design, retraction checks, persistent research projects, PDF downloads and Zotero/BibTeX export | [Install without a terminal](#install-without-a-terminal) |
+| **An author or reviewer** | Evidence for peer review, checks of numeric claims, citation suggestions, related-work drafts, BibTeX clean-up, rebuttal templates and pre-submission checks | [Install without a terminal](#install-without-a-terminal) |
+| **A developer or AI engineer** | An MCP server with 50 typed tools, a CLI, an HTTP/OpenAPI server and a Claude Code plugin with a skill and subagents | [Install for developers](#install-for-developers) |
 
-**Projetos de pesquisa.** Um projeto guarda a pergunta, cada artigo considerado com o status (`candidate`, `included` ou `excluded`) e o motivo, as notas e o histórico de buscas (`search_papers(project=...)` registra cada busca e adiciona os resultados como candidatos), e persiste entre sessões e clientes (`projects.db`, na pasta de dados do Noul, ao lado do `config.json`; mude com `NOUL_PROJECTS_DB`). Ferramentas: `project_create`, `project_list`, `project_get`, `project_add_papers`, `project_set_status`, `project_note`, `project_archive` (esconde da lista, reversível) e `project_delete` (apaga de vez; exige o slug exato e uma prévia antes de `confirm: true`); também pela CLI (`noul project ...`) e como *resource* MCP `noul://project/<slug>`. `save_research_dossier` exporta o projeto de mesmo nome (os artigos do dossiê entram como `included`), e os dossiês salvos antes desta versão são importados como projetos uma única vez. As ferramentas que gravam ficam bloqueadas no servidor HTTP (salvo `NOUL_HTTP_ALLOW_WRITE`) e todas ficam ocultas no conector público.
+## What it does
 
-**Perfis de ferramentas.** Para não sobrecarregar o contexto do modelo, o servidor expõe um perfil: `research` (núcleo de busca, leitura, Evidence Meter, projetos de pesquisa, dossiês e downloads, 26 ferramentas), `review` (núcleo + revisão e auditoria técnica), `write` (núcleo + autoria, BibTeX e submissão) ou `all` (as 50). Padrão: `all` no uso local (stdio: plugin, CLI, `noul-install`) e `research` no servidor HTTP/remoto. Mude com `noul-mcp --profile review` ou `NOUL_TOOL_PROFILE=write` (um valor inválido em `NOUL_TOOL_PROFILE` só gera um aviso e usa o padrão).
+- **Search and weigh the literature.** Multi-source search (OpenAlex, PubMed, Semantic Scholar, Crossref, arXiv, Europe PMC, plus Unpaywall for open-access copies), deduplicated and ranked by study design and citations. The Evidence Meter turns the stances your model assigns into reproducible percentages, raw and weighted by study design.
+- **Read and check papers.** Full-text passages with section and page, citation graphs, retraction and expression-of-concern notices, preprint-to-published links, arXiv version diffs, and extraction of benchmarks, ablations, equations, prompts and hardware requirements.
+- **Review.** Review rubrics per domain (NeurIPS/ICLR, CONSORT/STROBE/PRISMA, causal econometrics), numeric-claim verification against the paper's own text and failure-mode detection. The tools return signals and excerpts, not verdicts or scores.
+- **Write and submit.** Citation recommendations, related-work synthesis, manuscript blueprints and draft audits, BibTeX sanitising, rebuttal templates that never invent results, and pre-submission checks for anonymity and venue requirements.
+- **Keep the work.** Research projects record the question, every paper considered with its status and reason, notes and the search history, across sessions and clients. Export to BibTeX, RIS, CSL-JSON, Markdown dossiers, Obsidian notes or Zotero.
 
-O servidor MCP usa o SDK oficial (`mcp` 2.x): stdio e Streamable HTTP (`/mcp`), *annotations* por ferramenta (somente leitura, destrutiva, acesso à rede), `structuredContent` (com `outputSchema` nas ferramentas que já têm modelo de resultado), *prompts* (`noul-research`, `noul-review`, `noul-write`), progresso por fonte em `search_papers` e, em stdio, um pedido único do e-mail de contato (na primeira busca de texto completo ou PDF, se ainda não configurado; uma recusa é lembrada).
+Text that comes from papers, PDFs, web pages and reviews is marked as untrusted data, so your assistant does not treat it as instructions.
 
-Gerado a partir do registro (`src/noul/registry.py`) por `scripts/build_site.py`; não edite à mão.
+## Install without a terminal
 
-<!-- noul:tools:start -->
-| Ferramenta | O que faz | Perfil | Grava em disco |
-|---|---|---|---|
-| `search_papers` | Search peer-reviewed and preprint literature across all scientific disciplines (OpenAlex, PubMed, Semantic Scholar, Crossref, arXiv, Europe PMC), deduplicated and ranked by study design and citations. | research (todos) | só com `project` |
-| `clarify_search_scope` | Clarification loop for broad queries: says whether a query is too broad (needs >= 2 of: 5+ meaningful words, boolean operators/quoted phrase, time constraint, method + outcome) and returns 3 domain-specific multiple-choice questions. | research (todos) | não |
-| `get_paper` | Get full record and abstract of a paper by cached ID, DOI, PMID, OpenAlex ID, arXiv ID, or Semantic Scholar ID. | research (todos) | não |
-| `detect_paper_domain` | Detect a paper's scientific macro-domain (computer_science, biomedical, economics, general_stem) from arXiv categories, fields of study, PubMed indexing, the journal/venue name and title/abstract vocabulary, explaining the signals used. | research (todos) | não |
-| `scan_paper_artifacts` | Open-artifact radar: find code repositories (GitHub/GitLab/...), model weights (Hugging Face, Civitai, Kaggle, PyTorch Hub) and datasets (Zenodo, Figshare, OSF, Dataverse, HF datasets) linked from a paper, verify that the links are alive (HEAD, 5s timeout, max 20 URLs) and flag evasive 'available on request' statements. | review | não |
-| `get_paper_references` | Citation graph with influence ranking: papers this paper cites (`backward_citations`) and papers citing it (`forward_citations`), with title, year, venue, citation_count and Semantic Scholar's `is_influential` flag (OpenAlex fallback: >= 50 citations). | research (todos) | não |
-| `compare_papers` | Comparative matrix of 1-10 papers (3-5 typical): for each paper extracts the core problem/hypothesis, methodology (design + domain + method sentence), datasets/benchmarks/population, key results/metrics (headline finding, %, p-values, AUC, F1, HR, ...) and declared limitations, then returns a Markdown table plus convergence and divergence summaries. | review | não |
-| `get_thematic_insights` | Thematic synthesis of 1-20 papers across 3 cross-cutting axes (no isolated per-paper summaries): `consolidated_consensuses` (shared concepts, benchmarks and highest-level evidence), `methodological_tensions` (evidence-pyramid gaps, dataset/scale differences, open-artifact asymmetry, mixed results) and `emerging_future_work` (cross-referenced limitations and future work). | review | não |
-| `generate_research_hypotheses` | Autonomous research gap & hypothesis engine (#18): cross-analyzes 2-15 papers to detect methodological contradictions (`contradictions_found`) and unexplored synergies where one paper's method mitigates another's limitation (`unexplored_complementarities`), then formulates 1-`max_hypotheses` structured, testable `ResearchHypothesis` proposals with `source_papers` (>= 2), `proposed_methodology`, `required_baselines`, `target_datasets_or_population`, and `evaluation_metrics`. | review | não |
-| `export_obsidian_notes` | Export papers as atomic Obsidian/Markdown notes (`<Year> - <FirstAuthor> - <ShortTitle>.md`) into `vault_dir` (inside the workspace; default ./obsidian): YAML frontmatter (title, paper_id, doi, year, authors, venue, domain, evidence_level, citations, open_access, has_code, has_weights, tags), TL;DR, key findings & methodology, open artifacts, [[wikilinks]] between the exported notes and a BibTeX block. | write | sim |
-| `suggest_boolean_queries` | Dynamic search expansion: mine acronyms (e.g. | research (todos) | não |
-| `extract_benchmark_tables` | Benchmark table extractor: detects Markdown, LaTeX (tabular) and plain-text/PDF tables plus inline `Benchmark: value` pairs in the paper's open-access full text (abstract fallback), keeps the exact model-row x metric-column correspondence, normalizes metric names (gsm-8k -> GSM8K, human-eval -> HumanEval, acc -> Accuracy, ppl -> Perplexity, ...) and converts values like '84.5%' or '84.5 ± 0.3' to numbers. | review | não |
-| `estimate_hardware_specs` | Hardware feasibility / inference footprint: detects the model size (7B, 1.5B, 350M, 8x7B MoE, '671B parameters with 37B activated', family defaults) and architecture (dense, moe, encoder_only, rnn_ssm), then computes FP16/INT8/INT4 weights, KV cache (2 x layers x kv_heads x head_dim x context x bytes) and recommended minimum VRAM (+15% overhead), extracts the authors' reported training hardware (e.g. | review | não |
-| `verify_paper_claims` | Claim grounding with strict attribution: locates each claim (or, when `claims` is empty, the numeric/comparative sentences auto-extracted from the abstract/text) in the paper's literal text, indexed by page and table/section. | review | não |
-| `extract_paper_math` | Math & pseudocode extractor: finds equations (\begin{equation\|align}, $$..$$, \[..\], inline $a = b$, plain-text 'L_total = ...' / 'Attention(Q, K, V) = ...') and algorithms (\begin{algorithm}, 'Algorithm N:' blocks). | review | não |
-| `analyze_ablation_tables` | Ablation analyzer: locates ablation tables/lists (rows 'Full model' / 'Ours' / 'Baseline' and variants 'w/o X', 'without X', '- X', '+ X', 'no X'), takes the full model (else baseline) as reference and computes, per component and metric, delta and delta_percent, flags is_marginal (\|Δ%\| < 1%), ranks components by \|Δ%\| and emits warnings_and_alerts for marginal components and for a single component accounting for >= 60% of the total reported gain. | review | não |
-| `extract_prompts_and_decoding` | Prompt & inference protocol extractor: finds prompt templates (after 'System Prompt:', 'User Prompt:', 'Prompt Template:', 'Instruction:', in code fences/quotes, or text with {variable}, {{variable}}, <context>, "Let's think step by step", "You are an expert") keeping placeholders verbatim and listing `variables`; extracts decoding hyperparameters (temperature, top_p, top_k, max_tokens, repetition_penalty, beam_size, seed, decoding_strategy) with literal evidence, and the JSON output schemas shown in the paper. | review | não |
-| `detect_failure_modes` | Failure mode & critical assumption detector: scans Limitations, Error Analysis, Failure Cases, Discussion, Threats to Validity and Appendix (plus abstract/body) to classify failure modes into long_context, noise_sensitivity, out_of_distribution, latency_or_compute, sample_or_population_bias and general_limitation (as `signals` with the triggering sentence and a priority hint), extracts critical_assumptions, baseline_superiority_scenarios (from text and from benchmark tables where a baseline beats Ours) and operational_limits. | review | não |
-| `diff_arxiv_versions` | arXiv temporal version diff analyzer: fetches and compares two revisions of an arXiv preprint (e.g. | review | não |
-| `review_paper` | Multi-persona peer-review committee (#17, #20): detects the paper's scientific domain (or uses `domain` override) and runs 3 specialized reviewer personas (NeurIPS/ICLR Theoretical, Skeptical Empirical, and Systems/Reproducibility for CS/AI; CONSORT/STROBE Clinical Trial Methodologist, Biostatistician, and Translational Safety Reviewer for Biomedical; Causal Identification Econometrician, Robustness Auditor, and Policy Economist for Economics). | review | não |
-| `review_paper_scientific` | Alias for review_paper: evidence for a domain-adaptive 3-persona scientific peer review (#17, #20); no verdict - you judge with the rubric. | review | não |
-| `scaffold_implementation` | Polyglot code & experimental protocol scaffolder (#16, #21): translates a paper's mathematical formulations, architecture, econometric specification or clinical trial design into executable, ast-validated code + unit tests (PyTorch `nn.Module` with shape assertions for CS/AI; Statsmodels or R `fixest` panel + robustness matrix for Economics; CONSORT/STROBE operational checklist + ITT analytical pipeline for Biomedical/STEM). | review | não |
-| `scaffold_paper_code` | Alias for scaffold_implementation (#16, #21): generates PyTorch, Statsmodels/R, or Clinical Protocol code + unit tests. | review | não |
-| `recommend_citations` | Contextual citation recommender & infiller (#22): scans a draft paragraph or file (.md/.tex) for explicit `[CITATION NEEDED]` / `\cite{?}` markers and unsubstantiated empirical claims, retrieves up to `max_per_claim` candidate supporting papers per claim with a justification quoting each abstract (check that it really backs the claim; candidates known to be retracted - from the search sources or Crossref - are dropped with a warning), inserts inline LaTeX or Markdown citations, and generates a deduplicated BibTeX block. | write | não |
-| `synthesize_related_work` | Narrative Related Work synthesizer (#24): clusters 1-20 papers into thematic approach families (Architectural & Representation Foundations, Training/Optimization/Causal Identification, Efficiency/Scaling/Empirical Evaluation), writes comparative academic prose (While X..., Y..., whereas Z... | write | não |
-| `generate_manuscript_blueprint` | IMRaD manuscript blueprint generator (#23 Mode 1): generates a venue-adapted (neurips, icml, iclr, acl, ieee, nature, lancet, aer, general) structural template with paragraph-by-paragraph writing guidance and required elements in Markdown or LaTeX. | write | não |
-| `audit_manuscript_draft` | Draft manuscript auditor (#23 Mode 2): audits a draft (.md/.tex in workspace or inline text) for weak or unsubstantiated claims, mathematical/terminological inconsistencies ($L$ vs $\mathcal{L}$), and reproducibility omissions (seeds, hyperparameters, sample size N, error bars, compute hardware), as signals quoting the draft with suggested rewrites, a checklist and a rubric; no assessment. | write | não |
-| `sanitize_bibtex` | BibTeX sanitizer & preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`). | write | só com `output_path` |
-| `parse_and_draft_rebuttal` | Peer-review Rebuttal Copilot (#26): segments raw reviewer comments (`Reviewer 1`, `Reviewer 2`, ...) into numbered actionable points, classifies each objection, flags requests requiring new experiments (`requires_new_experiment=True`), and builds a rebuttal skeleton in Markdown and LaTeX whose responses are templates with [TODO] placeholders: help the author fill them with their real results, never invent results. | write | não |
-| `audit_submission_readiness` | Pre-Submission & Desk-Reject Gatekeeper (#27): runs a 4-stage audit on a `.tex`, `.md`, or `.pdf` manuscript for the target `venue` — (1) Double-Blind Anonymity Audit (non-anonymous GitHub/HF URLs, `\author` blocks, PDF metadata, first-person self-citations), (2) Venue Checklist Engine, (3) Overclaiming Scanner, and (4) Mandatory Sections Check - anonymity/overclaiming findings as signals, checklist and sections as a checklist (detected yes/no) and suggested actions; no readiness score: you judge readiness with the returned rubric. | write | não |
-| `get_fulltext` | Fetch open-access full text (via OpenAlex, EuropePMC, arXiv, Unpaywall) and return the passages most relevant to `question` (BM25), each with its section and, when the source has real pages, its page. | research (todos) | não |
-| `query_fulltexts` | Query across multiple papers simultaneously for a specific question (uses full text when Open Access or abstract fallback). | research (todos) | não |
-| `citation_graph` | Papers this paper cites (references) and papers citing it (OpenAlex), automatically cached for follow-up. | research (todos) | não |
-| `related_papers` | Find papers semantically similar to the target paper, papers it cites (references), or papers citing it. | research (todos) | não |
-| `download_papers` | Download Open Access PDFs for one or more paper IDs or DOIs into `output_dir` (inside the workspace; default: configured download_dir, ./papers). | research (todos) | sim |
-| `export_papers` | Export papers as bibtex, ris, csv or csl-json (imported by Zotero, Mendeley and Pandoc), given `ids` or a research `project` (its included papers, or those of `status`). | research (todos) | não |
-| `zotero_push` | Create papers in the user's Zotero library (Web API, needs a key with write access), given `ids` or a research `project`, optionally in an existing `collection`. | research (todos) | sim |
-| `save_research_dossier` | Save a persistent research dossier (README.md, papers.json, references.bib) in `output_dir` (inside the workspace; default: configured research_dir, ./research) so the user can converse over the research documentation. | research (todos) | sim |
-| `list_research_dossiers` | List saved research dossiers available for follow-up conversation. | research (todos) | não |
-| `get_research_dossier` | Load a saved research dossier (Markdown report and paper metadata) by slug or topic. | research (todos) | não |
-| `configure_noul` | View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool) and default download/research folders. | research (todos) | sim |
-| `evidence_meter` | Compute the Evidence Meter deterministically from YOUR stance classification of each paper: raw counts and percentages plus study-design-weighted percentages (meta-analysis 1.0 … preclinical 0.2). | research (todos) | não |
-| `project_create` | Create a persistent research project for a question. | research (todos) | sim |
-| `project_list` | List the user's research projects, most recently updated first, with paper counts per status. | research (todos) | não |
-| `project_get` | Get a research project: its question, papers (included first, each with status and reason), notes and search history (`searches`: each query logged with search_papers(project=...), its filters and how many papers it found, returned and added). | research (todos) | não |
-| `project_add_papers` | Add papers (ids, DOIs, PMIDs or arXiv ids from search_papers) to a research project with a status (candidate by default) and an optional reason. | research (todos) | sim |
-| `project_set_status` | Include or exclude papers of a research project, or move them back to candidate, recording why: the inclusion criterion they meet or fail. | research (todos) | sim |
-| `project_note` | Add a note to a research project, optionally attached to one of its papers. | research (todos) | sim |
-| `project_archive` | Archive a research project the user has finished or set aside: it leaves project_list (unless `include_archived`) but nothing is deleted, and it stays readable and writable by slug. | research (todos) | sim |
-| `project_delete` | Permanently delete a research project: its paper statuses and reasons, notes and search history. | research (todos) | sim |
-<!-- noul:tools:end -->
+Open the [**install page**](https://ernanedomingues.github.io/noul-search-agent/install.html) and pick your setup:
 
-## Instalação
+- **Claude Desktop, full version:** download `noul.mcpb` and double-click it. Claude Desktop asks for your e-mail (optional) and the Noul folder.
+- **Single executable** for Windows, macOS and Linux (no Python needed). Open it and a wizard detects your apps and asks where to install Noul.
+- **Claude.ai, Claude Desktop or ChatGPT, nothing to install:** paste the URL of the public read-only connector, once it is live (the install page shows it).
+- **VS Code / Cursor:** one-click install buttons, once the public connector is live.
 
-**Sem terminal (pesquisadores):** acesse a página [**Instalar**](https://ernanedomingues.github.io/noul-search-agent/install.html) e escolha o seu ambiente:
-- **Claude.ai, Claude Desktop ou ChatGPT:** cole a URL do conector público, só de leitura e sem instalar nada.
-- **Claude Desktop, versão completa:** baixe `noul.mcpb` e dê dois cliques. O Claude Desktop pede o e-mail (opcional) e a pasta do Noul.
-- **VS Code / Cursor:** botões de instalação em um clique.
-- **Executável único** para Windows, macOS e Linux (sem Python). Para instalar em vários aplicativos de uma vez, rode `noul install`, que detecta os aplicativos e pergunta onde instalar.
+The executables are not digitally signed yet. [`docs/release/signing.md`](docs/release/signing.md) explains how to open them on Windows and macOS and how to verify a download.
 
-Os executáveis ainda não são assinados digitalmente. Veja como liberá-los no Windows e no macOS em [`docs/release/signing.md`](docs/release/signing.md).
+## Install for developers
 
-**Desenvolvedores:** escolha **uma** das opções:
+Pick **one** of the options. All of them need [`uv`](https://docs.astral.sh/uv/) except the PyPI route with `pipx`.
 
 ```bash
-# Claude Code (plugin: skill + subagente + /noul-search-config + MCP)
+# Claude Code plugin: skill + subagent + /noul-search-config + MCP server
 /plugin marketplace add ernaneDomingues/noul-search-agent
 /plugin install noul-search-agent@noul
 
-# PyPI (após publicação) — instala o pacote e configura todos os agentes
-pipx install noul-search-agent && noul-install --all
-uvx noul-search-agent install --all          # agentes passam a iniciar o MCP via `uvx`
-
-# npm (após publicação) — usa o uv para provisionar Python e dependências
-npx -y noul-search-agent install --all       # agentes passam a iniciar o MCP via `npx`
-
-# A partir do código-fonte (requer uv: https://docs.astral.sh/uv/)
+# From source: installs into every supported agent
 git clone https://github.com/ernaneDomingues/noul-search-agent && cd noul-search-agent
-uv run noul-install --all                    # todos os ambientes suportados
-uv run noul-install antigravity claude       # ou ambientes específicos
-uv run noul-install --all --dry-run          # apenas mostra o que faria
-uv run noul-install --all --uninstall        # remove tudo de forma limpa
+uv run noul-install --all                    # every supported environment
+uv run noul-install antigravity claude       # or specific ones
+uv run noul-install --all --dry-run          # only print what would change
+uv run noul-install --all --uninstall        # remove everything cleanly
+
+# PyPI (once the package is published)
+pipx install noul-search-agent && noul-install --all
+uvx noul-search-agent install --all --runner uvx   # agents start the MCP server through uvx
 ```
 
-O instalador usa o interpretador atual (`sys.executable`, funciona no Windows) ou `--runner uvx|npx`, grava strings TOML seguras para caminhos do Windows, cria um `.bak` antes de alterar pela primeira vez um arquivo de configuração existente e não toca em arquivos JSON corrompidos (sai com código 1). O plugin do Claude Code e o launcher `npx` requerem o [`uv`](https://docs.astral.sh/uv/) no `PATH`.
+The installer uses the current interpreter (`sys.executable`, which also works on Windows) or `--runner uvx`. It writes TOML strings that are safe for Windows paths, creates a `.bak` before it first changes an existing configuration file, and leaves corrupted JSON files untouched (exit code 1).
 
-## Configuração
+To add the server to an MCP client by hand, point it at `noul-mcp` (stdio). From a source checkout:
 
-Na primeira utilização, informe um e-mail de contato (habilita o Unpaywall e os "polite pools" de OpenAlex/Crossref/NCBI). O agente nunca inventa um e-mail.
+```json
+{
+  "mcpServers": {
+    "noul": {
+      "command": "uv",
+      "args": ["run", "--project", "/path/to/noul-search-agent", "noul-mcp"],
+      "env": { "NOUL_WORKSPACE": "/path/to/your/workspace" }
+    }
+  }
+}
+```
+
+## Configuration
+
+On first use, give a contact e-mail. It enables Unpaywall and the polite pools of OpenAlex, Crossref and NCBI. Noul never invents an e-mail.
 
 ```bash
-/noul-search-config email:voce@universidade.br            # instalado por noul-install
-/noul-search-agent:noul-search-config email:voce@universidade.br  # plugin do Claude Code
-noul config email:voce@universidade.br --workspace ~/pesquisa --download-dir papers
-noul config                                                 # mostra a configuração
-noul config --clear                                         # apaga o arquivo de configuração
-noul config --zotero-user-id ID --zotero-api-key-stdin      # credenciais do Zotero (só pelo terminal ou por variáveis)
-noul config --zotero-remove-key                             # remove a chave do Zotero guardada
+/noul-search-config email:you@university.edu              # installed by noul-install
+/noul-search-agent:noul-search-config email:you@university.edu   # Claude Code plugin
+noul config email:you@university.edu --workspace ~/research --download-dir papers
+noul config                                                # show the configuration
+noul config --clear                                        # delete the configuration file
+noul config --zotero-user-id ID --zotero-api-key-stdin     # Zotero credentials (terminal or environment only)
+noul config --zotero-remove-key                            # remove the stored Zotero key
 ```
 
-Downloads e dossiês ficam **sempre dentro do workspace** (padrão: diretório atual; caminhos relativos são relativos a ele). Caminhos fora dele, pastas e arquivos ocultos e a pasta do próprio Noul são recusados. O workspace e as credenciais do Zotero só mudam pelo terminal ou por variáveis de ambiente, nunca por uma ferramenta.
+Downloads and dossiers are **always written inside the workspace** (default: the current directory; relative paths are relative to it). Paths outside it, hidden files and folders, and Noul's own folder are refused. The workspace and the Zotero credentials can only be changed from the terminal or through environment variables, never by a tool.
 
-| Variável | Uso |
+| Variable | Purpose |
 |---|---|
-| `NOUL_EMAIL` | E-mail de contato (alternativa ao `config`) |
-| `NOUL_WORKSPACE` | Workspace onde downloads/dossiês podem ser gravados (tem prioridade sobre o `workspace` salvo por `noul config`; sem nenhum dos dois, vale a pasta atual ou, se ela for a raiz do disco, `~/Documents/Noul`) |
-| `NOUL_HOME` | Cache e `config.json` (padrão `~/.cache/noul-search-agent`) |
-| `NOUL_DB_PATH` | Caminho do banco SQLite de cache |
-| `NOUL_ALLOW_ANY_PATH=1` | Desativa o confinamento ao workspace; reservado a testes isolados |
-| `NOUL_INSTALL_RUNNER` | Runner padrão do instalador (`python`, `uvx`, `npx`) |
-| `NOUL_UV` | Executável do `uv` usado pelo launcher `npx` |
+| `NOUL_EMAIL` | Contact e-mail (alternative to `noul config`) |
+| `NOUL_WORKSPACE` | Workspace where downloads and dossiers may be written. Takes priority over the `workspace` saved by `noul config`; with neither, the current folder is used or, if that is the disk root, `~/Documents/Noul` |
+| `NOUL_HOME` | Cache and `config.json` (default `~/.cache/noul-search-agent`) |
+| `NOUL_DB_PATH` | Path of the SQLite cache database |
+| `NOUL_PROJECTS_DB` | Path of the research-projects database (default: `projects.db` next to `config.json`) |
+| `NOUL_TOOL_PROFILE` | Tool profile the server exposes (`research`, `review`, `write`, `all`) |
+| `NOUL_LOG_LEVEL` | Log level of the `noul` logger (stderr) |
+| `NOUL_ALLOW_ANY_PATH=1` | Disables workspace confinement; reserved for isolated tests |
+| `NOUL_INSTALL_RUNNER` | Default runner of the installer (`python`, `uvx`) |
 
+## Usage examples
 
-## Exemplos de Uso (CLI e Conversa)
+In a chat, just ask: *"What does the literature say about creatine and working memory in healthy adults?"* or *"Review arXiv 2305.14314 as a peer reviewer would."* The same tools are available from the terminal.
 
-Os exemplos usam `noul` (instalado via pip/pipx). Com uvx, troque por `uvx noul-search-agent`; a partir do código-fonte, troque por `uv run noul`.
+The examples use `noul` (installed through pip/pipx). From a source checkout, use `uv run noul`.
 
-### 1. Pesquisar na literatura (Medicina, IA/Computação, Economia, Psicologia...)
+### 1. Search the literature
 ```bash
 noul search "creatine supplementation cognitive performance" --types meta-analysis,rct --year-min 2018 --pretty
 noul search "retrieval augmented generation hallucination benchmark" --sources openalex,s2,arxiv --pretty
 noul search "statin myopathy" --sources europepmc,pubmed --open-access
 ```
-O campo `tier` é uma faixa transparente de citações/periódico (`top`, `high`, `standard`, `emerging`), **não** um quartil JCR/SJR.
+The `tier` field is a transparent citation/venue band (`top`, `high`, `standard`, `emerging`), **not** a JCR/SJR quartile.
 
-### 2. Buscar artigos similares, referências citadas ou artigos que citam um estudo
+### 2. Find similar papers, references and citing papers
 ```bash
 noul related "doi:10.1093/nutrit/nuac064" --relation all --types meta-analysis,rct
 ```
 
-### 3. Baixar os PDFs Open Access (dentro do workspace)
+### 3. Download open-access PDFs (inside the workspace)
 ```bash
 noul download "doi:10.1093/nutrit/nuac064,arxiv:2312.10997" --dir papers
 ```
 
-### 4. Perguntar em cima do texto completo de múltiplos artigos
+### 4. Ask questions over the full text of several papers
 ```bash
 noul ask "doi:10.1093/nutrit/nuac064,pmid:29704637" --question "What daily dosage and duration were used?"
 ```
 
-### 5. Evidence Meter determinístico
-O LLM classifica a postura de cada estudo; o cálculo (percentuais brutos e ponderados pelo desenho do estudo) é reprodutível:
+### 5. Evidence Meter
+Your model classifies the stance of each study; the calculation (raw percentages and percentages weighted by study design) is reproducible:
 ```bash
 noul meter '[{"id":"doi:10.1093/nutrit/nuac064","stance":"supportive"},{"id":"pmid:29704637","stance":"inconclusive"}]'
 ```
 
-### 6. Modo HTTP / OpenAPI (ChatGPT Actions, clientes Web, Cloud Run)
+### 6. HTTP / OpenAPI mode
 ```bash
-noul-mcp --http 8765          # ou: uv run noul-mcp --http 8765
-# MCP: http://127.0.0.1:8765/mcp · OpenAPI: /openapi.json · saúde: /healthz
+noul-mcp --http 8765          # or: uv run noul-mcp --http 8765
+# MCP: http://127.0.0.1:8765/mcp · OpenAPI: /openapi.json · health: /healthz
 ```
-Segurança: escuta em `127.0.0.1` por padrão e valida o cabeçalho `Host` (anti DNS rebinding); CORS apenas para `NOUL_CORS_ORIGINS`; autenticação `Authorization: Bearer` com `NOUL_HTTP_TOKEN` (exceto `/healthz`); ferramentas que gravam em disco ou numa conta externa (`download_papers`, `save_research_dossier`, `configure_noul`, `zotero_push`) ficam ocultas e bloqueadas via HTTP, a menos que `NOUL_HTTP_ALLOW_WRITE=1` **e** um token estejam definidos. Outras variáveis: `NOUL_HTTP_HOST`, `PORT`, `NOUL_HTTP_LOG=1`.
+Security: the server listens on `127.0.0.1` by default and validates the `Host` header (against DNS rebinding). CORS is limited to `NOUL_CORS_ORIGINS`. When `NOUL_HTTP_TOKEN` is set, requests need `Authorization: Bearer` with that token (except `/healthz`); without it, the loopback server is unauthenticated. Tools that write to disk or to an external account (`download_papers`, `save_research_dossier`, `configure_noul`, `zotero_push`) are hidden and blocked over HTTP unless `NOUL_HTTP_ALLOW_WRITE=1` **and** a token are set. Other variables: `NOUL_HTTP_HOST`, `PORT`, `NOUL_HTTP_LOG=1`.
 
-### 7. Conector público (Claude.ai, ChatGPT) e Google Cloud Run
-O mesmo servidor roda como **conector público só de leitura**: sem login, 12 ferramentas do perfil `research` (sem escrita e sem os dossiês do servidor), transporte *stateless*, limite de chamadas de ferramenta por instância, concorrência limitada e tetos por chamada anunciados no schema. Qualquer pessoa usa colando `https://<serviço>/mcp` em Claude.ai/Claude Desktop (Conectores) ou ChatGPT (modo desenvolvedor).
+### 7. Public connector and Google Cloud Run
+The same server can run as a **public read-only connector**: no login, 12 tools from the `research` profile (no writes and no server-side dossiers), stateless transport, a per-instance limit on tool calls, bounded concurrency and per-call caps announced in the schema. Anyone can use it by pasting `https://<service>/mcp` into Claude.ai/Claude Desktop (Connectors) or ChatGPT (developer mode).
 ```bash
-NOUL_PUBLIC=1 noul-mcp --http 8765                          # local (127.0.0.1): para testar como conector, exponha via túnel HTTPS
+NOUL_PUBLIC=1 noul-mcp --http 8765     # local (127.0.0.1): expose it through an HTTPS tunnel to test it as a connector
 docker build -t noul-search-agent . && docker run -p 8080:8080 -e NOUL_PUBLIC=1 noul-search-agent
 ```
-Deploy no Cloud Run (escala a zero, sem chaves de serviço, via GitHub Actions): [`docs/deploy/cloud-run.md`](docs/deploy/cloud-run.md).
+Deployment on Cloud Run (scales to zero, no service-account keys, through GitHub Actions): [`docs/deploy/cloud-run.md`](docs/deploy/cloud-run.md).
 
-Servidor privado (com escrita, para você): `NOUL_HTTP_TOKEN=troque-me NOUL_HTTP_ALLOW_WRITE=1 noul-mcp --http 8765`.
+Private server with write access, for yourself: `NOUL_HTTP_TOKEN=change-me NOUL_HTTP_ALLOW_WRITE=1 noul-mcp --http 8765`.
 
-## Desenvolvimento
-Ambiente: `uv venv .venv && uv pip install -e ".[dev]"`. Qualidade: `ruff check .`, `ruff format --check .`, `mypy` e `python -m pytest --cov` (testes offline, com piso de cobertura). Golden sets dos classificadores: `python tests/test_golden_sets.py --report`. Pacotes: `uv build` (wheel/sdist) e `npm pack`. Orientações para agentes de código: [`CLAUDE.md`](CLAUDE.md); plano da v2.0: [`docs/REFACTOR_PLAN.md`](docs/REFACTOR_PLAN.md).
+## MCP tools
 
-Roadmap de melhorias e de distribuição: [`docs/ROADMAP.md`](docs/ROADMAP.md) · plano de implementação: [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md).
+**Research projects.** A project stores the question, every paper considered with its status (`candidate`, `included` or `excluded`) and the reason, the notes and the search history (`search_papers(project=...)` logs each search and adds its results as candidates). It persists across sessions and clients. Tools: `project_create`, `project_list`, `project_get`, `project_add_papers`, `project_set_status`, `project_note`, `project_archive` (hides it from the list, reversible) and `project_delete` (permanent; needs the exact slug and a preview before `confirm: true`). Projects are also available from the CLI (`noul project ...`) and as the MCP resource `noul://project/<slug>`. `save_research_dossier` exports the project of the same name. Write tools are blocked on the HTTP server (unless `NOUL_HTTP_ALLOW_WRITE` is set) and all project tools are hidden on the public connector.
 
-## Limitações e Aviso Legal
-- O **Evidence Meter (Noul Meter)** é um indicador heurístico da distribuição de estudos encontrados, não uma metanálise estatística.
-- Resumos de literatura na área da saúde têm finalidade exclusivamente informativa e acadêmica, não constituindo aconselhamento médico.
-- Projeto independente inspirado em princípios de Medicina Baseada em Evidências e ferramentas acadêmicas como Consensus e Elicit, sem qualquer afiliação ou endosso da Consensus NLP Inc.
+**Tool profiles.** To keep the model's context small, the server exposes one profile: `research` (search, reading, Evidence Meter, research projects, dossiers and downloads: 26 tools), `review` (research + review and technical audit), `write` (research + authoring, BibTeX and submission) or `all` (all 50). Default: `all` for local use (stdio: plugin, CLI, `noul-install`) and `research` on the HTTP/remote server. Change it with `noul-mcp --profile review` or `NOUL_TOOL_PROFILE=write` (an invalid value only logs a warning and falls back to the default).
+
+The MCP server is built on the official SDK (`mcp` 2.x): stdio and Streamable HTTP (`/mcp`), per-tool annotations (read-only, destructive, network access), `structuredContent` (with `outputSchema` on the tools that have a result model), prompts (`noul-research`, `noul-review`, `noul-write`), per-source progress in `search_papers` and, over stdio, a one-time request for the contact e-mail (on the first full-text or PDF request, if none is configured; a refusal is remembered).
+
+The table is generated from the registry (`src/noul/registry.py`) by `scripts/build_site.py`; do not edit it by hand.
+
+<!-- noul:tools:start -->
+| Tool | What it does | Profile | Writes to disk |
+|---|---|---|---|
+| `search_papers` | Search peer-reviewed and preprint literature across all scientific disciplines (OpenAlex, PubMed, Semantic Scholar, Crossref, arXiv, Europe PMC), deduplicated and ranked by study design and citations. | research (all) | only with `project` |
+| `clarify_search_scope` | Clarification loop for broad queries: says whether a query is too broad (needs >= 2 of: 5+ meaningful words, boolean operators/quoted phrase, time constraint, method + outcome) and returns 3 domain-specific multiple-choice questions. | research (all) | no |
+| `get_paper` | Get full record and abstract of a paper by cached ID, DOI, PMID, OpenAlex ID, arXiv ID, or Semantic Scholar ID. | research (all) | no |
+| `detect_paper_domain` | Detect a paper's scientific macro-domain (computer_science, biomedical, economics, general_stem) from arXiv categories, fields of study, PubMed indexing, the journal/venue name and title/abstract vocabulary, explaining the signals used. | research (all) | no |
+| `scan_paper_artifacts` | Open-artifact radar: find code repositories (GitHub/GitLab/...), model weights (Hugging Face, Civitai, Kaggle, PyTorch Hub) and datasets (Zenodo, Figshare, OSF, Dataverse, HF datasets) linked from a paper, verify that the links are alive (HEAD, 5s timeout, max 20 URLs) and flag evasive 'available on request' statements. | review | no |
+| `get_paper_references` | Citation graph with influence ranking: papers this paper cites (`backward_citations`) and papers citing it (`forward_citations`), with title, year, venue, citation_count and Semantic Scholar's `is_influential` flag (OpenAlex fallback: >= 50 citations). | research (all) | no |
+| `compare_papers` | Comparative matrix of 1-10 papers (3-5 typical): for each paper extracts the core problem/hypothesis, methodology (design + domain + method sentence), datasets/benchmarks/population, key results/metrics (headline finding, %, p-values, AUC, F1, HR, ...) and declared limitations, then returns a Markdown table plus convergence and divergence summaries. | review | no |
+| `get_thematic_insights` | Thematic synthesis of 1-20 papers across 3 cross-cutting axes (no isolated per-paper summaries): `consolidated_consensuses` (shared concepts, benchmarks and highest-level evidence), `methodological_tensions` (evidence-pyramid gaps, dataset/scale differences, open-artifact asymmetry, mixed results) and `emerging_future_work` (cross-referenced limitations and future work). | review | no |
+| `generate_research_hypotheses` | Autonomous research gap & hypothesis engine (#18): cross-analyzes 2-15 papers to detect methodological contradictions (`contradictions_found`) and unexplored synergies where one paper's method mitigates another's limitation (`unexplored_complementarities`), then formulates 1-`max_hypotheses` structured, testable `ResearchHypothesis` proposals with `source_papers` (>= 2), `proposed_methodology`, `required_baselines`, `target_datasets_or_population`, and `evaluation_metrics`. | review | no |
+| `export_obsidian_notes` | Export papers as atomic Obsidian/Markdown notes (`<Year> - <FirstAuthor> - <ShortTitle>.md`) into `vault_dir` (inside the workspace; default ./obsidian): YAML frontmatter (title, paper_id, doi, year, authors, venue, domain, evidence_level, citations, open_access, has_code, has_weights, tags), TL;DR, key findings & methodology, open artifacts, [[wikilinks]] between the exported notes and a BibTeX block. | write | yes |
+| `suggest_boolean_queries` | Dynamic search expansion: mine acronyms (e.g. | research (all) | no |
+| `extract_benchmark_tables` | Benchmark table extractor: detects Markdown, LaTeX (tabular) and plain-text/PDF tables plus inline `Benchmark: value` pairs in the paper's open-access full text (abstract fallback), keeps the exact model-row x metric-column correspondence, normalizes metric names (gsm-8k -> GSM8K, human-eval -> HumanEval, acc -> Accuracy, ppl -> Perplexity, ...) and converts values like '84.5%' or '84.5 ± 0.3' to numbers. | review | no |
+| `estimate_hardware_specs` | Hardware feasibility / inference footprint: detects the model size (7B, 1.5B, 350M, 8x7B MoE, '671B parameters with 37B activated', family defaults) and architecture (dense, moe, encoder_only, rnn_ssm), then computes FP16/INT8/INT4 weights, KV cache (2 x layers x kv_heads x head_dim x context x bytes) and recommended minimum VRAM (+15% overhead), extracts the authors' reported training hardware (e.g. | review | no |
+| `verify_paper_claims` | Claim grounding with strict attribution: locates each claim (or, when `claims` is empty, the numeric/comparative sentences auto-extracted from the abstract/text) in the paper's literal text, indexed by page and table/section. | review | no |
+| `extract_paper_math` | Math & pseudocode extractor: finds equations (\begin{equation\|align}, $$..$$, \[..\], inline $a = b$, plain-text 'L_total = ...' / 'Attention(Q, K, V) = ...') and algorithms (\begin{algorithm}, 'Algorithm N:' blocks). | review | no |
+| `analyze_ablation_tables` | Ablation analyzer: locates ablation tables/lists (rows 'Full model' / 'Ours' / 'Baseline' and variants 'w/o X', 'without X', '- X', '+ X', 'no X'), takes the full model (else baseline) as reference and computes, per component and metric, delta and delta_percent, flags is_marginal (\|Δ%\| < 1%), ranks components by \|Δ%\| and emits warnings_and_alerts for marginal components and for a single component accounting for >= 60% of the total reported gain. | review | no |
+| `extract_prompts_and_decoding` | Prompt & inference protocol extractor: finds prompt templates (after 'System Prompt:', 'User Prompt:', 'Prompt Template:', 'Instruction:', in code fences/quotes, or text with {variable}, {{variable}}, <context>, "Let's think step by step", "You are an expert") keeping placeholders verbatim and listing `variables`; extracts decoding hyperparameters (temperature, top_p, top_k, max_tokens, repetition_penalty, beam_size, seed, decoding_strategy) with literal evidence, and the JSON output schemas shown in the paper. | review | no |
+| `detect_failure_modes` | Failure mode & critical assumption detector: scans Limitations, Error Analysis, Failure Cases, Discussion, Threats to Validity and Appendix (plus abstract/body) to classify failure modes into long_context, noise_sensitivity, out_of_distribution, latency_or_compute, sample_or_population_bias and general_limitation (as `signals` with the triggering sentence and a priority hint), extracts critical_assumptions, baseline_superiority_scenarios (from text and from benchmark tables where a baseline beats Ours) and operational_limits. | review | no |
+| `diff_arxiv_versions` | arXiv temporal version diff analyzer: fetches and compares two revisions of an arXiv preprint (e.g. | review | no |
+| `review_paper` | Multi-persona peer-review committee (#17, #20): detects the paper's scientific domain (or uses `domain` override) and runs 3 specialized reviewer personas (NeurIPS/ICLR Theoretical, Skeptical Empirical, and Systems/Reproducibility for CS/AI; CONSORT/STROBE Clinical Trial Methodologist, Biostatistician, and Translational Safety Reviewer for Biomedical; Causal Identification Econometrician, Robustness Auditor, and Policy Economist for Economics). | review | no |
+| `review_paper_scientific` | Alias for review_paper: evidence for a domain-adaptive 3-persona scientific peer review (#17, #20); no verdict - you judge with the rubric. | review | no |
+| `scaffold_implementation` | Polyglot code & experimental protocol scaffolder (#16, #21): translates a paper's mathematical formulations, architecture, econometric specification or clinical trial design into executable, ast-validated code + unit tests (PyTorch `nn.Module` with shape assertions for CS/AI; Statsmodels or R `fixest` panel + robustness matrix for Economics; CONSORT/STROBE operational checklist + ITT analytical pipeline for Biomedical/STEM). | review | no |
+| `scaffold_paper_code` | Alias for scaffold_implementation (#16, #21): generates PyTorch, Statsmodels/R, or Clinical Protocol code + unit tests. | review | no |
+| `recommend_citations` | Contextual citation recommender & infiller (#22): scans a draft paragraph or file (.md/.tex) for explicit `[CITATION NEEDED]` / `\cite{?}` markers and unsubstantiated empirical claims, retrieves up to `max_per_claim` candidate supporting papers per claim with a justification quoting each abstract (check that it really backs the claim; candidates known to be retracted - from the search sources or Crossref - are dropped with a warning), inserts inline LaTeX or Markdown citations, and generates a deduplicated BibTeX block. | write | no |
+| `synthesize_related_work` | Narrative Related Work synthesizer (#24): clusters 1-20 papers into thematic approach families (Architectural & Representation Foundations, Training/Optimization/Causal Identification, Efficiency/Scaling/Empirical Evaluation), writes comparative academic prose (While X..., Y..., whereas Z... | write | no |
+| `generate_manuscript_blueprint` | IMRaD manuscript blueprint generator (#23 Mode 1): generates a venue-adapted (neurips, icml, iclr, acl, ieee, nature, lancet, aer, general) structural template with paragraph-by-paragraph writing guidance and required elements in Markdown or LaTeX. | write | no |
+| `audit_manuscript_draft` | Draft manuscript auditor (#23 Mode 2): audits a draft (.md/.tex in workspace or inline text) for weak or unsubstantiated claims, mathematical/terminological inconsistencies ($L$ vs $\mathcal{L}$), and reproducibility omissions (seeds, hyperparameters, sample size N, error bars, compute hardware), as signals quoting the draft with suggested rewrites, a checklist and a rubric; no assessment. | write | no |
+| `sanitize_bibtex` | BibTeX sanitizer & preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`). | write | only with `output_path` |
+| `parse_and_draft_rebuttal` | Peer-review Rebuttal Copilot (#26): segments raw reviewer comments (`Reviewer 1`, `Reviewer 2`, ...) into numbered actionable points, classifies each objection, flags requests requiring new experiments (`requires_new_experiment=True`), and builds a rebuttal skeleton in Markdown and LaTeX whose responses are templates with [TODO] placeholders: help the author fill them with their real results, never invent results. | write | no |
+| `audit_submission_readiness` | Pre-Submission & Desk-Reject Gatekeeper (#27): runs a 4-stage audit on a `.tex`, `.md`, or `.pdf` manuscript for the target `venue` — (1) Double-Blind Anonymity Audit (non-anonymous GitHub/HF URLs, `\author` blocks, PDF metadata, first-person self-citations), (2) Venue Checklist Engine, (3) Overclaiming Scanner, and (4) Mandatory Sections Check - anonymity/overclaiming findings as signals, checklist and sections as a checklist (detected yes/no) and suggested actions; no readiness score: you judge readiness with the returned rubric. | write | no |
+| `get_fulltext` | Fetch open-access full text (via OpenAlex, EuropePMC, arXiv, Unpaywall) and return the passages most relevant to `question` (BM25), each with its section and, when the source has real pages, its page. | research (all) | no |
+| `query_fulltexts` | Query across multiple papers simultaneously for a specific question (uses full text when Open Access or abstract fallback). | research (all) | no |
+| `citation_graph` | Papers this paper cites (references) and papers citing it (OpenAlex), automatically cached for follow-up. | research (all) | no |
+| `related_papers` | Find papers semantically similar to the target paper, papers it cites (references), or papers citing it. | research (all) | no |
+| `download_papers` | Download Open Access PDFs for one or more paper IDs or DOIs into `output_dir` (inside the workspace; default: configured download_dir, ./papers). | research (all) | yes |
+| `export_papers` | Export papers as bibtex, ris, csv or csl-json (imported by Zotero, Mendeley and Pandoc), given `ids` or a research `project` (its included papers, or those of `status`). | research (all) | no |
+| `zotero_push` | Create papers in the user's Zotero library (Web API, needs a key with write access), given `ids` or a research `project`, optionally in an existing `collection`. | research (all) | yes |
+| `save_research_dossier` | Save a persistent research dossier (README.md, papers.json, references.bib) in `output_dir` (inside the workspace; default: configured research_dir, ./research) so the user can converse over the research documentation. | research (all) | yes |
+| `list_research_dossiers` | List saved research dossiers available for follow-up conversation. | research (all) | no |
+| `get_research_dossier` | Load a saved research dossier (Markdown report and paper metadata) by slug or topic. | research (all) | no |
+| `configure_noul` | View (no arguments) or update the persistent Noul configuration: contact email (enables Unpaywall and the OpenAlex/Crossref polite pool) and default download/research folders. | research (all) | yes |
+| `evidence_meter` | Compute the Evidence Meter deterministically from YOUR stance classification of each paper: raw counts and percentages plus study-design-weighted percentages (meta-analysis 1.0 … preclinical 0.2). | research (all) | no |
+| `project_create` | Create a persistent research project for a question. | research (all) | yes |
+| `project_list` | List the user's research projects, most recently updated first, with paper counts per status. | research (all) | no |
+| `project_get` | Get a research project: its question, papers (included first, each with status and reason), notes and search history (`searches`: each query logged with search_papers(project=...), its filters and how many papers it found, returned and added). | research (all) | no |
+| `project_add_papers` | Add papers (ids, DOIs, PMIDs or arXiv ids from search_papers) to a research project with a status (candidate by default) and an optional reason. | research (all) | yes |
+| `project_set_status` | Include or exclude papers of a research project, or move them back to candidate, recording why: the inclusion criterion they meet or fail. | research (all) | yes |
+| `project_note` | Add a note to a research project, optionally attached to one of its papers. | research (all) | yes |
+| `project_archive` | Archive a research project the user has finished or set aside: it leaves project_list (unless `include_archived`) but nothing is deleted, and it stays readable and writable by slug. | research (all) | yes |
+| `project_delete` | Permanently delete a research project: its paper statuses and reasons, notes and search history. | research (all) | yes |
+<!-- noul:tools:end -->
+
+## Repository layout
+
+| Path | Role |
+|---|---|
+| `src/noul/search/`, `src/noul/providers/` | Search engine, one module per source, deduplication and ranking; domain classifier, artifact radar, PDF/table parser and arXiv version client |
+| `src/noul/evidence/`, `src/noul/library/`, `src/noul/net/` | Study-design classification and impact bands; full text, citation graph, downloads and export; HTTP with SSRF protection and SQLite cache |
+| `src/noul/registry.py`, `src/noul/api.py`, `src/noul/schemas/` | The tool registry (`@tool`), the 50 tool functions and their Pydantic input models, shared by MCP, HTTP/OpenAPI and the CLI (`noul tool <name> --args '<json>'`) |
+| `src/noul/server/` | MCP server (`mcp.py`) and hardened HTTP server (`http.py`) |
+| `src/noul/cli/`, `src/noul/install.py` | `noul` CLI (`python -m noul`) and the user-level installer `noul-install` |
+| `skills/noul-search/`, `agents/`, `commands/`, `.claude-plugin/` | Skill (router, per-journey references, evals), subagent templates, the `/noul-search-config` command and the Claude Code plugin |
+| `site/`, `scripts/build_site.py` | Website published on GitHub Pages; the tool catalog and the install page are generated |
+| `packaging/`, `scripts/build_mcpb.py`, `Dockerfile` | Single-file executable, Claude Desktop extensions (`.mcpb`) and the container image |
+
+## Development
+
+```bash
+uv sync --extra dev
+.venv/bin/ruff check . && .venv/bin/ruff format --check .
+.venv/bin/mypy
+.venv/bin/python -m pytest -p no:cacheprovider --cov      # offline tests with a coverage floor
+.venv/bin/python scripts/build_site.py --check             # site catalog in sync with the tools
+.venv/bin/python tests/test_golden_sets.py --report        # classifier metrics
+```
+
+Guidance for coding agents is in [`CLAUDE.md`](CLAUDE.md). Release notes are on the [releases page](https://github.com/ernaneDomingues/noul-search-agent/releases).
+
+## Limitations and disclaimer
+
+- The **Evidence Meter (Noul Meter)** is a heuristic indicator of the distribution of the studies found, not a statistical meta-analysis.
+- Tools return evidence produced by heuristics (classifiers, pattern-based extraction). They can miss things and produce false positives; check signals against the quoted excerpts.
+- Literature summaries on health topics are for information and academic purposes only and are not medical advice.
+- Independent project inspired by the principles of evidence-based medicine and by academic tools such as Consensus and Elicit, with no affiliation with or endorsement by Consensus NLP Inc.
+
+## License
+
+Apache-2.0. See [`LICENSE`](LICENSE).

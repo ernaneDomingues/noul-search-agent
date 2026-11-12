@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Install the Noul Search skill, subagent, /noul-search-config command and MCP server into coding & desktop agents.
 Usage: noul-install [claude] [claude-desktop] [copilot] [codex] [gemini] [antigravity] [--all]
-                    [--runner python|uvx|npx] [--dry-run] [--uninstall]
+                    [--runner python|uvx] [--dry-run] [--uninstall]
        (from a checkout: uv run noul-install ...)
 Everything is user-level (~/.claude, ~/.config/Claude, ~/.copilot, ~/.codex, ~/.gemini). Idempotent; an existing
 config file gets a one-time `.bak` copy before it is first modified."""
@@ -26,7 +26,7 @@ HOME = Path.home()
 PKG = "noul-search-agent"
 MARK = ("<!-- noul-search-agent:start -->", "<!-- noul-search-agent:end -->")
 TOML_MARK = ("# noul-search-agent:start", "# noul-search-agent:end")
-RUNNERS = ("python", "uvx", "npx")
+RUNNERS = ("python", "uvx")
 SKILL_REFS = ("__NOUL_DIR__/skills/noul-search/SKILL.md", "${CLAUDE_PLUGIN_ROOT}/skills/noul-search/SKILL.md")
 CLI_REFS = ("uv run --project ${CLAUDE_PLUGIN_ROOT} noul",)
 
@@ -87,10 +87,6 @@ def mcp_command():
     """(command, args) agents use to start the MCP server over stdio."""
     if RUNNER == "uvx":
         return "uvx", [PKG, "mcp"]
-    if RUNNER == "npx":
-        if os.name == "nt":
-            return "cmd", ["/c", "npx", "-y", PKG, "mcp"]
-        return "npx", ["-y", PKG, "mcp"]
     if FROZEN:
         return str(frozen_target()), ["mcp"]
     script = _console_script("noul-mcp")
@@ -102,8 +98,6 @@ def mcp_command():
 def cli_command():
     if RUNNER == "uvx":
         return f"uvx {PKG}"
-    if RUNNER == "npx":
-        return f"npx -y {PKG}"
     if FROZEN:
         return _q(frozen_target())
     script = _console_script("noul")
@@ -414,14 +408,14 @@ def choose_targets(ask=input, attempts=3):
     Enter picks the detected apps; with none detected, or after an invalid answer, it asks again."""
     detected = detect_targets()
     names = list(TARGETS)
-    print("Onde instalar o Noul? / Where should Noul be installed?\n")
+    print("Where should Noul be installed?\n")
     for i, name in enumerate(names, 1):
-        mark = "  (detectado / detected)" if name in detected else ""
+        mark = "  (detected)" if name in detected else ""
         print(f"  {i}. {LABELS[name]}{mark}")
     default = ",".join(str(names.index(n) + 1) for n in detected)
-    hint = f"Enter para [{default}]" if default else "'q' para sair"
+    hint = f"Enter for [{default}]" if default else "'q' to quit"
     for _ in range(attempts):
-        answer = ask(f"\nNúmeros separados por vírgula, 'all' ou {hint}: ").strip() or default
+        answer = ask(f"\nComma-separated numbers, 'all' or {hint}: ").strip() or default
         if answer.lower() in ("q", "quit", "sair", "n", "no", "nao", "não"):
             return []
         if answer.lower() in ("all", "todos", "a"):
@@ -436,13 +430,13 @@ def choose_targets(ask=input, attempts=3):
                 elif part:
                     bad.append(part)
             if bad or not chosen:
-                print(f"Opção inválida / invalid choice: {', '.join(bad) or '(vazio / empty)'}")
+                print(f"Invalid choice: {', '.join(bad) or '(empty)'}")
                 continue
         chosen = list(dict.fromkeys(chosen))
         if "claude-desktop" in chosen:
             print(
-                "Nota: se você já instalou a extensão noul.mcpb no Claude Desktop, não precisa desta opção "
-                "(ficariam dois servidores 'noul'). / If the noul.mcpb extension is installed, skip this one."
+                "Note: if the noul.mcpb extension is already installed in Claude Desktop, skip this option "
+                "(you would end up with two 'noul' servers)."
             )
         return chosen
     return []
@@ -461,7 +455,7 @@ def main(argv=None):
     ap.add_argument(
         "--runner",
         choices=RUNNERS,
-        help="How agents start the MCP server: this Python interpreter (default), `uvx` or `npx` "
+        help="How agents start the MCP server: this Python interpreter (default) or `uvx` "
         "(default from $NOUL_INSTALL_RUNNER)",
     )
     ap.add_argument("--dry-run", action="store_true", help="Only print what would change")

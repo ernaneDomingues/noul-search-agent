@@ -37,7 +37,7 @@ Usage:
               [--zotero-user-id ID] [--zotero-api-key-stdin | --zotero-remove-key]
   noul meter '[{"id":"doi:10.1/x","stance":"supportive"}]'   (or `-` to read the JSON list from stdin)
   noul mcp [--http [PORT]] [--host H]       (MCP server; same as noul-mcp)
-  noul install [targets] [--runner python|uvx|npx] [--dry-run] [--uninstall]   (same as noul-install)
+  noul install [targets] [--runner python|uvx] [--dry-run] [--uninstall]   (same as noul-install)
 """
 
 import argparse
@@ -222,7 +222,7 @@ def main(argv=None):
     cl = sub.add_parser("clarify")
     cl.add_argument("query")
     cl.add_argument("--domain", help=DOMAIN_HELP)
-    cl.add_argument("--answers", help='JSON object, e.g. \'{"q1":"Benchmarks e avaliação empírica","q3":1}\'')
+    cl.add_argument("--answers", help='JSON object, e.g. \'{"q1":"Benchmarks and empirical evaluation","q3":1}\'')
 
     ar = sub.add_parser("artifacts")
     ar.add_argument("id")

@@ -28,8 +28,6 @@ class ShimTests(unittest.TestCase):
             with self.subTest(file=name):
                 self.assertFalse((ROOT / name).exists())
         self.assertFalse((ROOT / "src/noul/server/legacy.py").exists())
-        package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
-        self.assertFalse([f for f in package.get("files", []) if f.startswith(("noul_", "install.py"))])
 
     def test_core_symbols_live_in_their_new_modules(self):
         # `_support.core_target` patches these homes: every mapped name must exist there.

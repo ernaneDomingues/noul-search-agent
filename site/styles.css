@@ -1,36 +1,45 @@
+/* Noul brand system ("Obsidian Forge"): obsidian surfaces, Ignis orange accent, emerald for validated states. */
 :root,
 [data-theme="dark"] {
-  --bg-primary: #090d16;
-  --bg-secondary: #0f172a;
-  --bg-card: #111c33;
-  --bg-terminal: #060911;
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --border-color: #1e293b;
-  --accent-cyan: #38bdf8;
-  --accent-indigo: #818cf8;
-  --accent-emerald: #34d399;
-  --accent-amber: #fbbf24;
-  --shadow-lg: 0 20px 45px -15px rgba(2, 6, 23, 0.75);
-  --code-bg: #0b1222;
+  --bg-primary: #09090b;
+  --bg-secondary: #121216;
+  --bg-card: #121216;
+  --bg-elevated: #18181e;
+  --bg-terminal: #09090b;
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --border-color: #27272a;
+  --grid-line: rgba(39, 39, 42, 0.3);
+  --accent-cyan: #ff5500;      /* primary accent (Ignis) */
+  --accent-indigo: #fafafa;    /* neutral emphasis */
+  --accent-emerald: #10b981;   /* validated */
+  --accent-amber: #ff6b22;     /* Ignis hover */
+  --accent-fill: #ff5500;
+  --accent-fill-hover: #ff6b22;
+  --shadow-lg: 0 20px 45px -15px rgba(0, 0, 0, 0.8);
+  --code-bg: #09090b;
 }
 
 [data-theme="light"] {
-  --bg-primary: #f8fafc;
-  --bg-secondary: #f1f5f9;
-  --bg-card: #ffffff;
-  --bg-terminal: #0f172a;
-  --text-primary: #0f172a;
-  --text-secondary: #334155;
-  --text-muted: #64748b;
-  --border-color: #cbd5e1;
-  --accent-cyan: #0284c7;
-  --accent-indigo: #4f46e5;
-  --accent-emerald: #059669;
-  --accent-amber: #d97706;
-  --shadow-lg: 0 18px 36px -12px rgba(15, 23, 42, 0.12);
-  --code-bg: #f1f5f9;
+  --bg-primary: #ffffff;
+  --bg-secondary: #f4f4f5;
+  --bg-card: #f4f4f5;
+  --bg-elevated: #ffffff;
+  --bg-terminal: #09090b;
+  --text-primary: #09090b;
+  --text-secondary: #52525b;
+  --text-muted: #71717a;
+  --border-color: #e4e4e7;
+  --grid-line: rgba(228, 228, 231, 0.6);
+  --accent-cyan: #c2410c;      /* Ignis darkened for text on light surfaces */
+  --accent-indigo: #09090b;
+  --accent-emerald: #047857;
+  --accent-amber: #9a3412;
+  --accent-fill: #ff5500;
+  --accent-fill-hover: #ff6b22;
+  --shadow-lg: 0 18px 36px -12px rgba(9, 9, 11, 0.12);
+  --code-bg: #ffffff;
 }
 
 * {
@@ -44,8 +53,13 @@ html {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   background-color: var(--bg-primary);
+  background-image:
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size: 36px 36px;
+  background-attachment: fixed;
   color: var(--text-primary);
   line-height: 1.65;
   transition: background-color 0.2s ease, color 0.2s ease;
@@ -143,10 +157,12 @@ code, pre, .mono {
   font-size: 0.78rem;
   font-weight: 600;
   padding: 0.28rem 0.7rem;
-  border-radius: 999px;
+  border-radius: 4px;
   border: 1px solid var(--border-color);
   background: var(--bg-card);
   color: var(--accent-cyan);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  letter-spacing: 0.04em;
 }
 
 .badge.emerald {
@@ -159,7 +175,7 @@ code, pre, .mono {
 
 .hero h1 {
   font-size: clamp(2.3rem, 5vw, 3.6rem);
-  font-weight: 850;
+  font-weight: 800;
   letter-spacing: -0.03em;
   line-height: 1.12;
   margin-bottom: 0.85rem;
@@ -196,8 +212,13 @@ code, pre, .mono {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo));
+  background: var(--accent-fill);
   color: #ffffff;
+  box-shadow: 0 10px 24px -12px rgba(255, 85, 0, 0.6);
+}
+
+.btn-primary:hover {
+  background: var(--accent-fill-hover);
 }
 
 .btn-secondary {
@@ -209,11 +230,11 @@ code, pre, .mono {
 /* Terminal Simulator */
 .terminal-window {
   background: var(--bg-terminal);
-  border: 1px solid #1e293b;
+  border: 1px solid #27272a;
   border-radius: 14px;
   box-shadow: var(--shadow-lg);
   overflow: hidden;
-  color: #e2e8f0;
+  color: #e4e4e7;
 }
 
 .terminal-header {
@@ -221,8 +242,8 @@ code, pre, .mono {
   align-items: center;
   justify-content: space-between;
   padding: 0.7rem 1rem;
-  background: #0f172a;
-  border-bottom: 1px solid #1e293b;
+  background: #121216;
+  border-bottom: 1px solid #27272a;
   flex-wrap: wrap;
   gap: 0.75rem;
 }
@@ -249,8 +270,8 @@ code, pre, .mono {
 
 .term-tab {
   background: transparent;
-  color: #94a3b8;
-  border: 1px solid #334155;
+  color: #a1a1aa;
+  border: 1px solid #27272a;
   border-radius: 6px;
   padding: 0.3rem 0.65rem;
   font-size: 0.78rem;
@@ -259,9 +280,9 @@ code, pre, .mono {
 }
 
 .term-tab.active {
-  background: #1e293b;
-  color: #38bdf8;
-  border-color: #38bdf8;
+  background: #18181e;
+  color: #ff5500;
+  border-color: #ff5500;
 }
 
 .terminal-body {
@@ -529,6 +550,19 @@ code, pre, .mono {
 .download-list { list-style: none; padding: 0; margin: 0.75rem 0; }
 .download-list li { margin: 0.35rem 0; }
 .download-list a { color: var(--accent-cyan); }
-.download-list .is-recommended a::after { content: "  ← recomendado para o seu sistema"; color: var(--accent-emerald); font-size: 0.85rem; }
+.download-list .is-recommended a::after { content: "  ← recommended for your system"; color: var(--accent-emerald); font-size: 0.85rem; }
 .connector-pending { border: 1px dashed var(--border-color); border-radius: 10px; padding: 0.75rem 1rem; color: var(--text-secondary); }
 
+
+/* Brand details */
+::selection { background: #ff5500; color: #ffffff; }
+.brand span { font-family: "JetBrains Mono", ui-monospace, monospace; letter-spacing: 0.14em; text-transform: uppercase; font-size: 0.95rem; }
+.card-tag, .section-title + .section-lead code { font-family: "JetBrains Mono", ui-monospace, monospace; }
+.card-tag { text-transform: uppercase; }
+.hero h1 { font-family: "Inter", system-ui, sans-serif; }
+.hero h1::after { content: "."; color: var(--accent-fill); }
+main a:not(.btn), .site-footer a { color: var(--accent-cyan); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent-cyan) 45%, transparent); text-underline-offset: 3px; }
+main a:not(.btn):hover, .site-footer a:hover { text-decoration-color: currentColor; }
+.theme-toggle { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 0.78rem; white-space: nowrap; }
+.brand span { white-space: nowrap; }
+@media (max-width: 480px) { .brand span { font-size: 0.78rem; letter-spacing: 0.1em; } }
