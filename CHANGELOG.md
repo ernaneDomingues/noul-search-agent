@@ -5,7 +5,7 @@ e as versões seguem o [Versionamento Semântico](https://semver.org/lang/pt-BR/
 
 ## [2.1.0] — 2026-11
 
-A 2.1.0 fecha a Fase 4 do [`docs/REFACTOR_PLAN.md`](docs/REFACTOR_PLAN.md) (PRs #42, #43 e o da Fase 4c).
+A 2.1.0 fecha a Fase 4 do [`docs/REFACTOR_PLAN.md`](docs/REFACTOR_PLAN.md) (PRs #42, #43 e #44).
 
 ### Novidades
 - **Histórico de buscas do projeto**: `search_papers(project=...)` (`noul search --project`) registra a busca no projeto
