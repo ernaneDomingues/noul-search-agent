@@ -125,7 +125,7 @@ class InstallerWizardTests(unittest.TestCase):
         self.assertEqual(numbered, ["claude", "cursor"])
         self.assertEqual(everything, list(self.install.TARGETS))
         self.assertEqual(cancelled, [])
-        self.assertIn("(detectado / detected)", out.getvalue())
+        self.assertIn("(detected)", out.getvalue())
 
     def test_wizard_asks_again_instead_of_installing_everywhere(self):
         answers = iter(["", "9", "cursor"])
@@ -135,7 +135,7 @@ class InstallerWizardTests(unittest.TestCase):
         ):
             self.assertEqual(self.install.choose_targets(ask=lambda prompt: next(answers)), ["cursor"])
             self.assertEqual(self.install.choose_targets(ask=lambda prompt: ""), [])
-        self.assertIn("invalid choice: 9", out.getvalue())
+        self.assertIn("Invalid choice: 9", out.getvalue())
 
     def test_double_clicked_executable_opens_the_wizard(self):
         from noul import cli
@@ -251,7 +251,7 @@ class InstallPageTests(unittest.TestCase):
 
         base = json.loads((ROOT / "site/config.json").read_text(encoding="utf-8"))
         pending = build_site.render_install_html({**base, "connector_url": ""})
-        self.assertIn("ainda não está no ar", pending)
+        self.assertIn("is not live yet", pending)
         self.assertNotIn("vscode:mcp/install", pending)
         live = build_site.render_install_html({**base, "connector_url": "https://x.run.app/mcp"})
         self.assertIn("https://x.run.app/mcp", live)

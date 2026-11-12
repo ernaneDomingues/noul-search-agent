@@ -65,7 +65,7 @@ class PackagingTests(unittest.TestCase):
 
     def test_every_manifest_carries_the_package_version(self):
         self.assertEqual(noul.__version__, "2.1.0")
-        for manifest in ("package.json", "plugin.json", ".claude-plugin/plugin.json", "agents/gemini-extension.json"):
+        for manifest in ("plugin.json", ".claude-plugin/plugin.json", "agents/gemini-extension.json"):
             with self.subTest(manifest=manifest):
                 data = json.loads((ROOT / manifest).read_text(encoding="utf-8"))
                 self.assertEqual(data["version"], noul.__version__)

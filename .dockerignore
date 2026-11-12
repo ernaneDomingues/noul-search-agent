@@ -12,8 +12,6 @@ __pycache__
 build
 dist
 node_modules
-bin
-package.json
 tests
 docs
 Dockerfile

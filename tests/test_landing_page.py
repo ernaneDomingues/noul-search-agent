@@ -1,4 +1,4 @@
-"""Unit tests for Phase 6 Issue #28 (GitHub Pages Landing Page, Docs Portal & CI Workflow)."""
+"""Tests for the GitHub Pages site: landing page, generated catalog and deploy workflow."""
 
 import json
 import subprocess
@@ -37,25 +37,26 @@ class LandingPageAndDocsPortalTests(unittest.TestCase):
 
         # Hero & SEO Open Graph meta tags
         self.assertIn("Noul Search Agent", html_text)
-        self.assertIn(
-            "Deterministic Multi-Model Search Agent &amp; Autonomous Scientific Research Assistant", html_text
-        )
+        self.assertIn('<html lang="en"', html_text)
+        self.assertIn("Noul has no LLM of its own", html_text)
+        self.assertIn("Apache-2.0 License", html_text)
+        for stale in ("MIT License", "Zero Deps", "npx", "Readiness Score", "Verdict:"):
+            self.assertNotIn(stale, html_text + js_text)
         self.assertIn('property="og:title"', html_text)
         self.assertIn('property="og:description"', html_text)
         self.assertIn('property="og:image" content="og-card.svg"', html_text)
         self.assertIn('href="favicon.svg"', html_text)
 
         # Terminal simulator commands
-        for cmd in ("noul compare", "noul review", "noul scaffold", "noul gatekeeper audit"):
+        for cmd in ("noul search", "noul meter", "noul review", "noul gatekeeper audit"):
             self.assertIn(cmd, html_text)
         self.assertIn("TERMINAL_SCENARIOS", js_text)
 
-        # 4 Persona showcase cards
+        # 4 audience cards
         for keyword in (
             "PyTorch",
-            "FP16, INT8 e INT4",
-            "CONSORT, STROBE e PRISMA",
-            "DiD, IV, RDD",
+            "FP16, INT8 and INT4",
+            "CONSORT, STROBE and PRISMA",
             "statsmodels",
             "fixest",
             "noul cite",
@@ -66,12 +67,10 @@ class LandingPageAndDocsPortalTests(unittest.TestCase):
             self.assertIn(keyword, html_text)
 
         # 1-Click setup & MCP configs
-        self.assertIn("uvx noul-search-agent", html_text)
-        self.assertIn("npx noul-search-agent", html_text)
+        self.assertIn("/plugin marketplace add ernaneDomingues/noul-search-agent", html_text)
+        self.assertIn("uv run noul-install --all", html_text)
         self.assertIn("claude_desktop_config.json", html_text)
         self.assertIn(".cursor/mcp.json", html_text)
-        self.assertIn("antigravity/mcp_config.json", html_text)
-        self.assertIn("The AI Research Journal", html_text)
 
         # Light/Dark mode support
         self.assertIn('[data-theme="dark"]', css_text)

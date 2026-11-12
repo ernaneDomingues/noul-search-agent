@@ -6,9 +6,9 @@ Copilot, Cursor…) reasons and writes the verdicts. Keep it that way.
 
 ## Status: v2.1.0
 
-The v2 refactor (`docs/REFACTOR_PLAN.md`, one PR per phase) is complete: Phases 0–3 shipped as 2.0.0 and Phase 4
-(retractions, preprint↔published links, CSL-JSON/Zotero, project archive/delete and search history) as 2.1.0
-(`CHANGELOG.md`). MCP sampling was decided against (see the plan). No phase is open: new work gets its own branch and PR.
+The v2 refactor is complete: Phases 0–3 shipped as 2.0.0 and Phase 4 (retractions, preprint↔published links,
+CSL-JSON/Zotero, project archive/delete and search history) as 2.1.0. MCP sampling was decided against. Release notes
+live on the GitHub releases page; there is no CHANGELOG file. New work gets its own branch and PR.
 
 | Path | Role |
 |---|---|
@@ -17,7 +17,7 @@ The v2 refactor (`docs/REFACTOR_PLAN.md`, one PR per phase) is complete: Phases 
 | `src/noul/providers/` | one module per source (`openalex`, `s2`, `pubmed`, `crossref`, `arxiv_search`, `europepmc`) + domain classifier, artifact radar, PDF parser, arXiv version client |
 | `src/noul/search/engine.py` | multi-source search, dedupe, ranking, `resolve_paper` |
 | `src/noul/evidence/`, `src/noul/library/` | study-design classifier + impact band; full text, citation graph, downloads, export |
-| `src/noul/tools/` | feature tools (Phases 1–6 of v1) |
+| `src/noul/tools/` | feature tools (technical extraction, review, authoring, comparison) |
 | `src/noul/registry.py` | the tool registry: `@tool(...)`, `call()` (Pydantic validation + logging), `input_schema()`, `catalog()`, `write_tools()` |
 | `src/noul/api.py` | the 50 tool functions, each decorated with `@_registry.tool(...)`; `TOOLS`/`call` re-exported for v1 callers |
 | `src/noul/schemas/tool_inputs.py` | one Pydantic input model per tool — the source of the MCP `inputSchema` |
@@ -66,5 +66,6 @@ uv sync --extra dev                                   # creates .venv; re-run af
 - Golden-set baselines (`tests/golden/baseline.json`) and the coverage `fail_under` only go up; refresh them in
   the same PR as the improvement and explain the delta.
 - Never invent a contact e-mail for the APIs; never commit secrets.
-- Code, identifiers and commit messages in English; user-facing docs (README, ROADMAP) in Portuguese.
-- One branch and PR per refactor phase; commits follow Conventional Commits.
+- Everything in the repository is in English: code, identifiers, commit messages, docs, README and site. Portuguese
+  appears only as data (stopwords, classifier vocabulary, accepted answers, test inputs).
+- One branch and PR per change; commits follow Conventional Commits.

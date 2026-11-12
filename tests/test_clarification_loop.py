@@ -72,10 +72,10 @@ class HeuristicTests(unittest.TestCase):
 class QuestionTests(unittest.TestCase):
     def test_questions_per_domain(self):
         expected = {
-            "quantização de LLMs": ("computer_science", "Benchmarks e avaliação empírica"),
-            "creatina": ("biomedical", "Ensaios Clínicos Randomizados (RCTs)"),
-            "inflação no Brasil": ("economics", "Identificação causal (Diff-in-Diff, IV, RDD)"),
-            "crystal lattice": ("general_stem", "Incluir preprints recentes (arXiv)"),
+            "quantização de LLMs": ("computer_science", "Benchmarks and empirical evaluation"),
+            "creatina": ("biomedical", "Randomized controlled trials (RCTs)"),
+            "inflação no Brasil": ("economics", "Causal identification (Diff-in-Diff, IV, RDD)"),
+            "crystal lattice": ("general_stem", "Include recent preprints (arXiv)"),
         }
         for query, (domain, some_option) in expected.items():
             with self.subTest(query=query):
@@ -93,7 +93,7 @@ class QuestionTests(unittest.TestCase):
 
 class RefinedQueryTests(unittest.TestCase):
     def test_biomedical_filters(self):
-        out = cl.build_refined_query("creatina", {"q1": "Adultos saudáveis", "q2": 2, "q3": "Últimos 5 anos"})
+        out = cl.build_refined_query("creatina", {"q1": "Healthy adults", "q2": 2, "q3": "Last 5 years"})
         self.assertEqual(out["refined_query"], "creatina healthy adults randomized controlled trial")
         f = out["recommended_filters"]
         self.assertEqual((f["year_min"], f["study_types"], f["domain"]), (THIS_YEAR - 5, ["rct"], "biomedical"))
@@ -101,7 +101,7 @@ class RefinedQueryTests(unittest.TestCase):
 
     def test_cs_and_flexible_answers(self):
         out = cl.build_refined_query(
-            "LLM quantization", {"focus": "eficiência", "q2": "1", "q3": "seminais", "extra": "ignored key"}
+            "LLM quantization", {"focus": "efficiency", "q2": "1", "q3": "seminal", "extra": "ignored key"}
         )
         self.assertEqual(out["refined_query"], "LLM quantization efficiency latency memory consumer GPU edge")
         self.assertEqual(
@@ -164,16 +164,16 @@ class ToolAndCliTests(unittest.TestCase):
                 "search", "creatina", "--interactive", "--year-min", "2015", stdin=FakeTTY("1\n2\n\n")
             )
         self.assertEqual(code, 0)
-        self.assertIn("1. Adultos saudáveis", err)
+        self.assertIn("1. Healthy adults", err)
         res = json.loads(out)
         self.assertEqual(res["query"], "creatina healthy adults randomized controlled trial")
         query, _mode, _unused, filters, _lang, sources = s.call_args.args
         self.assertEqual((filters["year_min"], filters["study_types"]), (2015, ["rct"]))  # CLI flag wins
         self.assertIn("pubmed", sources)
-        self.assertEqual(res["clarification"]["applied_answers"][1]["answer"], "Ensaios Clínicos Randomizados (RCTs)")
+        self.assertEqual(res["clarification"]["applied_answers"][1]["answer"], "Randomized controlled trials (RCTs)")
 
     def test_cli_clarify_subcommand(self):
-        code, out, _ = run_cli("clarify", "inflação no Brasil", "--answers", '{"q1": 1, "q3": "Pós-2020"}')
+        code, out, _ = run_cli("clarify", "inflação no Brasil", "--answers", '{"q1": 1, "q3": "After 2020"}')
         res = json.loads(out)
         self.assertEqual((code, res["domain"], res["recommended_filters"]["year_min"]), (0, "economics", 2020))
         self.assertIn("difference-in-differences", res["refined_query"])

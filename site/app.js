@@ -1,60 +1,66 @@
 /* Interactive Terminal Simulator, 1-Click Clipboard Copy, MCP Config Tabs, Theme Toggle & Tool Filter */
 (function () {
+  // Illustrative output: it shows the shape of what each command returns, with placeholder values.
   const TERMINAL_SCENARIOS = {
-    compare: {
-      command: 'noul compare arxiv:2305.14314 arxiv:2405.11001 --pretty',
+    search: {
+      command: 'noul search "creatine supplementation working memory" --types meta-analysis,rct --pretty',
       output: [
-        '# Comparative Matrix (2 papers)',
+        '# 12 results (OpenAlex, PubMed, Semantic Scholar, Europe PMC), deduplicated',
         '',
-        '| Paper | Core Problem | Methodology | Key Metrics | Declared Limitations |',
-        '| --- | --- | --- | --- | --- |',
-        '| Dettmers et al. (2023) | 4-bit LLM Fine-Tuning | NormalFloat4 (NF4) + Double Quantization | 99.3% of FP16 on MMLU | Latency overhead at high batch size |',
-        '| Rostova et al. (2024) | Sub-Linear KV Cache | Block-Sparse Key-Value Compression | -68% VRAM, 3.8x tok/s | Slight drop on exact needle recall |',
+        '1. <title of a meta-analysis> (2023)          meta-analysis · tier: high · 214 citations',
+        '   doi:10.xxxx/xxxxx · open access · abstract available',
+        '2. <title of a randomized trial> (2021)       rct · tier: standard · 57 citations',
+        '   pmid:xxxxxxxx · abstract available',
+        '3. <title of a retracted trial> (2019)        rct · RETRACTED (notice: doi:10.xxxx/xxxxx)',
         '',
-        '✓ Convergence: Both methods target single-GPU memory bottlenecks without full retraining.'
+        'Next: classify the stance of each study, then run `noul meter`.'
+      ].join('\n')
+    },
+    meter: {
+      command: 'noul meter \'[{"id":"doi:10.xxxx/a","stance":"supportive"},{"id":"pmid:xxxxxxxx","stance":"inconclusive"}]\' --pretty',
+      output: [
+        '# Evidence Meter (2 studies; stances assigned by your assistant)',
+        '',
+        '              raw     weighted by study design',
+        'supportive    50%     59%',
+        'inconclusive  50%     41%',
+        'contrary       0%      0%',
+        '',
+        'Weights: meta-analysis 1.0 > systematic review > rct > cohort > preclinical 0.2',
+        'A heuristic picture of the studies found, not a statistical meta-analysis.'
       ].join('\n')
     },
     review: {
-      command: 'noul review arxiv:2405.11001 --domain cs --pretty',
+      command: 'noul review arxiv:2305.14314 --pretty',
       output: [
-        '# Multi-Persona Scientific Peer Review — FlashKV (NeurIPS/ICLR Rubric)',
-        'Verdict: WEAK_ACCEPT | Overall Score: 3.8 / 5.0',
+        '# Review evidence (domain: computer_science · rubric: NeurIPS/ICLR)',
+        'extraction_confidence: high (full text, 22 pages)',
         '',
-        '• [Persona 1 — Theoretical & Mathematical Reviewer (Score: 4.0)]',
-        '  Strengths: Sub-linear complexity bound O(N log N) is formally derived.',
-        '  Flaw: Proposition 2 assumes uniform attention entropy [pág. 4, Seção 3].',
-        '• [Persona 2 — Skeptical Empirical & Baselines Reviewer (Score: 3.5)]',
-        '  Flaw: Missing direct latency comparison against FlashAttention-2 at 64k context.',
-        '• [Persona 3 — Systems & Reproducibility Auditor (Score: 4.0)]',
-        '  Strengths: Open-source CUDA kernels and 5-seed error bars reported.'
-      ].join('\n')
-    },
-    scaffold: {
-      command: 'noul scaffold arxiv:2405.11001 --target pytorch --pretty',
-      output: [
-        '# Code & Protocol Scaffold: FlashKV (Domain: computer_science | Target: pytorch)',
-        'Syntax Validated (ast.parse): TRUE',
+        'signals',
+        '  • baselines: comparison table found [p. 7, Section 5]',
+        '  • seeds / error bars: not detected in the results tables',
+        '  • limitations: section present [p. 9]',
+        'excerpts: 14 passages with section and page',
+        'rubric: 6 criteria with how_to_judge',
         '',
-        'class FlashKVSparseAttention(nn.Module):',
-        '    def __init__(self, d_model: int = 4096, num_heads: int = 32) -> None:',
-        '        super().__init__()',
-        '        self.head_dim = d_model // num_heads',
-        '        self.qkv_proj = nn.Linear(d_model, 3 * d_model, bias=False)',
-        '        # Source: Equation 2 (Block-Sparse KV Routing)',
-        '',
-        '✓ Generated 68 lines of PyTorch nn.Module + unittest shape assertions.'
+        'No verdict and no score: check each signal against its excerpt and make the call.'
       ].join('\n')
     },
     gatekeeper: {
       command: 'noul gatekeeper audit draft_neurips.tex --venue neurips --pretty',
       output: [
-        '# Pre-Submission Gatekeeper Audit (draft_neurips.tex — Venue: NEURIPS)',
-        'Readiness Score: 92/100 | Desk-Reject Risk: LOW',
+        '# Pre-submission check (draft_neurips.tex · venue: neurips)',
         '',
-        '• Stage 1 (Double-Blind Anonymity): ✅ Zero violations (anonymous.4open.science verified)',
-        '• Stage 2 (NeurIPS Checklist):      ✅ 5/5 passed (Limitations, A100 GPU hours, 5 seeds, ± std, MIT License)',
-        '• Stage 3 (Overclaiming Scanner):   ✅ Calibrated empirical hedging verified',
-        '• Stage 4 (Mandatory Sections):     ✅ Abstract, Intro, Methods, Experiments, Limitations, Broader Impact'
+        'signals',
+        '  • anonymity: author block detected [line 12]',
+        '  • anonymity: identifying repository URL [line 240]',
+        '  • overclaiming: "clearly proves" [line 88]',
+        'checklist',
+        '  • limitations section     detected: yes',
+        '  • compute resources       detected: no',
+        '  • error bars / seeds      detected: yes',
+        '',
+        'No readiness score: confirm each finding against the quoted text.'
       ].join('\n')
     }
   };
@@ -62,7 +68,7 @@
   let activeTimer = null;
 
   function renderScenario(key) {
-    const scenario = TERMINAL_SCENARIOS[key] || TERMINAL_SCENARIOS.compare;
+    const scenario = TERMINAL_SCENARIOS[key] || TERMINAL_SCENARIOS.search;
     const screen = document.getElementById('terminal-screen');
     if (!screen) return;
     if (activeTimer) clearInterval(activeTimer);
@@ -90,12 +96,12 @@
     root.setAttribute('data-theme', savedTheme);
 
     if (toggleBtn) {
-      toggleBtn.textContent = savedTheme === 'dark' ? '☀️ Modo Claro' : '🌙 Modo Escuro';
+      toggleBtn.textContent = savedTheme === 'dark' ? 'Light mode' : 'Dark mode';
       toggleBtn.addEventListener('click', function () {
         const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
         root.setAttribute('data-theme', next);
         localStorage.setItem('noul-theme', next);
-        toggleBtn.textContent = next === 'dark' ? '☀️ Modo Claro' : '🌙 Modo Escuro';
+        toggleBtn.textContent = next === 'dark' ? 'Light mode' : 'Dark mode';
       });
     }
 
@@ -108,7 +114,7 @@
         renderScenario(btn.getAttribute('data-scenario'));
       });
     });
-    renderScenario('compare');
+    renderScenario('search');
 
     // MCP Config tabs
     const cfgTabs = document.querySelectorAll('.cfg-tab');
@@ -135,7 +141,7 @@
           navigator.clipboard.writeText(text);
         }
         const orig = btn.textContent;
-        btn.textContent = '✓ Copiado!';
+        btn.textContent = '✓ Copied!';
         setTimeout(function () { btn.textContent = orig; }, 1600);
       });
     });
