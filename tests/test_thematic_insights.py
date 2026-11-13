@@ -1,4 +1,4 @@
-"""Etapa 3 (#05): get_thematic_insights — 3 cross-cutting axes, explicit citations, citations_map, CLI."""
+"""get_thematic_insights — 3 cross-cutting axes, explicit citations, citations_map, CLI."""
 
 import contextlib
 import io

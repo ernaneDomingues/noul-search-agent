@@ -1,4 +1,4 @@
-"""Fase 4 / Etapa 3 (#15): diff_arxiv_versions — arXiv version comparison, metric deltas, claim attenuations,
+"""diff_arxiv_versions — arXiv version comparison, metric deltas, claim attenuations,
 new baselines/datasets, authorship changes and the `noul diff` CLI."""
 
 import contextlib

@@ -1,4 +1,4 @@
-"""Fase 3 / Etapa 5 (#11, #12): extract_paper_math (LaTeX / typed Python) and analyze_ablation_tables, plus CLI."""
+"""extract_paper_math (LaTeX / typed Python) and analyze_ablation_tables, plus CLI."""
 
 import ast
 import contextlib

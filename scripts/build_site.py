@@ -67,6 +67,9 @@ CLI_MAPPING = {
     "project_add_papers": "noul project add PROJECT ID1,ID2 --status candidate",
     "project_set_status": "noul project status PROJECT ID1,ID2 included --reason ...",
     "project_note": 'noul project note PROJECT "text" --paper ID',
+    "project_archive": "noul project archive PROJECT",
+    "project_delete": "noul project delete PROJECT --yes",
+    "zotero_push": "noul zotero <ids> [--project PROJECT]",
     "list_research_dossiers": "noul dossier list",
     "get_research_dossier": "noul dossier show <slug>",
     "export_papers": "noul export <ids>",
@@ -294,7 +297,7 @@ def build_tools_payload() -> dict:
                 "description": desc,
                 "required": list(req),
                 "Optional": [k for k in props if k not in req],
-                "cli_equivalent": CLI_MAPPING.get(name, f"noul {name}"),
+                "cli_equivalent": CLI_MAPPING.get(name, f"noul tool {name} --args '{{...}}'"),
             }
         )
     return {

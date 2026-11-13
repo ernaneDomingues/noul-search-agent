@@ -47,6 +47,12 @@ def isolate_environment():
     blocker = mock.patch.object(httpx.HTTPTransport, "handle_request", side_effect=no_network)
     blocker.start()
     unittest.addModuleCleanup(blocker.stop)
+    # The same for urllib, which artifact_radar's liveness probes still use.
+    import urllib.request
+
+    opener = mock.patch.object(urllib.request.OpenerDirector, "open", side_effect=no_network)
+    opener.start()
+    unittest.addModuleCleanup(opener.stop)
     return env
 
 

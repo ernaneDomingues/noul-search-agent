@@ -60,6 +60,24 @@ class ToolTests(Base):
                 registry.call("recommend_citations", {"draft_text": path})
             self.assertEqual(caught.exception.code, 403)
 
+    def test_readers_refuse_paths_outside_the_workspace_and_symlinks_with_403(self):
+        from noul.errors import HTTPError
+        from noul.tools import authoring_tools
+
+        outside = _support.tmp_path("outside.md")
+        outside.write_text("secret", encoding="utf-8")
+        cases = [str(outside)]
+        link = self.workspace / "link.md"
+        try:
+            link.symlink_to(outside)
+            cases.append("link.md")
+        except (OSError, NotImplementedError):
+            pass  # symlinks unavailable (Windows without the privilege)
+        for path in cases:
+            with self.subTest(path=path), self.assertRaises(HTTPError) as caught:
+                authoring_tools._validate_workspace_path(path)
+            self.assertEqual(caught.exception.code, 403)
+
     def test_ordinary_files_still_work(self):
         from noul.tools import authoring_tools
 

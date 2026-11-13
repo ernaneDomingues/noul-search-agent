@@ -676,7 +676,7 @@ class AgentTestSuite(unittest.TestCase):
     def test_p0_10_ssrf_protection(self):
         check_ssrf_protection()
 
-    def check_config_and_deterministic_evidence_meter(self):
+    def test_config_and_deterministic_evidence_meter(self):
         check_config_and_deterministic_evidence_meter()
 
 
