@@ -1,4 +1,4 @@
-"""Fase 3 / Etapa 6 (#13): extract_prompts_and_decoding — verbatim prompt templates, decoding hyperparameters,
+"""extract_prompts_and_decoding — verbatim prompt templates, decoding hyperparameters,
 JSON schemas and the `noul prompts` CLI."""
 
 import contextlib

@@ -1,4 +1,4 @@
-"""Etapa 2 (#04): compare_papers — 5 dimensions, Markdown matrix, convergence/divergence, CLI."""
+"""compare_papers — 5 dimensions, Markdown matrix, convergence/divergence, CLI."""
 
 import contextlib
 import io

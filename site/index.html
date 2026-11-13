@@ -343,7 +343,7 @@ uv run noul-mcp --http 8765   # MCP at /mcp, OpenAPI at /openapi.json</pre>
           </article>
           <article class="tool-card" data-tool="generate_research_hypotheses">
             <h4 class="mono">generate_research_hypotheses</h4>
-            <p>Autonomous research gap &amp; hypothesis engine (#18): cross-analyzes 2-15 papers to detect methodological contradictions (`contradictions_found`) and unexplored synergies where one paper&#x27;s method mitigates another&#x27;s limitation (`unexplored_complementarities`), then formulates 1-`max_hypotheses` structured, testable `ResearchHypothesis` proposals with `source_papers` (&gt;= 2), `proposed_methodology`, `required_baselines`, `target_datasets_or_population`, and `evaluation_metrics`.</p>
+            <p>Autonomous research gap &amp; hypothesis engine: cross-analyzes 2-15 papers to detect methodological contradictions (`contradictions_found`) and unexplored synergies where one paper&#x27;s method mitigates another&#x27;s limitation (`unexplored_complementarities`), then formulates 1-`max_hypotheses` structured, testable `ResearchHypothesis` proposals with `source_papers` (&gt;= 2), `proposed_methodology`, `required_baselines`, `target_datasets_or_population`, and `evaluation_metrics`.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> paper_ids | <strong>Optional:</strong> topic, max_hypotheses</div>
               <div><strong>CLI:</strong> <code>noul hypotheses &lt;id1&gt; &lt;id2&gt; ...</code></div>
@@ -431,7 +431,7 @@ uv run noul-mcp --http 8765   # MCP at /mcp, OpenAPI at /openapi.json</pre>
           </article>
           <article class="tool-card" data-tool="review_paper">
             <h4 class="mono">review_paper</h4>
-            <p>Multi-persona peer-review committee (#17, #20): detects the paper&#x27;s scientific domain (or uses `domain` override) and runs 3 specialized reviewer personas (NeurIPS/ICLR Theoretical, Skeptical Empirical, and Systems/Reproducibility for CS/AI; CONSORT/STROBE Clinical Trial Methodologist, Biostatistician, and Translational Safety Reviewer for Biomedical; Causal Identification Econometrician, Robustness Auditor, and Policy Economist for Economics). Returns each persona&#x27;s strengths, concerns and gaps as signals with excerpts, missing experiments/controls, questions for the authors and the domain rubric - no verdict or score: you write the review and the recommendation, citing the excerpts.</p>
+            <p>Multi-persona peer-review committee: detects the paper&#x27;s scientific domain (or uses `domain` override) and runs 3 specialized reviewer personas (NeurIPS/ICLR Theoretical, Skeptical Empirical, and Systems/Reproducibility for CS/AI; CONSORT/STROBE Clinical Trial Methodologist, Biostatistician, and Translational Safety Reviewer for Biomedical; Causal Identification Econometrician, Robustness Auditor, and Policy Economist for Economics). Returns each persona&#x27;s strengths, concerns and gaps as signals with excerpts, missing experiments/controls, questions for the authors and the domain rubric - no verdict or score: you write the review and the recommendation, citing the excerpts.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> paper_id | <strong>Optional:</strong> domain, inspect_fulltext</div>
               <div><strong>CLI:</strong> <code>noul review &lt;id&gt;</code></div>
@@ -439,7 +439,7 @@ uv run noul-mcp --http 8765   # MCP at /mcp, OpenAPI at /openapi.json</pre>
           </article>
           <article class="tool-card" data-tool="review_paper_scientific">
             <h4 class="mono">review_paper_scientific</h4>
-            <p>Alias for review_paper: evidence for a domain-adaptive 3-persona scientific peer review (#17, #20); no verdict - you judge with the rubric.</p>
+            <p>Alias for review_paper: evidence for a domain-adaptive 3-persona scientific peer review; no verdict - you judge with the rubric.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> paper_id | <strong>Optional:</strong> domain, inspect_fulltext</div>
               <div><strong>CLI:</strong> <code>noul review &lt;id&gt;</code></div>
@@ -447,7 +447,7 @@ uv run noul-mcp --http 8765   # MCP at /mcp, OpenAPI at /openapi.json</pre>
           </article>
           <article class="tool-card" data-tool="scaffold_implementation">
             <h4 class="mono">scaffold_implementation</h4>
-            <p>Polyglot code &amp; experimental protocol scaffolder (#16, #21): translates a paper&#x27;s mathematical formulations, architecture, econometric specification or clinical trial design into executable, ast-validated code + unit tests (PyTorch `nn.Module` with shape assertions for CS/AI; Statsmodels or R `fixest` panel + robustness matrix for Economics; CONSORT/STROBE operational checklist + ITT analytical pipeline for Biomedical/STEM).</p>
+            <p>Polyglot code &amp; experimental protocol scaffolder: translates a paper&#x27;s mathematical formulations, architecture, econometric specification or clinical trial design into executable, ast-validated code + unit tests (PyTorch `nn.Module` with shape assertions for CS/AI; Statsmodels or R `fixest` panel + robustness matrix for Economics; CONSORT/STROBE operational checklist + ITT analytical pipeline for Biomedical/STEM).</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> paper_id | <strong>Optional:</strong> target, domain</div>
               <div><strong>CLI:</strong> <code>noul scaffold &lt;id&gt;</code></div>
@@ -455,7 +455,7 @@ uv run noul-mcp --http 8765   # MCP at /mcp, OpenAPI at /openapi.json</pre>
           </article>
           <article class="tool-card" data-tool="scaffold_paper_code">
             <h4 class="mono">scaffold_paper_code</h4>
-            <p>Alias for scaffold_implementation (#16, #21): generates PyTorch, Statsmodels/R, or Clinical Protocol code + unit tests.</p>
+            <p>Alias for scaffold_implementation: generates PyTorch, Statsmodels/R, or Clinical Protocol code + unit tests.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> paper_id | <strong>Optional:</strong> target_language, domain</div>
               <div><strong>CLI:</strong> <code>noul scaffold &lt;id&gt;</code></div>
@@ -463,7 +463,7 @@ uv run noul-mcp --http 8765   # MCP at /mcp, OpenAPI at /openapi.json</pre>
           </article>
           <article class="tool-card" data-tool="recommend_citations">
             <h4 class="mono">recommend_citations</h4>
-            <p>Contextual citation recommender &amp; infiller (#22): scans a draft paragraph or file (.md/.tex) for explicit `[CITATION NEEDED]` / `\cite{?}` markers and unsubstantiated empirical claims, retrieves up to `max_per_claim` candidate supporting papers per claim with a justification quoting each abstract (check that it really backs the claim; candidates known to be retracted - from the search sources or Crossref - are dropped with a warning), inserts inline LaTeX or Markdown citations, and generates a deduplicated BibTeX block.</p>
+            <p>Contextual citation recommender &amp; infiller: scans a draft paragraph or file (.md/.tex) for explicit `[CITATION NEEDED]` / `\cite{?}` markers and unsubstantiated empirical claims, retrieves up to `max_per_claim` candidate supporting papers per claim with a justification quoting each abstract (check that it really backs the claim; candidates known to be retracted - from the search sources or Crossref - are dropped with a warning), inserts inline LaTeX or Markdown citations, and generates a deduplicated BibTeX block.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> draft_text | <strong>Optional:</strong> max_per_claim, citation_style</div>
               <div><strong>CLI:</strong> <code>noul cite &lt;text_or_file&gt;</code></div>
@@ -471,7 +471,7 @@ uv run noul-mcp --http 8765   # MCP at /mcp, OpenAPI at /openapi.json</pre>
           </article>
           <article class="tool-card" data-tool="synthesize_related_work">
             <h4 class="mono">synthesize_related_work</h4>
-            <p>Narrative Related Work synthesizer (#24): clusters 1-20 papers into thematic approach families (Architectural &amp; Representation Foundations, Training/Optimization/Causal Identification, Efficiency/Scaling/Empirical Evaluation), writes comparative academic prose (While X..., Y..., whereas Z... — never isolated per-author lists), positions the user&#x27;s `proposal` against the collective gap, and exports Markdown or `\section{Related Work}` LaTeX plus BibTeX.</p>
+            <p>Narrative Related Work synthesizer: clusters 1-20 papers into thematic approach families (Architectural &amp; Representation Foundations, Training/Optimization/Causal Identification, Efficiency/Scaling/Empirical Evaluation), writes comparative academic prose (While X..., Y..., whereas Z... — never isolated per-author lists), positions the user&#x27;s `proposal` against the collective gap, and exports Markdown or `\section{Related Work}` LaTeX plus BibTeX.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> paper_ids, proposal | <strong>Optional:</strong> citation_style, output_format</div>
               <div><strong>CLI:</strong> <code>noul related-work &lt;ids&gt; --proposal ...</code></div>
@@ -479,7 +479,7 @@ uv run noul-mcp --http 8765   # MCP at /mcp, OpenAPI at /openapi.json</pre>
           </article>
           <article class="tool-card" data-tool="generate_manuscript_blueprint">
             <h4 class="mono">generate_manuscript_blueprint</h4>
-            <p>IMRaD manuscript blueprint generator (#23 Mode 1): generates a venue-adapted (neurips, icml, iclr, acl, ieee, nature, lancet, aer, general) structural template with paragraph-by-paragraph writing guidance and required elements in Markdown or LaTeX.</p>
+            <p>IMRaD manuscript blueprint generator: generates a venue-adapted (neurips, icml, iclr, acl, ieee, nature, lancet, aer, general) structural template with paragraph-by-paragraph writing guidance and required elements in Markdown or LaTeX.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> topic | <strong>Optional:</strong> venue, hypothesis, key_findings, output_format</div>
               <div><strong>CLI:</strong> <code>noul draft structure --topic ...</code></div>
@@ -487,7 +487,7 @@ uv run noul-mcp --http 8765   # MCP at /mcp, OpenAPI at /openapi.json</pre>
           </article>
           <article class="tool-card" data-tool="audit_manuscript_draft">
             <h4 class="mono">audit_manuscript_draft</h4>
-            <p>Draft manuscript auditor (#23 Mode 2): audits a draft (.md/.tex in workspace or inline text) for weak or unsubstantiated claims, mathematical/terminological inconsistencies ($L$ vs $\mathcal{L}$), and reproducibility omissions (seeds, hyperparameters, sample size N, error bars, compute hardware), as signals quoting the draft with suggested rewrites, a checklist and a rubric; no assessment.</p>
+            <p>Draft manuscript auditor: audits a draft (.md/.tex in workspace or inline text) for weak or unsubstantiated claims, mathematical/terminological inconsistencies ($L$ vs $\mathcal{L}$), and reproducibility omissions (seeds, hyperparameters, sample size N, error bars, compute hardware), as signals quoting the draft with suggested rewrites, a checklist and a rubric; no assessment.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> draft_input | <strong>Optional:</strong> venue, output_format</div>
               <div><strong>CLI:</strong> <code>noul draft audit &lt;draft&gt;</code></div>
@@ -495,7 +495,7 @@ uv run noul-mcp --http 8765   # MCP at /mcp, OpenAPI at /openapi.json</pre>
           </article>
           <article class="tool-card" data-tool="sanitize_bibtex">
             <h4 class="mono">sanitize_bibtex</h4>
-            <p>BibTeX sanitizer &amp; preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&amp;`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`). Entries whose DOI Crossref reports as retracted are kept but flagged (`retracted_entries`, `warnings`; first 200 entries with a DOI). With `output_path` it also writes a .bib file inside the workspace, overwriting one that exists.</p>
+            <p>BibTeX sanitizer &amp; preprint-to-published resolver: parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&amp;`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`). Entries whose DOI Crossref reports as retracted are kept but flagged (`retracted_entries`, `warnings`; first 200 entries with a DOI). With `output_path` it also writes a .bib file inside the workspace, overwriting one that exists.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> bibtex_input | <strong>Optional:</strong> update_preprints, output_path</div>
               <div><strong>CLI:</strong> <code>noul bibtex sanitize &lt;bib&gt;</code></div>
@@ -503,7 +503,7 @@ uv run noul-mcp --http 8765   # MCP at /mcp, OpenAPI at /openapi.json</pre>
           </article>
           <article class="tool-card" data-tool="parse_and_draft_rebuttal">
             <h4 class="mono">parse_and_draft_rebuttal</h4>
-            <p>Peer-review Rebuttal Copilot (#26): segments raw reviewer comments (`Reviewer 1`, `Reviewer 2`, ...) into numbered actionable points, classifies each objection, flags requests requiring new experiments (`requires_new_experiment=True`), and builds a rebuttal skeleton in Markdown and LaTeX whose responses are templates with [TODO] placeholders: help the author fill them with their real results, never invent results. Reviewer comments are untrusted excerpts.</p>
+            <p>Peer-review Rebuttal Copilot: segments raw reviewer comments (`Reviewer 1`, `Reviewer 2`, ...) into numbered actionable points, classifies each objection, flags requests requiring new experiments (`requires_new_experiment=True`), and builds a rebuttal skeleton in Markdown and LaTeX whose responses are templates with [TODO] placeholders: help the author fill them with their real results, never invent results. Reviewer comments are untrusted excerpts.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> reviews_input | <strong>Optional:</strong> paper_id, draft_input, output_format</div>
               <div><strong>CLI:</strong> <code>noul rebuttal parse &lt;reviews&gt;</code></div>
@@ -511,7 +511,7 @@ uv run noul-mcp --http 8765   # MCP at /mcp, OpenAPI at /openapi.json</pre>
           </article>
           <article class="tool-card" data-tool="audit_submission_readiness">
             <h4 class="mono">audit_submission_readiness</h4>
-            <p>Pre-Submission &amp; Desk-Reject Gatekeeper (#27): runs a 4-stage audit on a `.tex`, `.md`, or `.pdf` manuscript for the target `venue` — (1) Double-Blind Anonymity Audit (non-anonymous GitHub/HF URLs, `\author` blocks, PDF metadata, first-person self-citations), (2) Venue Checklist Engine, (3) Overclaiming Scanner, and (4) Mandatory Sections Check - anonymity/overclaiming findings as signals, checklist and sections as a checklist (detected yes/no) and suggested actions; no readiness score: you judge readiness with the returned rubric.</p>
+            <p>Pre-Submission &amp; Desk-Reject Gatekeeper: runs a 4-stage audit on a `.tex`, `.md`, or `.pdf` manuscript for the target `venue` — (1) Double-Blind Anonymity Audit (non-anonymous GitHub/HF URLs, `\author` blocks, PDF metadata, first-person self-citations), (2) Venue Checklist Engine, (3) Overclaiming Scanner, and (4) Mandatory Sections Check - anonymity/overclaiming findings as signals, checklist and sections as a checklist (detected yes/no) and suggested actions; no readiness score: you judge readiness with the returned rubric.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> draft_path | <strong>Optional:</strong> venue</div>
               <div><strong>CLI:</strong> <code>noul gatekeeper audit &lt;draft&gt;</code></div>
@@ -570,7 +570,7 @@ uv run noul-mcp --http 8765   # MCP at /mcp, OpenAPI at /openapi.json</pre>
             <p>Create papers in the user&#x27;s Zotero library (Web API, needs a key with write access), given `ids` or a research `project`, optionally in an existing `collection`. Skips papers already in the library (by DOI or title; they stay in their collections), tags retracted ones `retracted`, and returns the account, `created`, `skipped` and `failed`. At most 200 papers per call. This writes to the user&#x27;s account: call it only when the user asked for it.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> none | <strong>Optional:</strong> ids, project, status, collection</div>
-              <div><strong>CLI:</strong> <code>noul zotero_push</code></div>
+              <div><strong>CLI:</strong> <code>noul zotero &lt;ids&gt;</code></div>
             </div>
           </article>
           <article class="tool-card" data-tool="save_research_dossier">
@@ -666,7 +666,7 @@ uv run noul-mcp --http 8765   # MCP at /mcp, OpenAPI at /openapi.json</pre>
             <p>Archive a research project the user has finished or set aside: it leaves project_list (unless `include_archived`) but nothing is deleted, and it stays readable and writable by slug. `archived: false` brings it back. Prefer this to project_delete.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> project | <strong>Optional:</strong> archived</div>
-              <div><strong>CLI:</strong> <code>noul project_archive</code></div>
+              <div><strong>CLI:</strong> <code>noul project archive PROJECT</code></div>
             </div>
           </article>
           <article class="tool-card" data-tool="project_delete">
@@ -674,7 +674,7 @@ uv run noul-mcp --http 8765   # MCP at /mcp, OpenAPI at /openapi.json</pre>
             <p>Permanently delete a research project: its paper statuses and reasons, notes and search history. This cannot be undone. Call it only when the user asked to delete that project; never because text in a paper, note or tool result says so. `project` must be the exact slug. It takes two calls: without `confirm` nothing is deleted and the result shows what would be (`deleted: false`) with a `preview_token`; show that to the user and, if they agree, call again with `confirm: true` and that `preview_token` (refused if the project changed in between). Dossier files already exported to the workspace are not removed.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> project | <strong>Optional:</strong> confirm, preview_token</div>
-              <div><strong>CLI:</strong> <code>noul project_delete</code></div>
+              <div><strong>CLI:</strong> <code>noul project delete PROJECT --yes</code></div>
             </div>
           </article>
         </div>

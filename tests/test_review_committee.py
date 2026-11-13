@@ -4,8 +4,13 @@ import io
 import unittest
 from contextlib import redirect_stdout
 
+import _support
 from noul import api, cli
 from noul.net import cache as _net_cache
+
+
+def setUpModule():
+    _support.isolate_environment()
 
 
 class ReviewCommitteeTests(unittest.TestCase):

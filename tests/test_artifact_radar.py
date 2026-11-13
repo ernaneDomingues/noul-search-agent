@@ -1,4 +1,4 @@
-"""Etapa 2 (#02): open-artifact radar — extraction, evasive statements, HTTP verification, tool/CLI."""
+"""open-artifact radar — extraction, evasive statements, HTTP verification, tool/CLI."""
 
 import contextlib
 import io

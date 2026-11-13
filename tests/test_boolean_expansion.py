@@ -1,4 +1,4 @@
-"""Etapa 5 (#07): suggest_boolean_queries — acronyms/emerging terms, AND/OR/NOT strategies, CLI `expand --run`."""
+"""suggest_boolean_queries — acronyms/emerging terms, AND/OR/NOT strategies, CLI `expand --run`."""
 
 import contextlib
 import io

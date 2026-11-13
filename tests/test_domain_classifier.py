@@ -1,4 +1,4 @@
-"""Etapa 1 (#19): scientific-domain detection, pipeline integration, CLI/MCP overrides."""
+"""scientific-domain detection, pipeline integration, CLI/MCP overrides."""
 
 import contextlib
 import io

@@ -3,7 +3,6 @@ stance classification and synthesis; these tools retrieve, structure, download, 
 
 import json
 import os
-import re
 import sqlite3
 import time
 from pathlib import Path
@@ -478,7 +477,7 @@ def get_thematic_insights(paper_ids, topic=None):
 @_registry.tool(
     "generate_research_hypotheses",
     description=(
-        "Autonomous research gap & hypothesis engine (#18): cross-analyzes 2-15 papers to detect "
+        "Autonomous research gap & hypothesis engine: cross-analyzes 2-15 papers to detect "
         "methodological contradictions (`contradictions_found`) and unexplored synergies where one paper's "
         "method mitigates another's limitation (`unexplored_complementarities`), then formulates "
         "1-`max_hypotheses` structured, testable `ResearchHypothesis` proposals with `source_papers` (>= 2), "
@@ -673,7 +672,7 @@ def diff_arxiv_versions(arxiv_id, from_version="v1", to_version="v2"):
 @_registry.tool(
     "review_paper",
     description=(
-        "Multi-persona peer-review committee (#17, #20): detects the paper's scientific domain (or uses "
+        "Multi-persona peer-review committee: detects the paper's scientific domain (or uses "
         "`domain` override) and runs 3 specialized reviewer personas (NeurIPS/ICLR Theoretical, Skeptical "
         "Empirical, and Systems/Reproducibility for CS/AI; CONSORT/STROBE Clinical Trial Methodologist, "
         "Biostatistician, and Translational Safety Reviewer for Biomedical; Causal Identification "
@@ -695,7 +694,7 @@ def review_paper(paper_id, domain=None, inspect_fulltext=True):
 @_registry.tool(
     "review_paper_scientific",
     description=(
-        "Alias for review_paper: evidence for a domain-adaptive 3-persona scientific peer review (#17, #20); "
+        "Alias for review_paper: evidence for a domain-adaptive 3-persona scientific peer review; "
         "no verdict - you judge with the rubric."
     ),
     input=_inputs.ReviewPaperScientificInput,
@@ -713,7 +712,7 @@ def review_paper_scientific(paper_id, domain=None, inspect_fulltext=True):
 @_registry.tool(
     "scaffold_implementation",
     description=(
-        "Polyglot code & experimental protocol scaffolder (#16, #21): translates a paper's mathematical "
+        "Polyglot code & experimental protocol scaffolder: translates a paper's mathematical "
         "formulations, architecture, econometric specification or clinical trial design into executable, "
         "ast-validated code + unit tests (PyTorch `nn.Module` with shape assertions for CS/AI; Statsmodels or "
         "R `fixest` panel + robustness matrix for Economics; CONSORT/STROBE operational checklist + ITT "
@@ -730,8 +729,7 @@ def scaffold_implementation(paper_id, target=None, domain=None):
 @_registry.tool(
     "scaffold_paper_code",
     description=(
-        "Alias for scaffold_implementation (#16, #21): generates PyTorch, Statsmodels/R, or Clinical Protocol "
-        "code + unit tests."
+        "Alias for scaffold_implementation: generates PyTorch, Statsmodels/R, or Clinical Protocol code + unit tests."
     ),
     input=_inputs.ScaffoldPaperCodeInput,
     profiles=("review",),
@@ -743,7 +741,7 @@ def scaffold_paper_code(paper_id, target_language=None, domain=None):
 @_registry.tool(
     "recommend_citations",
     description=(
-        "Contextual citation recommender & infiller (#22): scans a draft paragraph or file (.md/.tex) for "
+        "Contextual citation recommender & infiller: scans a draft paragraph or file (.md/.tex) for "
         "explicit `[CITATION NEEDED]` / `\\cite{?}` markers and unsubstantiated empirical claims, retrieves "
         "up to `max_per_claim` candidate supporting papers per claim with a justification quoting each abstract "
         "(check that it really backs the claim; candidates known to be retracted - from the search sources or "
@@ -762,7 +760,7 @@ def recommend_citations(draft_text, max_per_claim=2, citation_style="latex"):
 @_registry.tool(
     "synthesize_related_work",
     description=(
-        "Narrative Related Work synthesizer (#24): clusters 1-20 papers into thematic approach families "
+        "Narrative Related Work synthesizer: clusters 1-20 papers into thematic approach families "
         "(Architectural & Representation Foundations, Training/Optimization/Causal Identification, "
         "Efficiency/Scaling/Empirical Evaluation), writes comparative academic prose (While X..., Y..., "
         "whereas Z... — never isolated per-author lists), positions the user's `proposal` against the "
@@ -781,7 +779,7 @@ def synthesize_related_work(paper_ids, proposal, citation_style="latex", output_
 @_registry.tool(
     "generate_manuscript_blueprint",
     description=(
-        "IMRaD manuscript blueprint generator (#23 Mode 1): generates a venue-adapted (neurips, icml, iclr, "
+        "IMRaD manuscript blueprint generator: generates a venue-adapted (neurips, icml, iclr, "
         "acl, ieee, nature, lancet, aer, general) structural template with paragraph-by-paragraph writing "
         "guidance and required elements in Markdown or LaTeX."
     ),
@@ -799,7 +797,7 @@ def generate_manuscript_blueprint(topic, venue="neurips", hypothesis="", key_fin
 @_registry.tool(
     "audit_manuscript_draft",
     description=(
-        "Draft manuscript auditor (#23 Mode 2): audits a draft (.md/.tex in workspace or inline text) for "
+        "Draft manuscript auditor: audits a draft (.md/.tex in workspace or inline text) for "
         "weak or unsubstantiated claims, mathematical/terminological inconsistencies ($L$ vs $\\mathcal{L}$), "
         "and reproducibility omissions (seeds, hyperparameters, sample size N, error bars, compute hardware), "
         "as signals quoting the draft with suggested rewrites, a checklist and a rubric; no assessment."
@@ -817,7 +815,7 @@ def audit_manuscript_draft(draft_input, venue="neurips", output_format="markdown
 @_registry.tool(
     "sanitize_bibtex",
     description=(
-        "BibTeX sanitizer & preprint-to-published resolver (#25): parses `.bib` files or text, upgrades "
+        "BibTeX sanitizer & preprint-to-published resolver: parses `.bib` files or text, upgrades "
         "arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or "
         "journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes "
         "authors, escapes unescaped LaTeX (`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`). Entries "
@@ -842,7 +840,7 @@ def sanitize_bibtex(bibtex_input, update_preprints=True, output_path=None):
 @_registry.tool(
     "parse_and_draft_rebuttal",
     description=(
-        "Peer-review Rebuttal Copilot (#26): segments raw reviewer comments (`Reviewer 1`, `Reviewer 2`, ...) "
+        "Peer-review Rebuttal Copilot: segments raw reviewer comments (`Reviewer 1`, `Reviewer 2`, ...) "
         "into numbered actionable points, classifies each objection, flags requests requiring new experiments "
         "(`requires_new_experiment=True`), and builds a rebuttal skeleton in Markdown and LaTeX whose responses "
         "are templates with [TODO] placeholders: help the author fill them with their real results, never "
@@ -862,7 +860,7 @@ def parse_and_draft_rebuttal(reviews_input, paper_id=None, draft_input=None, out
 @_registry.tool(
     "audit_submission_readiness",
     description=(
-        "Pre-Submission & Desk-Reject Gatekeeper (#27): runs a 4-stage audit on a `.tex`, `.md`, or `.pdf` "
+        "Pre-Submission & Desk-Reject Gatekeeper: runs a 4-stage audit on a `.tex`, `.md`, or `.pdf` "
         "manuscript for the target `venue` — (1) Double-Blind Anonymity Audit (non-anonymous GitHub/HF URLs, "
         "`\\author` blocks, PDF metadata, first-person self-citations), (2) Venue Checklist Engine, (3) "
         "Overclaiming Scanner, and (4) Mandatory Sections Check - anonymity/overclaiming findings as signals, "
@@ -1144,8 +1142,8 @@ def zotero_push(ids=None, project=None, status=None, collection=None):
 
 
 def _slugify(text):
-    slug = re.sub(r"[^a-z0-9]+", "-", (text or "research").lower()).strip("-")
-    return slug[:60].strip("-") or "research-session"  # the same slug names the project (store.create_project)
+    # The same slug names the project (store.create_project), so both go through one function.
+    return _store.slugify(text or "research", fallback="research-session")
 
 
 def _dossier_paths(directory):

@@ -215,11 +215,11 @@ def _now() -> int:
 _SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
-def slugify(text: str) -> str:
+def slugify(text: str, fallback: str = "project") -> str:
     """ASCII slug of a title: accents transliterated ("Café" -> "cafe"), at most 60 characters."""
     ascii_text = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode()
     slug = re.sub(r"[^a-z0-9]+", "-", ascii_text.lower()).strip("-")
-    return slug[:60].strip("-") or "project"
+    return slug[:60].strip("-") or fallback
 
 
 def _same_title(a: str, b: str) -> bool:
