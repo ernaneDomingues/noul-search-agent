@@ -3,6 +3,7 @@ stance classification and synthesis; these tools retrieve, structure, download, 
 
 import json
 import os
+import re
 import sqlite3
 import time
 from pathlib import Path
@@ -1146,6 +1147,18 @@ def _slugify(text):
     return _store.slugify(text or "research", fallback="research-session")
 
 
+def _dossier_slug(topic, parent):
+    """The topic's slug, or the one an earlier version gave it when that dossier is already in `parent`.
+
+    Before 2.1.1 accents were dropped instead of transliterated ("Café" -> "caf"); saving such a topic again
+    must update the existing dossier and project, not start a second one."""
+    slug = _slugify(topic)
+    legacy = re.sub(r"[^a-z0-9]+", "-", (topic or "research").lower()).strip("-")[:60].strip("-")
+    if legacy and legacy != slug and (parent / legacy / "papers.json").is_file() and not (parent / slug).exists():
+        return legacy
+    return slug
+
+
 def _dossier_paths(directory):
     base = _safe_output_dir(directory, "research")
     return (
@@ -1172,8 +1185,9 @@ def _dossier_paths(directory):
 def save_research_dossier(topic, synthesis_markdown, paper_ids=None, output_dir=None):
     """Save a structured research dossier (README.md, papers.json, references.bib) so the user can
     converse over the research documentation and revisit it across sessions."""
-    slug = _slugify(topic)
-    base, md_path, json_path, bib_path = _dossier_paths(_safe_output_dir(output_dir, "research") / slug)
+    parent = _safe_output_dir(output_dir, "research")
+    slug = _dossier_slug(topic, parent)
+    base, md_path, json_path, bib_path = _dossier_paths(parent / slug)
     base.mkdir(parents=True, exist_ok=True)
 
     papers = []

@@ -69,7 +69,7 @@ CLI_MAPPING = {
     "project_note": 'noul project note PROJECT "text" --paper ID',
     "project_archive": "noul project archive PROJECT",
     "project_delete": "noul project delete PROJECT --yes",
-    "zotero_push": "noul zotero <ids>",
+    "zotero_push": "noul zotero <ids> [--project PROJECT]",
     "list_research_dossiers": "noul dossier list",
     "get_research_dossier": "noul dossier show <slug>",
     "export_papers": "noul export <ids>",

@@ -438,7 +438,7 @@
         "status",
         "collection"
       ],
-      "cli_equivalent": "noul zotero <ids>"
+      "cli_equivalent": "noul zotero <ids> [--project PROJECT]"
     },
     {
       "name": "save_research_dossier",

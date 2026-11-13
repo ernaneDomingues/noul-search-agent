@@ -570,7 +570,7 @@ uv run noul-mcp --http 8765   # MCP at /mcp, OpenAPI at /openapi.json</pre>
             <p>Create papers in the user&#x27;s Zotero library (Web API, needs a key with write access), given `ids` or a research `project`, optionally in an existing `collection`. Skips papers already in the library (by DOI or title; they stay in their collections), tags retracted ones `retracted`, and returns the account, `created`, `skipped` and `failed`. At most 200 papers per call. This writes to the user&#x27;s account: call it only when the user asked for it.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> none | <strong>Optional:</strong> ids, project, status, collection</div>
-              <div><strong>CLI:</strong> <code>noul zotero &lt;ids&gt;</code></div>
+              <div><strong>CLI:</strong> <code>noul zotero &lt;ids&gt; [--project PROJECT]</code></div>
             </div>
           </article>
           <article class="tool-card" data-tool="save_research_dossier">

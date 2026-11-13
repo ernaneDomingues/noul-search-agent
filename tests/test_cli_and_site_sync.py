@@ -43,6 +43,21 @@ class SlugTests(unittest.TestCase):
         self.assertEqual(api._slugify("Café com leite"), "cafe-com-leite")
         self.assertEqual(api._slugify("???"), "research-session")
 
+    def test_a_dossier_saved_under_the_old_slug_is_updated_in_place(self):
+        from pathlib import Path
+
+        from noul import config
+
+        research = Path(config.get_config()["workspace"]) / "research"
+        old = research / "caf-e-sa-de"  # what versions before 2.1.1 called "Café e saúde"
+        old.mkdir(parents=True)
+        (old / "papers.json").write_text("{}", encoding="utf-8")
+        saved = registry.call("save_research_dossier", {"topic": "Café e saúde", "synthesis_markdown": "v2"})
+        self.assertEqual(saved["slug"], "caf-e-sa-de")
+        self.assertFalse((research / "cafe-e-saude").exists())
+        fresh = registry.call("save_research_dossier", {"topic": "Açaí e sono", "synthesis_markdown": "v1"})
+        self.assertEqual(fresh["slug"], "acai-e-sono")
+
 
 class SiteCliMappingTests(unittest.TestCase):
     def test_every_advertised_command_exists(self):
