@@ -29,13 +29,18 @@ from noul.providers import domain_classifier as _domain_classifier
 from noul.schemas import tool_inputs as _inputs
 from noul.schemas import tool_outputs as _out
 from noul.search import engine as _engine
-from noul.tools import authoring_tools as _authoring_tools
 from noul.tools import comparative_tools as _comparative_tools
 from noul.tools import gatekeeper_tools as _gatekeeper_tools
 from noul.tools import hardware_tools as _hardware_tools
 from noul.tools import review_tools as _review_tools
 from noul.tools import scaffold_tools as _scaffold_tools
 from noul.tools import search_tools as _search_tools
+from noul.tools.authoring import bibtex as _bibtex
+from noul.tools.authoring import blueprint as _blueprint
+from noul.tools.authoring import citations as _citations
+from noul.tools.authoring import draft_audit as _draft_audit
+from noul.tools.authoring import rebuttal as _rebuttal
+from noul.tools.authoring import related_work as _related_work
 from noul.tools.technical import ablation as _ablation
 from noul.tools.technical import equations as _equations
 from noul.tools.technical import failure_modes as _failure_modes
@@ -718,7 +723,7 @@ def scaffold_paper_code(paper_id, target_language=None, domain=None):
     output=_out.CitationInfillerReport,
 )
 def recommend_citations(draft_text, max_per_claim=2, citation_style="latex"):
-    return _authoring_tools.recommend_citations(draft_text, max_per_claim=max_per_claim, citation_style=citation_style)
+    return _citations.recommend_citations(draft_text, max_per_claim=max_per_claim, citation_style=citation_style)
 
 
 @_registry.tool(
@@ -735,7 +740,7 @@ def recommend_citations(draft_text, max_per_claim=2, citation_style="latex"):
     output=_out.RelatedWorkSynthesis,
 )
 def synthesize_related_work(paper_ids, proposal, citation_style="latex", output_format="markdown"):
-    return _authoring_tools.synthesize_related_work(
+    return _related_work.synthesize_related_work(
         paper_ids, proposal=proposal, citation_style=citation_style, output_format=output_format
     )
 
@@ -753,7 +758,7 @@ def synthesize_related_work(paper_ids, proposal, citation_style="latex", output_
     network=False,
 )
 def generate_manuscript_blueprint(topic, venue="neurips", hypothesis="", key_findings=None, output_format="markdown"):
-    return _authoring_tools.generate_manuscript_blueprint(
+    return _blueprint.generate_manuscript_blueprint(
         topic, venue=venue, hypothesis=hypothesis, key_findings=key_findings, output_format=output_format
     )
 
@@ -773,7 +778,7 @@ def generate_manuscript_blueprint(topic, venue="neurips", hypothesis="", key_fin
     network=False,
 )
 def audit_manuscript_draft(draft_input, venue="neurips", output_format="markdown"):
-    return _authoring_tools.audit_manuscript_draft(draft_input, venue=venue, output_format=output_format)
+    return _draft_audit.audit_manuscript_draft(draft_input, venue=venue, output_format=output_format)
 
 
 @_registry.tool(
@@ -796,9 +801,7 @@ def audit_manuscript_draft(draft_input, venue="neurips", output_format="markdown
     title="Sanitize BibTeX",
 )
 def sanitize_bibtex(bibtex_input, update_preprints=True, output_path=None):
-    return _authoring_tools.sanitize_bibtex(
-        bibtex_input, update_preprints=bool(update_preprints), output_path=output_path
-    )
+    return _bibtex.sanitize_bibtex(bibtex_input, update_preprints=bool(update_preprints), output_path=output_path)
 
 
 @_registry.tool(
@@ -816,7 +819,7 @@ def sanitize_bibtex(bibtex_input, update_preprints=True, output_path=None):
     output=_out.RebuttalReport,
 )
 def parse_and_draft_rebuttal(reviews_input, paper_id=None, draft_input=None, output_format="markdown"):
-    return _authoring_tools.parse_and_draft_rebuttal(
+    return _rebuttal.parse_and_draft_rebuttal(
         reviews_input, paper_id=paper_id, draft_input=draft_input, output_format=output_format
     )
 

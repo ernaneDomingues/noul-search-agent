@@ -452,7 +452,7 @@ class ToolTests(unittest.TestCase):
             "doi": "10.1000/ok",
             "title": "MMR vaccination and autism: a cohort study",
         }
-        with mock.patch("noul.tools.authoring_tools._retrieve_papers_for_claim", return_value=[retracted, fine]):
+        with mock.patch("noul.tools.authoring.citations._retrieve_papers_for_claim", return_value=[retracted, fine]):
             out = api.call(
                 "recommend_citations", {"draft_text": "MMR vaccination is not linked to autism [CITATION NEEDED]."}
             )
