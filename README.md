@@ -224,7 +224,7 @@ The table is generated from the registry (`src/noul/registry.py`) by `scripts/bu
 |---|---|
 | `src/noul/search/`, `src/noul/providers/` | Search engine, one module per source, deduplication and ranking; domain classifier, artifact radar, PDF/table parser and arXiv version client |
 | `src/noul/evidence/`, `src/noul/library/`, `src/noul/net/` | Study-design classification and impact bands; full text, citation graph, downloads and export; HTTP with SSRF protection and SQLite cache |
-| `src/noul/registry.py`, `src/noul/api.py`, `src/noul/schemas/` | The tool registry (`@tool`), the 50 tool functions and their Pydantic input models, shared by MCP, HTTP/OpenAPI and the CLI (`noul tool <name> --args '<json>'`) |
+| `src/noul/registry.py`, `src/noul/api/`, `src/noul/schemas/` | The tool registry (`@tool`), the 50 tool functions and their Pydantic input models, shared by MCP, HTTP/OpenAPI and the CLI (`noul tool <name> --args '<json>'`) |
 | `src/noul/server/` | MCP server (`mcp.py`) and hardened HTTP server (`http.py`) |
 | `src/noul/cli/`, `src/noul/install.py` | `noul` CLI (`python -m noul`) and the user-level installer `noul-install` |
 | `skills/noul-search/`, `agents/`, `commands/`, `.claude-plugin/` | Skill (router, per-journey references, evals), subagent templates, the `/noul-search-config` command and the Claude Code plugin |

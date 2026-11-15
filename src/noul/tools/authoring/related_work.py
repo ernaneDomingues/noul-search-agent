@@ -7,8 +7,8 @@ from noul.schemas.authoring import (
     RelatedWorkSynthesis,
     RelatedWorkThemeCluster,
 )
+from noul.search import engine as _engine
 from noul.tools.authoring import bibtex as _bibtex
-from noul.tools.authoring import common as _common
 
 _ARCH_FAMILY_RE = re.compile(
     r"\b(?:architectur\w+|transformer\w*|attention|backbone|representation|graph\s+neural|encoder|decoder|"
@@ -82,7 +82,6 @@ def synthesize_related_work(
     """Issue #24: Group 1-20 papers into thematic approach families, write comparative academic prose
     (never isolated per-author lists), position the user's `proposal` against the collective gap,
     and output ready-to-paste Markdown or LaTeX (`\\section{Related Work}`) with BibTeX."""
-    t = _common._tools()
     if isinstance(paper_ids, str):
         ids = [x.strip() for x in paper_ids.split(",") if x.strip()]
     elif isinstance(paper_ids, (list, tuple)):
@@ -104,7 +103,7 @@ def synthesize_related_work(
     papers = []
     seen = set()
     for pid in ids[:20]:
-        p = t._resolve(pid)
+        p = _engine.resolve_paper(pid)
         real_id = p.get("id") or pid
         if real_id not in seen:
             seen.add(real_id)

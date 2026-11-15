@@ -17,9 +17,9 @@ live on the GitHub releases page; there is no CHANGELOG file. New work gets its 
 | `src/noul/providers/` | one module per source (`openalex`, `s2`, `pubmed`, `crossref`, `arxiv_search`, `europepmc`) + `endpoints` (API base URLs), `assemble` (`assemble_paper`: the one builder of the `schemas.paper.Paper` record), `annotate` (domain + artifact flags on every parsed paper), domain classifier, artifact radar, PDF parser, arXiv version client |
 | `src/noul/search/engine.py` | multi-source search, dedupe, ranking, `resolve_paper` |
 | `src/noul/evidence/`, `src/noul/library/` | study-design classifier + impact band; full text, citation graph, downloads, export |
-| `src/noul/tools/` | feature tools (technical extraction, review, authoring, comparison) |
+| `src/noul/tools/` | feature tools: packages `technical/` (tables, grounding, equations, ablation, prompts, failure_modes, version_diff) and `authoring/` (citations, related_work, blueprint, draft_audit, bibtex, rebuttal), plus review, scaffold, comparison, search, hardware and gatekeeper modules |
 | `src/noul/registry.py` | the tool registry: `@tool(...)`, `call()` (Pydantic validation + logging), `input_schema()`, `catalog()`, `write_tools()` |
-| `src/noul/api.py` | the 50 tool functions, each decorated with `@_registry.tool(...)`; `TOOLS`/`call` re-exported for v1 callers |
+| `src/noul/api/` | the 50 tool functions, each decorated with `@_registry.tool(...)`, one module per journey (`search`, `analysis`, `technical`, `review`, `authoring`, `library`, `dossiers`, `settings`, `meter`, `projects`) plus `common` (shared helpers, registers nothing). `__init__` imports them in the order of `tools/list` and re-exports the public names; patch a function in the module that defines it |
 | `src/noul/schemas/tool_inputs.py` | one Pydantic input model per tool — the source of the MCP `inputSchema` |
 | `src/noul/log.py` | `noul` logger, stderr only, level from `NOUL_LOG_LEVEL` |
 | `src/noul/server/mcp.py`, `http.py`, `common.py` | MCP server on the official SDK (stdio; prompts, progress, e-mail elicitation) and the Starlette HTTP app (Streamable HTTP `/mcp`, REST/OpenAPI, `Guard` middleware for Host/Origin/Bearer/body cap); profiles via `--profile`/`NOUL_TOOL_PROFILE` |
@@ -51,7 +51,7 @@ uv sync --extra dev                                   # creates .venv; re-run af
 
 - Tests are offline. Network is mocked through `tests/_support.py` (`isolate_environment`, `no_network`).
 - **A new or changed tool needs**: an input model in `src/noul/schemas/tool_inputs.py`, the function in
-  `src/noul/api.py` decorated with `@_registry.tool(name, description=..., input=..., writes=..., network=...)`
+  the matching `src/noul/api/<journey>.py` decorated with `@_registry.tool(name, description=..., input=..., writes=..., network=...)`
   (parameters == model fields), an offline test, and either a golden-set case (classifiers) or an eval case
   (agent behaviour). Then run `python scripts/build_site.py`: it regenerates the site catalog and the tool lists
   in the SKILL, agent templates and README (between `<!-- noul:tools:start/end -->`). Changing a tool's input

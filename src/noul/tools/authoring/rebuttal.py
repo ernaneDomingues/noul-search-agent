@@ -10,6 +10,7 @@ from noul.schemas.authoring import (
     RebuttalReport,
 )
 from noul.schemas.evidence import AnalysisSubject
+from noul.search import engine as _engine
 from noul.tools.authoring import common as _common
 
 _REVIEWER_HEADER_RE = re.compile(
@@ -139,7 +140,6 @@ def parse_and_draft_rebuttal(
     """Issue #26: Parse raw peer-review comments by reviewer and objection, classify each point,
     flag items requiring new experiments, and build a rebuttal skeleton (Markdown and LaTeX) whose responses are
     templates with [TODO] placeholders - the author supplies the actual results."""
-    t = _common._tools()
     reviews_text, _, _ = _common._load_text_or_workspace_file(reviews_input)
     fmt = (output_format or "markdown").strip().lower()
     if fmt not in ("markdown", "latex"):
@@ -148,7 +148,7 @@ def parse_and_draft_rebuttal(
     context: list = []
     if paper_id and str(paper_id).strip():
         try:
-            p = t._resolve(str(paper_id).strip())
+            p = _engine.resolve_paper(str(paper_id).strip())
             if p.get("abstract"):
                 context.append(_untrusted.excerpt(p["abstract"], paper_id=p.get("id"), section="Abstract"))
         except Exception:

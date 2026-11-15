@@ -365,7 +365,7 @@ class AgentTestSuite(unittest.TestCase):
             (external / "noul/__init__.py").write_text("", encoding="utf-8")
             (external / "noul/core.py").write_text("raise SystemExit('external core loaded')\n", encoding="utf-8")
             probe = (
-                "import os, noul.api as a; print(a._engine.__name__); "
+                "import os, noul.api.common as a; print(a._engine.__name__); "
                 "assert 'DB_PATH' not in os.environ; assert 'UNPAYWALL_EMAIL' not in os.environ"
             )
             env = {**ENV, "NOUL_APP_DIR": str(external)}
