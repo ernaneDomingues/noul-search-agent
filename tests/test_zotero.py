@@ -538,9 +538,8 @@ class SecretTests(Base):
         self.assertEqual(config._load_config_file()["zotero_api_key"], KEY)
 
     def test_other_spellings_and_copies_of_the_config_file_are_refused(self):
-        from noul import config
+        from noul import config, workspace
         from noul.errors import HTTPError
-        from noul.tools import authoring_tools
 
         self.addCleanup(lambda: config.set_config(clear=True))
         config.set_config(zotero_api_key=KEY, zotero_user_id=USER)
@@ -551,7 +550,7 @@ class SecretTests(Base):
         with mock.patch.dict(os.environ, {"NOUL_WORKSPACE": str(path.parent)}):
             for name in ("CONFIG.JSON", "config.json.bak", "config.json.abc123", link.name):
                 with self.assertRaises(HTTPError) as caught:
-                    authoring_tools._validate_workspace_path(name, must_exist=False)
+                    workspace.validate_path(name, must_exist=False)
                 self.assertEqual(caught.exception.code, 403, name)
 
     def test_the_tool_clear_keeps_the_credentials_and_the_cli_clear_does_not(self):

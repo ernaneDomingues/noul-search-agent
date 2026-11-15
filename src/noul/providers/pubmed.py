@@ -12,8 +12,8 @@ from noul.evidence import classify as _classify
 from noul.evidence import impact as _impact
 from noul.evidence import integrity as _integrity
 from noul.net import http as _nhttp
+from noul.providers import annotate as _annotate
 from noul.providers import europepmc as _europepmc
-from noul.search import engine as _engine
 
 
 def _eutils_params(params):
@@ -91,7 +91,7 @@ def _parse_pubmed_xml(xml_txt):
         pdf_url = _europepmc._europepmc_pdf_url(pmc_id) if pmc_id else None
         pid = _ids._paper_id(doi=doi, pmid=pmid, title=title)
         out.append(
-            _engine._annotate_paper(
+            _annotate.annotate_paper(
                 {
                     "id": pid,
                     "title": title,

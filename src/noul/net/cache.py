@@ -1,12 +1,17 @@
 """SQLite key-value cache (WAL) shared by providers and tools."""
 
 import json
+import logging
 import os
 import sqlite3
 import time
 from contextlib import contextmanager
 
 from noul import config as _config
+from noul import log as _log
+
+PAPER = "paper:"  # key prefix of a cached paper record
+_write_failure_reported = False
 
 
 @contextmanager
@@ -34,7 +39,9 @@ def cache_get(key, max_age=86400 * 14):
             if max_age and (time.time() - ts) > max_age:
                 return None
             return json.loads(val)
-    except Exception:
+    except Exception as exc:
+        # A cache that cannot be read is a miss, never an error for the caller; the type alone is logged.
+        _log.logger.debug("cache read failed: %s", type(exc).__name__)
         return None
 
 
@@ -61,5 +68,47 @@ def cache_set(key, val):
                     "LIMIT max(0, (SELECT COUNT(*) FROM kv) - ?))",
                     (limit,),
                 )
-    except Exception:
-        pass
+    except Exception as exc:
+        # Said once at WARNING (an unwritable cache makes every call slower), then only at DEBUG.
+        global _write_failure_reported
+        level = logging.DEBUG if _write_failure_reported else logging.WARNING
+        _write_failure_reported = True
+        _log.logger.log(level, "cache write failed: %s", type(exc).__name__)
+
+
+def get_paper(paper_id, max_age=86400 * 14):
+    """The cached record of a paper id (or of an identifier it was resolved from), else None."""
+    return cache_get(PAPER + str(paper_id), max_age=max_age)
+
+
+def put_paper(paper_id, paper):
+    cache_set(PAPER + str(paper_id), paper)
+
+
+def scan(*prefixes, limit=None, newest_first=True):
+    """Decoded dict values whose key starts with one of `prefixes`, newest first (rows of the same second in
+    the order they were written) or simply in the order they were written; `limit` caps the rows read.
+
+    A full scan of the table: fine for a local cache, and what the offline tools that match against every
+    cached paper need."""
+    where = " OR ".join("k LIKE ? ESCAPE '\\'" for _ in prefixes)
+    params = [p.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%" for p in prefixes]
+    sql = f"SELECT v FROM kv WHERE {where} ORDER BY " + ("ts DESC, rowid ASC" if newest_first else "rowid ASC")
+    if limit:
+        sql += " LIMIT ?"
+        params.append(int(limit))
+    try:
+        with _conn() as c:
+            rows = c.execute(sql, params).fetchall()
+    except Exception as exc:
+        _log.logger.debug("cache scan failed: %s", type(exc).__name__)
+        return []
+    out = []
+    for (raw,) in rows:
+        try:
+            val = json.loads(raw)
+        except (TypeError, ValueError):
+            continue
+        if isinstance(val, dict):
+            out.append(val)
+    return out

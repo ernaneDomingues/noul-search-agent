@@ -3,13 +3,12 @@ BibTeX Sanitizer, and Peer-Review Rebuttal Copilot.
 
 All functions are deterministic, stdlib-only, and strictly enforce workspace confinement and symlink rejection."""
 
-import os
 import re
 from pathlib import Path
 
-from noul import config as _config
 from noul import errors as _errors
 from noul import ids as _ids
+from noul import workspace as _workspace
 from noul.evidence import contract as _contract
 from noul.evidence import integrity as _integrity
 from noul.evidence import untrusted as _untrusted
@@ -38,8 +37,6 @@ def _tools():
 
     return api
 
-
-_FILE_EXT_RE = re.compile(r"\.(?:md|markdown|tex|txt|bib|pdf)$", re.I)
 
 _STOPWORDS = frozenset(
     {
@@ -162,72 +159,14 @@ _DECLARATIVE_TRIGGER_RE = re.compile(
 )
 
 
-def _workspace_root() -> Path:
-    return Path(_config.get_config()["workspace"]).expanduser().resolve()
-
-
-def _validate_workspace_path(raw_path: str, must_exist: bool = True) -> Path:
-    ws = _workspace_root()
-    raw_str = str(raw_path).strip()
-    p = Path(raw_str).expanduser()
-    candidate_abs = Path(os.path.abspath(p if p.is_absolute() else ws / p))
-
-    # Reject symlinks anywhere along the path inside or escaping workspace
-    roots = {Path(os.path.abspath(ws)), ws}
-    cur = candidate_abs
-    while True:
-        if cur.is_symlink():
-            raise _errors.HTTPError(403, f"Refusing to access symbolic link '{cur}'.")
-        if cur in roots or cur.parent == cur:
-            break
-        cur = cur.parent
-
-    resolved = p.resolve() if p.is_absolute() else (ws / p).resolve()
-    if _config._is_noul_home_path(resolved):  # holds the Zotero key, even with NOUL_ALLOW_ANY_PATH
-        raise _errors.HTTPError(403, "Refusing to access Noul's own folder: keep the workspace outside NOUL_HOME.")
-    if os.environ.get("NOUL_ALLOW_ANY_PATH") != "1":
-        try:
-            resolved.relative_to(ws)
-        except ValueError:
-            raise _errors.HTTPError(
-                403,
-                f"Path '{resolved}' is outside the allowed workspace '{ws}'.",
-            ) from None
-        if _config._is_hidden_below(resolved, ws):
-            raise _errors.HTTPError(403, f"Refusing to access the hidden path '{raw_str}'.")
-    if resolved.is_symlink():
-        raise _errors.HTTPError(403, f"Refusing to access symbolic link '{resolved}'.")
-    if must_exist and not resolved.is_file():
-        raise _errors.HTTPError(404, f"File not found in workspace: '{raw_str}'")
-    return resolved
-
-
-def _looks_like_filepath(raw_input: str) -> bool:
-    s = (raw_input or "").strip()
-    if not s or "\n" in s or "\r" in s or len(s) > 260:
-        return False
-    if s.startswith(("../", "./", "/", "~/", "..\\")):
-        return True
-    if _FILE_EXT_RE.search(s) and len(s.split()) <= 4:
-        return True
-    ws = _workspace_root()
-    cand = ws / s
-    try:
-        if cand.exists() or cand.is_symlink():
-            return True
-    except OSError:
-        pass
-    return False
-
-
 def _load_text_or_workspace_file(raw_input: str) -> tuple[str, str, Path | None]:
     """Return `(content_text, source_label, resolved_path_or_None)`.
     Validates strict workspace confinement and rejects path traversal / symlinks."""
     if not isinstance(raw_input, str) or not raw_input.strip():
         raise _errors.HTTPError(400, "Input text or file path must be a non-empty string.")
     s = raw_input.strip()
-    if _looks_like_filepath(s):
-        path = _validate_workspace_path(s, must_exist=True)
+    if _workspace.looks_like_filepath(s):
+        path = _workspace.validate_path(s, must_exist=True)
         return path.read_text(encoding="utf-8", errors="replace"), path.name, path
     return raw_input, "inline_draft", None
 
@@ -306,15 +245,9 @@ def _search_cached_papers_for_claim(query: str, limit: int = 2) -> list[dict]:
     q_terms = set(re.findall(r"[a-z0-9]{3,}", (query or "").lower()))
     candidates = []
     try:
-        with _cache._conn() as conn:
-            rows = conn.execute("SELECT v FROM kv WHERE k LIKE 'paper:%'").fetchall()
         seen_ids = set()
-        for (val_json,) in rows:
-            try:
-                p = __import__("json").loads(val_json)
-            except Exception:
-                continue
-            if not isinstance(p, dict) or not p.get("title"):
+        for p in _cache.scan(_cache.PAPER, newest_first=False):
+            if not p.get("title"):
                 continue
             pid = p.get("id") or p.get("title")
             if pid in seen_ids:
@@ -1401,7 +1334,7 @@ def sanitize_bibtex(
 
     out_file: Path | None = None
     if output_path is not None and str(output_path).strip():
-        out_file = _validate_workspace_path(str(output_path).strip(), must_exist=False)
+        out_file = _workspace.validate_path(str(output_path).strip(), must_exist=False)
         if out_file.suffix.lower() != ".bib":
             raise _errors.HTTPError(400, "output_path must be a .bib file.")
 

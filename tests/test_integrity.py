@@ -120,7 +120,7 @@ class ParsingTests(unittest.TestCase):
             "doi": RETRACTED_DOI,
             "is_retracted": True,
         }
-        with mock.patch("noul.search.engine._annotate_paper", side_effect=lambda p: p):
+        with mock.patch("noul.providers.annotate.annotate_paper", side_effect=lambda p: p):
             self.assertTrue(openalex._parse_openalex_work(work)["retraction"]["is_retracted"])
             self.assertNotIn("retraction", openalex._parse_openalex_work({**work, "is_retracted": False}))
 
@@ -275,7 +275,7 @@ class ParsingTests(unittest.TestCase):
 
         a = retracted_paper(sources=["s2"])
         b = retracted_paper(sources=["openalex"], retraction={"is_retracted": True, "source": "openalex"})
-        with mock.patch.object(engine, "_annotate_paper", side_effect=lambda p: p):
+        with mock.patch("noul.providers.annotate.annotate_paper", side_effect=lambda p: p):
             (merged,) = engine._merge_papers([a, b])
         self.assertTrue(merged["retraction"]["is_retracted"])
 

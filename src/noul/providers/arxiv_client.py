@@ -3,7 +3,6 @@
 All HTTP requests go through `noul.net.http._http_get` (respecting SSRF guard and byte caps)."""
 
 import difflib
-import json
 import re
 import urllib.parse
 import xml.etree.ElementTree as ET
@@ -13,6 +12,7 @@ from noul import ids as _ids
 from noul.net import cache as _cache
 from noul.net import http as _nhttp
 from noul.providers import crossref as _crossref
+from noul.providers import endpoints as _endpoints
 from noul.providers import openalex as _openalex
 from noul.providers import pdf_parser
 from noul.providers import s2 as _s2
@@ -694,13 +694,7 @@ def resolve_published_venue_for_preprint(entry: dict, failures: list[str] | None
                 candidates.append(cached)
 
     try:
-        with _cache._conn() as conn:
-            rows = conn.execute("SELECT v FROM kv WHERE k LIKE 'paper:%' OR k LIKE 'arxiv_pub:%'").fetchall()
-        for (val_json,) in rows:
-            try:
-                rec = json.loads(val_json)
-            except Exception:
-                continue
+        for rec in _cache.scan(_cache.PAPER, "arxiv_pub:", newest_first=False):
             if not _is_formal_published_record(rec):
                 continue
             rec_ax = _clean_arxiv_token(str(rec.get("arxiv_id") or ""))
@@ -718,10 +712,7 @@ def resolve_published_venue_for_preprint(entry: dict, failures: list[str] | None
     # 2. If not found in cache, query external APIs (all guarded by try/except for offline determinism)
     if not candidates and arxiv_id:
         try:
-            url = (
-                f"https://api.semanticscholar.org/graph/v1/paper/ARXIV:"
-                f"{urllib.parse.quote(arxiv_id, safe='/.')}?fields={_s2.S2_PAPER_FIELDS}"
-            )
+            url = _endpoints.s2_paper(arxiv_id, _s2.S2_PAPER_FIELDS, prefix="ARXIV:", safe="/.")
             p_s2 = _s2._parse_s2_paper(_nhttp._http_json(url))
             if p_s2 and _is_formal_published_record(p_s2):
                 candidates.append(p_s2)

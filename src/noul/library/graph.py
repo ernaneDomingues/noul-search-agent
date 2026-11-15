@@ -7,6 +7,7 @@ import urllib.request
 from noul import ids as _ids
 from noul.net import cache as _cache
 from noul.net import http as _nhttp
+from noul.providers import endpoints as _endpoints
 from noul.providers import openalex as _openalex
 from noul.providers import s2 as _s2
 from noul.search import engine as _engine
@@ -21,11 +22,11 @@ def _ensure_openalex_work(p):
     pmid = p.get("pmid")
     url = None
     if oa_id:
-        url = f"https://api.openalex.org/works/{urllib.parse.quote(oa_id, safe='')}{_nhttp._mailto_qs()}"
+        url = _endpoints.openalex_work(openalex_id=oa_id)
     elif doi:
-        url = f"https://api.openalex.org/works/https://doi.org/{urllib.parse.quote(doi, safe='')}{_nhttp._mailto_qs()}"
+        url = _endpoints.openalex_work(doi=doi)
     elif pmid:
-        url = f"https://api.openalex.org/works/pmid:{urllib.parse.quote(str(pmid), safe='')}{_nhttp._mailto_qs()}"
+        url = _endpoints.openalex_work(pmid=pmid)
     if url:
         try:
             w = _nhttp._http_json(url, timeout=12)
@@ -34,7 +35,7 @@ def _ensure_openalex_work(p):
                 p.update({k: v for k, v in parsed.items() if v and not p.get(k)})
                 p["referenced_works"] = parsed.get("referenced_works") or []
                 p["related_works"] = parsed.get("related_works") or []
-                _cache.cache_set("paper:" + p["id"], p)
+                _cache.put_paper(p["id"], p)
         except Exception:
             pass
     return p
@@ -44,8 +45,10 @@ def _fetch_openalex_batch(oa_ids, limit=15):
     ids = [x.rstrip("/").split("/")[-1] for x in (oa_ids or []) if x][: min(limit, 25)]
     if not ids:
         return []
-    url = "https://api.openalex.org/works?" + urllib.parse.urlencode(
-        _nhttp._with_mailto({"filter": "openalex_id:" + "|".join(ids), "per-page": len(ids)})
+    url = (
+        _endpoints.OPENALEX_WORKS
+        + "?"
+        + urllib.parse.urlencode(_nhttp._with_mailto({"filter": "openalex_id:" + "|".join(ids), "per-page": len(ids)}))
     )
     try:
         data = _nhttp._http_json(url, timeout=15)
@@ -53,7 +56,7 @@ def _fetch_openalex_batch(oa_ids, limit=15):
         for w in data.get("results") or []:
             p = _openalex._parse_openalex_work(w)
             if p:
-                _cache.cache_set("paper:" + p["id"], p)
+                _cache.put_paper(p["id"], p)
                 out.append(p)
         return out
     except Exception:
@@ -67,14 +70,18 @@ def citation_graph(id):
     oa_id = p.get("openalex_id")
     if oa_id:
         try:
-            url = "https://api.openalex.org/works?" + urllib.parse.urlencode(
-                _nhttp._with_mailto({"filter": f"cites:{oa_id}", "sort": "cited_by_count:desc", "per-page": 15})
+            url = (
+                _endpoints.OPENALEX_WORKS
+                + "?"
+                + urllib.parse.urlencode(
+                    _nhttp._with_mailto({"filter": f"cites:{oa_id}", "sort": "cited_by_count:desc", "per-page": 15})
+                )
             )
             data = _nhttp._http_json(url, timeout=15)
             for w in data.get("results") or []:
                 cp = _openalex._parse_openalex_work(w)
                 if cp:
-                    _cache.cache_set("paper:" + cp["id"], cp)
+                    _cache.put_paper(cp["id"], cp)
                     citing.append(cp)
         except Exception:
             pass
@@ -109,14 +116,14 @@ def related_papers(id, relation="all", study_types=None, year_min=None, limit=15
         if ident_for_s2:
             try:
                 url = (
-                    f"https://api.semanticscholar.org/recommendations/v1/papers/forpaper/"
+                    f"{_endpoints.S2_RECOMMENDATIONS}/"
                     f"{urllib.parse.quote(ident_for_s2, safe=':')}?fields={_s2.S2_PAPER_FIELDS}&limit={min(limit, 20)}"
                 )
                 data = _nhttp._http_json(url, timeout=12)
                 for item in data.get("recommendedPapers") or []:
                     sp = _s2._parse_s2_paper(item)
                     if sp:
-                        _cache.cache_set("paper:" + sp["id"], sp)
+                        _cache.put_paper(sp["id"], sp)
                         similar.append(sp)
             except Exception:
                 pass
@@ -142,7 +149,7 @@ def related_papers(id, relation="all", study_types=None, year_min=None, limit=15
             res = [x for x in res if x.get("evidence") in allowed]
         res.sort(key=lambda x: _engine._score_paper(x, p.get("title") or ""), reverse=True)
         for x in res:
-            _cache.cache_set("paper:" + x["id"], x)
+            _cache.put_paper(x["id"], x)
         return res[: max(1, min(int(limit), 40))]
 
     return {
