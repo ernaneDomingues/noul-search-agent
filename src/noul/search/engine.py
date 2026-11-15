@@ -134,7 +134,7 @@ def _remember_paper(p):
     _cache.put_paper(p["id"], p)
 
 
-def search(query, mode="quick", _unused=None, filters=None, lang="en", sources=None):
+def search(query, filters=None, sources=None):
     filters = filters or {}
     chosen = [s for s in (sources or DEFAULT_SOURCES) if s in SOURCES]
     if not chosen:
@@ -266,6 +266,7 @@ def resolve_paper(identifier):
 
     # 3. Fetch on demand from OpenAlex or Semantic Scholar
     fetched = None
+    unavailable = None
     try:
         if is_arxiv:
             fetched = _resolve_arxiv(ident.split(":", 1)[-1].strip())
@@ -284,8 +285,12 @@ def resolve_paper(identifier):
             s2_id = ident.split(":", 1)[-1]
             url = _endpoints.s2_paper(s2_id, _s2.S2_PAPER_FIELDS)
             fetched = _s2._parse_s2_paper(_nhttp._http_json(url))
-    except Exception:
-        fetched = None
+    except _errors.HTTPError as e:
+        # "The source is rate limited or down" is not "the paper does not exist": keep the two apart.
+        if e.code == 429 or e.code >= 500:
+            unavailable = e.code
+    except Exception as e:
+        _log.logger.info("paper lookup failed (%s)", type(e).__name__)
 
     if fetched:
         _cache.put_paper(fetched["id"], fetched)
@@ -293,6 +298,12 @@ def resolve_paper(identifier):
             _cache.put_paper(ident, fetched)
         return fetched
 
+    if unavailable:
+        raise _errors.HTTPError(
+            429 if unavailable == 429 else 503,
+            f"Paper '{ident}' could not be looked up: the source answered {unavailable} "
+            "(rate limited or unavailable). It may well exist: try again shortly.",
+        )
     raise _errors.HTTPError(
         404, f"Paper '{ident}' not found in cache or public APIs; run search_papers or pass a valid DOI/ID."
     )

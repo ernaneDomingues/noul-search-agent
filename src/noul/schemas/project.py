@@ -100,12 +100,14 @@ class ProjectList(BaseModel):
 
 
 class ProjectPapersChange(BaseModel):
-    """`project_add_papers`: ids added, ids already in the project (status unchanged) and ids not found."""
+    """`project_add_papers`: ids added, ids already in the project (status unchanged), ids not found and ids whose
+    source did not answer (`unavailable`: worth trying again)."""
 
     project: ProjectSummary
     added: list[str] = Field(default_factory=list)
     already_present: list[str] = Field(default_factory=list)
     not_found: list[str] = Field(default_factory=list)
+    unavailable: list[str] = Field(default_factory=list)
     id_map: dict[str, str] = Field(default_factory=dict)  # input id -> id stored in the project
 
 

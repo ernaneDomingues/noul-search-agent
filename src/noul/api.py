@@ -202,7 +202,7 @@ def search_papers(
         f["sort"] = sort
     if study_types:
         f["study_types"] = [t for t in study_types if t in EVIDENCE]
-    r = _engine.search(query, "quick", None, f, "en", sources)
+    r = _engine.search(query, f, sources)
     all_papers = r["papers"]
     if exclude_ids:
         excl = set(exclude_ids)
@@ -1013,11 +1013,17 @@ def download_papers(ids, output_dir=None):
 def export_papers(ids=None, format="bibtex", project=None, status=None):
     records, missing, partial = _papers_to_send(ids, project, status)
     papers = [_integrity.enrich(p, network=False) for p in records]
+    not_found = [i for i, why in missing if why == _NOT_FOUND]
+    unanswered = [i for i, why in missing if why != _NOT_FOUND]
     if not papers:
+        if unanswered and not not_found:
+            raise _errors.HTTPError(503, "The sources did not answer for any of the paper IDs: try again shortly.")
         raise _errors.HTTPError(404, "None of the paper IDs could be found in cache or APIs.")
     notes = []
-    if missing:
-        notes.append("Left out, could not be found: " + ", ".join(i for i, _ in missing))
+    if not_found:
+        notes.append("Left out, could not be found: " + ", ".join(not_found))
+    if unanswered:
+        notes.append("Left out, the sources did not answer (try again): " + ", ".join(unanswered))
     if partial:
         notes.append("The stored record may list only the first authors: " + ", ".join(partial))
     retracted = [str(p.get("id")) for p in papers if _integrity.is_retracted(p)]
@@ -1038,6 +1044,9 @@ def _project_paper(record):
         return {**record, **_resolve(record.get("doi") or record["id"]), "id": record["id"]}, False
     except Exception:
         return record, True
+
+
+_NOT_FOUND = "Paper not found in cache or APIs."
 
 
 def _papers_to_send(ids, project, status):
@@ -1063,7 +1072,7 @@ def _papers_to_send(ids, project, status):
             papers.append(_resolve(i))
         except Exception as exc:
             found_nothing = getattr(exc, "code", None) == 404
-            missing.append((i, "Paper not found in cache or APIs." if found_nothing else "The sources did not answer."))
+            missing.append((i, _NOT_FOUND if found_nothing else "The sources did not answer."))
     return papers, missing, []
 
 
@@ -1150,12 +1159,12 @@ def save_research_dossier(topic, synthesis_markdown, paper_ids=None, output_dir=
     base, md_path, json_path, bib_path = _dossier_paths(parent / slug)
     base.mkdir(parents=True, exist_ok=True)
 
-    papers = []
+    papers, left_out = [], []
     for pid in paper_ids or []:
         try:
             papers.append(_resolve(pid))
         except Exception:
-            pass
+            left_out.append(str(pid))
 
     header = (
         f"# Research Dossier: {topic}\n\n"
@@ -1209,6 +1218,7 @@ def save_research_dossier(topic, synthesis_markdown, paper_ids=None, output_dir=
         "papers_json_path": str(json_path),
         "bibtex_path": str(bib_path) if papers else None,
         "paper_count": len(papers),
+        "papers_left_out": left_out,  # ids that could not be resolved (unknown, or their source did not answer)
     }
 
 
@@ -1596,7 +1606,8 @@ def _neutralized_project(out):
     description=(
         "Add papers (ids, DOIs, PMIDs or arXiv ids from search_papers) to a research project with a status "
         "(candidate by default) and an optional reason. Papers already in the project keep their status; "
-        "use project_set_status to change it. `id_map` gives the project id of each input id."
+        "use project_set_status to change it. `id_map` gives the project id of each input id; `unavailable` lists ids "
+        "whose source did not answer (rate limited or down): they may exist, so try them again later."
     ),
     input=_inputs.ProjectAddPapersInput,
     writes=True,
@@ -1607,17 +1618,18 @@ def _neutralized_project(out):
 )
 def project_add_papers(project, ids, status="candidate", reason=None):
     _project_call(_store.get_project, project, include_papers=False)  # 404 before up to 100 network lookups
-    papers, not_found, id_map = [], [], {}
+    papers, not_found, unavailable, id_map = [], [], [], {}
     for raw in _paper_ids(ids)[: _store.MAX_IDS]:
         try:
             record = _paper_record(_resolve(raw))
-        except _errors.HTTPError:
-            not_found.append(raw)
+        except _errors.HTTPError as exc:
+            # A source that is rate limited or down says nothing about whether the paper exists.
+            (unavailable if exc.code == 429 or exc.code >= 500 else not_found).append(raw)
             continue
         id_map[raw] = record["id"]
         papers.append(record)
     out = _project_call(_store.add_papers, project, papers, status=status or "candidate", reason=reason, writes=True)
-    out.update(not_found=not_found, id_map=id_map)
+    out.update(not_found=not_found, unavailable=unavailable, id_map=id_map)
     return out
 
 

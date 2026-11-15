@@ -328,7 +328,8 @@ def _fold_enum_case(annotation: Any, value: Any) -> Any:
 
 
 def call(name: str, args: Any = None, caps: Mapping[str, int | None] | None = None) -> Any:
-    """Validate `args` against the tool's input model and run it. Errors are `HTTPError` (400/404)."""
+    """Validate `args` against the tool's input model and run it. Errors are `HTTPError` (400/404, or 429/503
+    when a source a lookup needs is rate limited or down)."""
     if name not in _loaded():
         raise _errors.HTTPError(404, f"Unknown tool {name}")
     if args is None:

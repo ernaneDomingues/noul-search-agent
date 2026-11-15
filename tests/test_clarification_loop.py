@@ -167,7 +167,7 @@ class ToolAndCliTests(unittest.TestCase):
         self.assertIn("1. Healthy adults", err)
         res = json.loads(out)
         self.assertEqual(res["query"], "creatina healthy adults randomized controlled trial")
-        query, _mode, _unused, filters, _lang, sources = s.call_args.args
+        query, filters, sources = s.call_args.args
         self.assertEqual((filters["year_min"], filters["study_types"]), (2015, ["rct"]))  # CLI flag wins
         self.assertIn("pubmed", sources)
         self.assertEqual(res["clarification"]["applied_answers"][1]["answer"], "Randomized controlled trials (RCTs)")

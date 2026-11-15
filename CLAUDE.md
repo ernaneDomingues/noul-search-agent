@@ -14,7 +14,7 @@ live on the GitHub releases page; there is no CHANGELOG file. New work gets its 
 |---|---|
 | `src/noul/config.py`, `errors.py`, `ids.py`, `workspace.py` | configuration (e-mail, workspace), `HTTPError`, identifier normalisation, workspace confinement of every path a tool reads or writes |
 | `src/noul/net/` | `http.py` (User-Agent, SSRF guard `_validate_public_url`, size-capped GETs), `cache.py` (SQLite; `get_paper`/`put_paper`/`scan`) |
-| `src/noul/providers/` | one module per source (`openalex`, `s2`, `pubmed`, `crossref`, `arxiv_search`, `europepmc`) + `endpoints` (API base URLs), `annotate` (domain + artifact flags on every parsed paper), domain classifier, artifact radar, PDF parser, arXiv version client |
+| `src/noul/providers/` | one module per source (`openalex`, `s2`, `pubmed`, `crossref`, `arxiv_search`, `europepmc`) + `endpoints` (API base URLs), `assemble` (`assemble_paper`: the one builder of the `schemas.paper.Paper` record), `annotate` (domain + artifact flags on every parsed paper), domain classifier, artifact radar, PDF parser, arXiv version client |
 | `src/noul/search/engine.py` | multi-source search, dedupe, ranking, `resolve_paper` |
 | `src/noul/evidence/`, `src/noul/library/` | study-design classifier + impact band; full text, citation graph, downloads, export |
 | `src/noul/tools/` | feature tools (technical extraction, review, authoring, comparison) |

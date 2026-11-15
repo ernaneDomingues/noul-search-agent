@@ -1,15 +1,11 @@
 """Europe PMC search and parsing."""
 
-import urllib.error
 import urllib.parse
-import urllib.request
 
 from noul import ids as _ids
-from noul.evidence import classify as _classify
-from noul.evidence import impact as _impact
 from noul.evidence import integrity as _integrity
 from noul.net import http as _nhttp
-from noul.providers import annotate as _annotate
+from noul.providers import assemble as _assemble
 from noul.providers import endpoints as _endpoints
 
 
@@ -37,12 +33,12 @@ def _parse_europepmc_result(it):
         or ("Preprint" if it.get("source") == "PPR" else "")
     )
     authors = []
-    for a in ((it.get("authorList") or {}).get("author") or [])[:10]:
+    for a in (it.get("authorList") or {}).get("author") or []:
         name = f"{a.get('firstName') or ''} {a.get('lastName') or ''}".strip() or a.get("fullName") or ""
         if name:
             authors.append(name)
     if not authors and it.get("authorString"):
-        authors = [s.strip().rstrip(".") for s in str(it["authorString"]).split(",") if s.strip()][:100]
+        authors = [s.strip().rstrip(".") for s in str(it["authorString"]).split(",") if s.strip()]
     citations = int(it.get("citedByCount") or 0)
     is_oa = str(it.get("isOpenAccess") or "").upper() == "Y"
     pdf_url = None
@@ -55,9 +51,6 @@ def _parse_europepmc_result(it):
     pub_types = list((it.get("pubTypeList") or {}).get("pubType") or [])
     if it.get("source") == "PPR":
         pub_types.append("preprint")
-    ev = _classify.classify_evidence(title, abstract, pub_types)
-    impact, tier = _impact._estimate_impact(citations, year, journal)
-    pid = _ids._paper_id(doi=doi, pmid=pmid, title=title)
     mesh_terms = _ids._unique(
         [
             m.get("descriptorName")
@@ -65,27 +58,21 @@ def _parse_europepmc_result(it):
             if isinstance(m, dict)
         ]
     )[:15]
-    return _annotate.annotate_paper(
-        {
-            "id": pid,
-            "title": title,
-            "authors": authors,
-            "year": year,
-            "journal": journal,
-            "doi": doi,
-            "pmid": pmid,
-            "pmc_id": pmc_id,
-            "citations": citations,
-            "abstract": abstract,
-            "evidence": ev,
-            "impact": impact,
-            "tier": tier,
-            "open_access": bool(is_oa or pdf_url),
-            "pdf_url": pdf_url,
-            "mesh_terms": mesh_terms,
-            "sources": ["europepmc"],
-            **({"retraction": r} if (r := _integrity.from_pub_types(pub_types, "europepmc")) else {}),
-        }
+    return _assemble.assemble_paper(
+        "europepmc",
+        title=title,
+        abstract=abstract,
+        authors=authors,
+        year=year,
+        journal=journal,
+        citations=citations,
+        pub_types=pub_types,
+        open_access=bool(is_oa or pdf_url),
+        pdf_url=pdf_url,
+        ids={"doi": doi, "pmid": pmid},
+        pmc_id=pmc_id,
+        mesh_terms=mesh_terms,
+        **({"retraction": r} if (r := _integrity.from_pub_types(pub_types, "europepmc")) else {}),
     )
 
 
