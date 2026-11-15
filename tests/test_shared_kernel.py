@@ -38,8 +38,12 @@ class PaperCacheTests(unittest.TestCase):
         for n in (1, 2, 3):
             cache.cache_set(f"order:{n}", {"n": n})
         self.assertEqual([p["n"] for p in cache.scan("order:", newest_first=False)], [1, 2, 3])
-        self.assertEqual([p["n"] for p in cache.scan("order:")], [3, 2, 1])
-        self.assertEqual([p["n"] for p in cache.scan("order:", limit=2)], [3, 2])
+        with mock.patch("time.time", return_value=2_000_000_000):
+            for n in (4, 5):
+                cache.cache_set(f"order:{n}", {"n": n})
+        # Newest first; rows written in the same second keep the order they were written in.
+        self.assertEqual([p["n"] for p in cache.scan("order:")][:2], [4, 5])
+        self.assertEqual([p["n"] for p in cache.scan("order:", limit=2)], [4, 5])
 
     def test_an_unreadable_cache_is_a_miss_not_an_error(self):
         with mock.patch("noul.net.cache._conn", side_effect=OSError("locked")):
@@ -62,9 +66,15 @@ class EndpointTests(unittest.TestCase):
                 endpoints.openalex_work(pmid=123), "https://api.openalex.org/works/pmid:123?mailto=a%40b.org"
             )
 
+    def test_openalex_work_needs_an_identifier(self):
+        with mock.patch("noul.net.http._mailto_qs", return_value=""):
+            self.assertEqual(endpoints.openalex_work(openalex_id=""), "https://api.openalex.org/works/")
+            with self.assertRaises(ValueError):
+                endpoints.openalex_work()
+
     def test_s2_paper_urls_quote_the_identifier(self):
         self.assertEqual(
-            endpoints.s2_paper("ARXIV:2410.12345v2", "title", safe=":/."),
+            endpoints.s2_paper("2410.12345v2", "title", prefix="ARXIV:", safe="/."),
             "https://api.semanticscholar.org/graph/v1/paper/ARXIV:2410.12345v2?fields=title",
         )
         self.assertEqual(

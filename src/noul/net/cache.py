@@ -1,6 +1,7 @@
 """SQLite key-value cache (WAL) shared by providers and tools."""
 
 import json
+import logging
 import os
 import sqlite3
 import time
@@ -10,6 +11,7 @@ from noul import config as _config
 from noul import log as _log
 
 PAPER = "paper:"  # key prefix of a cached paper record
+_write_failure_reported = False
 
 
 @contextmanager
@@ -67,7 +69,11 @@ def cache_set(key, val):
                     (limit,),
                 )
     except Exception as exc:
-        _log.logger.warning("cache write failed: %s", type(exc).__name__)
+        # Said once at WARNING (an unwritable cache makes every call slower), then only at DEBUG.
+        global _write_failure_reported
+        level = logging.DEBUG if _write_failure_reported else logging.WARNING
+        _write_failure_reported = True
+        _log.logger.log(level, "cache write failed: %s", type(exc).__name__)
 
 
 def get_paper(paper_id, max_age=86400 * 14):
@@ -80,14 +86,14 @@ def put_paper(paper_id, paper):
 
 
 def scan(*prefixes, limit=None, newest_first=True):
-    """Decoded dict values whose key starts with one of `prefixes`, newest first (or in the order they were
-    written); `limit` caps the rows read.
+    """Decoded dict values whose key starts with one of `prefixes`, newest first (rows of the same second in
+    the order they were written) or simply in the order they were written; `limit` caps the rows read.
 
     A full scan of the table: fine for a local cache, and what the offline tools that match against every
     cached paper need."""
     where = " OR ".join("k LIKE ? ESCAPE '\\'" for _ in prefixes)
     params = [p.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%" for p in prefixes]
-    sql = f"SELECT v FROM kv WHERE {where} ORDER BY " + ("ts DESC, rowid DESC" if newest_first else "rowid ASC")
+    sql = f"SELECT v FROM kv WHERE {where} ORDER BY " + ("ts DESC, rowid ASC" if newest_first else "rowid ASC")
     if limit:
         sql += " LIMIT ?"
         params.append(int(limit))

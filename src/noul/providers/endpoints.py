@@ -12,15 +12,17 @@ EUROPEPMC_REST = "https://www.ebi.ac.uk/europepmc/webservices/rest"
 
 def openalex_work(*, doi=None, openalex_id=None, pmid=None):
     """URL of one OpenAlex work by DOI, OpenAlex id or PMID (the first given), with the polite-pool e-mail."""
-    if doi:
+    if doi is not None:
         key = "https://doi.org/" + urllib.parse.quote(doi, safe="")
-    elif openalex_id:
+    elif openalex_id is not None:
         key = urllib.parse.quote(openalex_id, safe="")
-    else:
+    elif pmid is not None:
         key = "pmid:" + urllib.parse.quote(str(pmid), safe="")
+    else:
+        raise ValueError("openalex_work needs a doi, an openalex_id or a pmid")
     return f"{OPENALEX_WORKS}/{key}{_nhttp._mailto_qs()}"
 
 
-def s2_paper(identifier, fields, safe=""):
-    """URL of one Semantic Scholar paper (`identifier` is an S2 id or a prefixed id such as `ARXIV:2410.1`)."""
-    return f"{S2_PAPER}/{urllib.parse.quote(identifier, safe=safe)}?fields={fields}"
+def s2_paper(identifier, fields, prefix="", safe=""):
+    """URL of one Semantic Scholar paper: an S2 id, or `prefix="ARXIV:"` with an arXiv id (`safe="/."`)."""
+    return f"{S2_PAPER}/{prefix}{urllib.parse.quote(identifier, safe=safe)}?fields={fields}"
