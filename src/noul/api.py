@@ -36,7 +36,13 @@ from noul.tools import hardware_tools as _hardware_tools
 from noul.tools import review_tools as _review_tools
 from noul.tools import scaffold_tools as _scaffold_tools
 from noul.tools import search_tools as _search_tools
-from noul.tools import technical_tools as _technical_tools
+from noul.tools.technical import ablation as _ablation
+from noul.tools.technical import equations as _equations
+from noul.tools.technical import failure_modes as _failure_modes
+from noul.tools.technical import grounding as _grounding
+from noul.tools.technical import prompts as _prompts
+from noul.tools.technical import tables as _tables
+from noul.tools.technical import version_diff as _version_diff
 
 EVIDENCE = list(_classify.EV_W)
 STANCE_ALIASES = {
@@ -500,7 +506,7 @@ def suggest_boolean_queries(query="", paper_ids=None):
     profiles=("review",),
 )
 def extract_benchmark_tables(paper_id):
-    return _technical_tools.extract_benchmark_tables(paper_id)
+    return _tables.extract_benchmark_tables(paper_id)
 
 
 @_registry.tool(
@@ -538,7 +544,7 @@ def estimate_hardware_specs(paper_id, total_params_b=None, active_params_b=None,
     output=_out.ClaimsGroundingReport,
 )
 def verify_paper_claims(paper_id, claims=None):
-    return _with_integrity(_technical_tools.verify_paper_claims(paper_id, claims=claims), paper_id)
+    return _with_integrity(_grounding.verify_paper_claims(paper_id, claims=claims), paper_id)
 
 
 @_registry.tool(
@@ -554,7 +560,7 @@ def verify_paper_claims(paper_id, claims=None):
     profiles=("review",),
 )
 def extract_paper_math(paper_id, mode="latex"):
-    return _technical_tools.extract_paper_math(paper_id, mode=mode)
+    return _equations.extract_paper_math(paper_id, mode=mode)
 
 
 @_registry.tool(
@@ -570,7 +576,7 @@ def extract_paper_math(paper_id, mode="latex"):
     profiles=("review",),
 )
 def analyze_ablation_tables(paper_id):
-    return _technical_tools.analyze_ablation_tables(paper_id)
+    return _ablation.analyze_ablation_tables(paper_id)
 
 
 @_registry.tool(
@@ -587,7 +593,7 @@ def analyze_ablation_tables(paper_id):
     profiles=("review",),
 )
 def extract_prompts_and_decoding(paper_id):
-    return _technical_tools.extract_prompts_and_decoding(paper_id)
+    return _prompts.extract_prompts_and_decoding(paper_id)
 
 
 @_registry.tool(
@@ -606,7 +612,7 @@ def extract_prompts_and_decoding(paper_id):
 )
 def detect_failure_modes(paper_id, inspect_fulltext=True):
     return _with_integrity(
-        _technical_tools.detect_failure_modes(paper_id, inspect_fulltext=bool(inspect_fulltext)), paper_id
+        _failure_modes.detect_failure_modes(paper_id, inspect_fulltext=bool(inspect_fulltext)), paper_id
     )
 
 
@@ -624,7 +630,7 @@ def detect_failure_modes(paper_id, inspect_fulltext=True):
     title="Diff arXiv versions",
 )
 def diff_arxiv_versions(arxiv_id, from_version="v1", to_version="v2"):
-    return _technical_tools.diff_arxiv_versions(arxiv_id, from_version=from_version, to_version=to_version)
+    return _version_diff.diff_arxiv_versions(arxiv_id, from_version=from_version, to_version=to_version)
 
 
 @_registry.tool(

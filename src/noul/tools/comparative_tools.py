@@ -999,7 +999,7 @@ def generate_research_hypotheses(paper_ids, topic=None, max_hypotheses=3):
     """Cross-analyze 2-15 papers (#18) to detect methodological contradictions, unexplored complementarities,
     and formulate structured, testable research hypotheses with baselines, datasets/populations, and metrics."""
     from noul.schemas.analysis import ResearchGapReport, ResearchHypothesis
-    from noul.tools import technical_tools
+    from noul.tools.technical import failure_modes as _failure_modes
 
     if isinstance(paper_ids, str):
         paper_ids = [x.strip() for x in paper_ids.split(",") if x.strip()]
@@ -1033,7 +1033,7 @@ def generate_research_hypotheses(paper_ids, topic=None, max_hypotheses=3):
     failures_by_id = {}
     for d, _ in rows:
         try:
-            failures_by_id[d.paper_id] = technical_tools.detect_failure_modes(d.paper_id, inspect_fulltext=True)
+            failures_by_id[d.paper_id] = _failure_modes.detect_failure_modes(d.paper_id, inspect_fulltext=True)
         except Exception:
             failures_by_id[d.paper_id] = {
                 "signals": [],

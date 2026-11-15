@@ -17,7 +17,9 @@ from noul.providers import openalex as _openalex
 from noul.providers import pdf_parser
 from noul.providers import s2 as _s2
 from noul.schemas.technical import ArxivVersionDiffReport, VersionChangeItem
-from noul.tools import technical_tools
+from noul.tools.technical import ablation as _ablation
+from noul.tools.technical import failure_modes as _failure_modes
+from noul.tools.technical import tables as _tables
 
 _ARXIV_BASE_RE = re.compile(r"^(?:\d{4}\.\d{4,5}|[a-z-]+(?:\.[a-z-]+)?/\d{7})$", re.I)
 _VER_SUFFIX_RE = re.compile(r"^(?P<base>.+?)(?P<ver>v\d+)$", re.I)
@@ -254,12 +256,12 @@ def fetch_version_snapshot(base_id: str, version: str) -> dict:
 def _extract_metrics_map(text: str) -> dict:
     """Extract `{metric_label: float_val}` from benchmark tables and inline metric mentions in `text`."""
     found: dict = {}
-    tables = technical_tools.parse_benchmark_tables(text)
+    tables = _tables.parse_benchmark_tables(text)
     for tb in tables:
         if tb.get("table_id") == "inline_metrics" or tb.get("format") == "inline":
             rep = (tb.get("normalized_metrics") or {}).get("reported") or {}
             for m_name, val in rep.items():
-                if technical_tools._is_number(val):
+                if _tables._is_number(val):
                     found.setdefault(m_name, float(val))
             continue
         norm = tb.get("normalized_metrics") or {}
@@ -268,20 +270,20 @@ def _extract_metrics_map(text: str) -> dict:
             (
                 lbl
                 for lbl in labels
-                if technical_tools._OURS_ROW_RE.search(lbl) and not technical_tools._ABL_VARIANT.search(lbl)
+                if _failure_modes._OURS_ROW_RE.search(lbl) and not _ablation._ABL_VARIANT.search(lbl)
             ),
             None,
         )
         # Record primary/Ours row directly under the metric name
         if ours_lbl and isinstance(norm.get(ours_lbl), dict):
             for m_name, val in norm[ours_lbl].items():
-                if technical_tools._is_number(val):
+                if _tables._is_number(val):
                     found[m_name] = float(val)
         for row_lbl, row_metrics in norm.items():
             if not isinstance(row_metrics, dict):
                 continue
             for m_name, val in row_metrics.items():
-                if not technical_tools._is_number(val):
+                if not _tables._is_number(val):
                     continue
                 if len(labels) == 1 or row_lbl == ours_lbl or m_name not in found:
                     found.setdefault(m_name, float(val))
@@ -289,11 +291,11 @@ def _extract_metrics_map(text: str) -> dict:
 
     for rx in _SENT_METRIC_PATTERNS:
         for m in rx.finditer(text or ""):
-            name = technical_tools.normalize_metric_name(m.group("name"))
+            name = _tables.normalize_metric_name(m.group("name"))
             if name == "MATH" and m.group("name") != "MATH":
                 continue
-            val = technical_tools.parse_number(m.group("val"))
-            if technical_tools._is_number(val):
+            val = _tables.parse_number(m.group("val"))
+            if _tables._is_number(val):
                 found.setdefault(name, float(val))
 
     for m_n in re.finditer(r"\b(?:[nN]\s*=\s*|sample\s+size(?:\s+of)?\s*)(\d{1,3}(?:,\d{3})+|\d+)\b", text or ""):
@@ -335,10 +337,10 @@ def _compute_metric_deltas(text_old: str, text_new: str) -> list:
 
 def _split_clean_sentences(text: str) -> list:
     corpus = pdf_parser.build_corpus(text or "", source="text")
-    raw_tables = technical_tools.parse_benchmark_tables(text or "", corpus["pages"], corpus["captions"])
+    raw_tables = _tables.parse_benchmark_tables(text or "", corpus["pages"], corpus["captions"])
     spans = [tb["_span"] for tb in raw_tables if tb.get("_span") and tb.get("format") != "inline"]
     out = []
-    for _, _, _, sent in technical_tools._prose_sentences(text or "", corpus["sections"], table_spans=spans):
+    for _, _, _, sent in _failure_modes._prose_sentences(text or "", corpus["sections"], table_spans=spans):
         if sent not in out:
             out.append(sent)
     return out
@@ -446,8 +448,8 @@ def _detect_new_baselines_or_datasets(text_old: str, text_new: str) -> list:
         if tok.lower() not in low_old and all(tok.lower() != x.lower() for x in found):
             found.append(tok)
 
-    tables_old = technical_tools.parse_benchmark_tables(text_old or "")
-    tables_new = technical_tools.parse_benchmark_tables(text_new or "")
+    tables_old = _tables.parse_benchmark_tables(text_old or "")
+    tables_new = _tables.parse_benchmark_tables(text_new or "")
     old_models = {
         lbl.lower()
         for tb in tables_old
@@ -463,7 +465,7 @@ def _detect_new_baselines_or_datasets(text_old: str, text_new: str) -> list:
                 clean_lbl
                 and clean_lbl.lower() not in old_models
                 and clean_lbl.lower() not in low_old
-                and not technical_tools._OURS_ROW_RE.search(clean_lbl)
+                and not _failure_modes._OURS_ROW_RE.search(clean_lbl)
                 and all(clean_lbl.lower() != x.lower() for x in found)
             ):
                 found.append(clean_lbl)

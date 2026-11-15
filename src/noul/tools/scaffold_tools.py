@@ -13,7 +13,9 @@ from noul.providers import domain_classifier, pdf_parser
 from noul.schemas.code import CodeScaffold
 from noul.schemas.domain import ScientificDomain
 from noul.search import engine as _engine
-from noul.tools import hardware_tools, technical_tools
+from noul.tools import hardware_tools
+from noul.tools.technical import equations as _equations
+from noul.tools.technical import tables as _tables
 
 
 def _py_ident(raw: str, fallback: str = "var") -> str:
@@ -748,17 +750,17 @@ def scaffold_implementation(
     corpus = pdf_parser.get_paper_corpus(paper["id"])
 
     if resolved_target == "pytorch":
-        math_res = technical_tools.extract_paper_math(paper["id"], mode="both")
+        math_res = _equations.extract_paper_math(paper["id"], mode="both")
         hw_res = hardware_tools.estimate_hardware_specs(paper["id"])
-        bench_res = technical_tools.extract_benchmark_tables(paper["id"])
+        bench_res = _tables.extract_benchmark_tables(paper["id"])
         scaffold = _build_pytorch_scaffold(paper, corpus, math_res, hw_res, bench_res)
         scaffold.domain = dom.value
     elif resolved_target == "statsmodels":
-        math_res = technical_tools.extract_paper_math(paper["id"], mode="both")
+        math_res = _equations.extract_paper_math(paper["id"], mode="both")
         scaffold = _build_statsmodels_scaffold(paper, corpus, math_res)
         scaffold.domain = dom.value
     elif resolved_target == "r":
-        math_res = technical_tools.extract_paper_math(paper["id"], mode="both")
+        math_res = _equations.extract_paper_math(paper["id"], mode="both")
         scaffold = _build_r_scaffold(paper, corpus, math_res)
         scaffold.domain = dom.value
     else:

@@ -17,7 +17,13 @@ from noul.schemas.domain import ScientificDomain
 from noul.schemas.evidence import AnalysisSubject, Excerpt, PriorityHint, Signal, SignalKind
 from noul.schemas.review import PeerReviewReport, ReviewPerspective
 from noul.search import engine as _engine
-from noul.tools import hardware_tools, technical_tools
+from noul.tools import hardware_tools
+from noul.tools.technical import ablation as _ablation
+from noul.tools.technical import equations as _equations
+from noul.tools.technical import failure_modes as _failure_modes
+from noul.tools.technical import grounding as _grounding
+from noul.tools.technical import prompts as _prompts
+from noul.tools.technical import tables as _tables
 
 GENERAL_STEM_RUBRIC_NAME = "General STEM Methodological & Quantitative Peer-Review Rubric"
 GENERAL_STEM_PERSONAS: list[dict[str, Any]] = [
@@ -100,12 +106,12 @@ def _collect_evidence(paper_id: str, domain_Override: str | None, inspect_fullte
     artifacts = artifact_radar.scan_artifacts_from_paper(
         dict(paper), fulltext=text if inspect_fulltext else "", verify_http=False
     )
-    failures = technical_tools.detect_failure_modes(paper["id"], inspect_fulltext=bool(inspect_fulltext))
-    math_info = technical_tools.extract_paper_math(paper["id"], mode="both")
-    benchmarks = technical_tools.extract_benchmark_tables(paper["id"])
-    ablations = technical_tools.analyze_ablation_tables(paper["id"])
-    prompts = technical_tools.extract_prompts_and_decoding(paper["id"])
-    claims = technical_tools.verify_paper_claims(paper["id"])
+    failures = _failure_modes.detect_failure_modes(paper["id"], inspect_fulltext=bool(inspect_fulltext))
+    math_info = _equations.extract_paper_math(paper["id"], mode="both")
+    benchmarks = _tables.extract_benchmark_tables(paper["id"])
+    ablations = _ablation.analyze_ablation_tables(paper["id"])
+    prompts = _prompts.extract_prompts_and_decoding(paper["id"])
+    claims = _grounding.verify_paper_claims(paper["id"])
     hw = hardware_tools.estimate_hardware_specs(paper["id"])
 
     return {
