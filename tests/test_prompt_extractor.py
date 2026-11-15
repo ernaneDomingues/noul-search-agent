@@ -4,15 +4,9 @@ JSON schemas and the `noul prompts` CLI."""
 import contextlib
 import io
 import json
-import sys
 import unittest
-from pathlib import Path
-from unittest import mock
 
-if str(Path(__file__).resolve().parent) not in sys.path:
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-import _support  # noqa: E402
+import _support
 
 FULLTEXT = """--- Page 1 ---
 3 Prompting setup
@@ -50,10 +44,7 @@ def setUpModule():
 
 class PromptExtractorTests(unittest.TestCase):
     def setUp(self):
-        for name in ("_http_json", "_http_get"):
-            patcher = mock.patch(_support.core_target(name), side_effect=_support.no_network)
-            patcher.start()
-            self.addCleanup(patcher.stop)
+        _support.block_http(self)
         self.pid = _support.seed_fulltext_paper("doi:10.1000/prompts", FULLTEXT, title="Prompting paper")
 
     def _extract(self, pid=None):

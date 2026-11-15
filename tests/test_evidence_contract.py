@@ -150,15 +150,13 @@ class EvidenceContractTests(unittest.TestCase):
 
     def test_mcp_result_keeps_exact_json_and_adds_the_notice(self):
         import anyio
-        from mcp import Client
-        from mcp.client._memory import InMemoryTransport
 
         from noul.evidence import untrusted
         from noul.server import mcp
 
         async def run():
             server = mcp.build_server(profile="all")
-            async with Client(InMemoryTransport(server)) as client:
+            async with _support.mcp_client(server) as client:
                 return await client.call_tool("detect_failure_modes", {"paper_id": self.pid})
 
         res = anyio.run(run)
@@ -225,8 +223,6 @@ class ReadingToolsOverMcpTests(unittest.TestCase):
 
     def test_mixed_rows_validate_over_mcp(self):
         import anyio
-        from mcp import Client
-        from mcp.client._memory import InMemoryTransport
 
         from noul.net import cache
         from noul.server import mcp
@@ -242,7 +238,7 @@ class ReadingToolsOverMcpTests(unittest.TestCase):
         )
 
         async def run():
-            async with Client(InMemoryTransport(mcp.build_server(profile="all"))) as client:
+            async with _support.mcp_client(mcp.build_server(profile="all")) as client:
                 ids = [self.pid, "doi:10.1000/abstract-only", "doi:10.1000/missing"]
                 return await client.call_tool("query_fulltexts", {"ids": ids, "question": "long context"})
 

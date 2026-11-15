@@ -7,8 +7,6 @@ import unittest
 from unittest import mock
 
 import anyio
-from mcp import Client
-from mcp.client._memory import InMemoryTransport
 from starlette.testclient import TestClient
 
 import _support
@@ -98,10 +96,7 @@ class RateLimiterTests(unittest.TestCase):
 
 class PublicAppTests(unittest.TestCase):
     def setUp(self):
-        for name in ("_http_json", "_http_get"):
-            patcher = mock.patch(_support.core_target(name), side_effect=_support.no_network)
-            patcher.start()
-            self.addCleanup(patcher.stop)
+        _support.block_http(self)
 
     def test_no_token_needed_and_writes_are_impossible(self):
         with public_client(token="ignored-in-public", allow_write=True) as c:
@@ -262,7 +257,7 @@ class ConcurrencyTests(unittest.TestCase):
         async def go():
             results = []
             server = build_server(profile="research", public=True, max_concurrency=1)
-            async with Client(InMemoryTransport(server)) as c:
+            async with _support.mcp_client(server) as c:
 
                 async def one():
                     results.append(await c.call_tool("evidence_meter", {"items": []}))

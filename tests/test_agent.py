@@ -14,11 +14,9 @@ from contextlib import contextmanager, redirect_stderr
 from pathlib import Path
 from unittest import mock
 
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+import _support
 
-import _support  # noqa: E402  (puts src/ on sys.path; core_target)
+ROOT = _support.ROOT
 
 ENV = {}
 
@@ -38,30 +36,7 @@ def setUpModule():
         _providers_crossref, \
         _providers_openalex, \
         _search_engine
-    temp = tempfile.TemporaryDirectory(prefix="noul-tests-")
-    unittest.addModuleCleanup(temp.cleanup)
-    base = Path(temp.name)
-    for folder in ("home", "cache", "workspace", "appdata"):
-        (base / folder).mkdir()
-    ENV.update(
-        {k: v for k, v in os.environ.items() if not k.startswith("NOUL_") and k not in ("DB_PATH", "UNPAYWALL_EMAIL")}
-    )
-    ENV.update(
-        {
-            "HOME": str(base / "home"),
-            "USERPROFILE": str(base / "home"),
-            "APPDATA": str(base / "appdata"),
-            "LOCALAPPDATA": str(base / "appdata"),
-            "NOUL_HOME": str(base / "cache"),
-            "NOUL_DB_PATH": str(base / "cache/cache.db"),
-            "NOUL_WORKSPACE": str(base / "workspace"),
-            # Subprocesses get a fake HOME, which hides user site-packages: hand them our import path.
-            "PYTHONPATH": os.pathsep.join([str(ROOT / "src")] + [p for p in sys.path if p]),
-        }
-    )
-    env_patch = mock.patch.dict(os.environ, ENV, clear=True)
-    env_patch.start()
-    unittest.addModuleCleanup(env_patch.stop)
+    ENV.update(_support.isolate_environment())
 
     from noul import api as t
     from noul import config as _config
@@ -351,7 +326,7 @@ class AgentTestSuite(unittest.TestCase):
         httpx_network.start()
         self.addCleanup(httpx_network.stop)
 
-    def test_p0_5_config_email_and_database_precedence(self):
+    def test_config_email_and_database_precedence(self):
         with (
             tempfile.TemporaryDirectory() as cache,
             mock.patch.dict(
@@ -382,7 +357,7 @@ class AgentTestSuite(unittest.TestCase):
             with mock.patch.dict(os.environ, {"NOUL_EMAIL": "research@noul.local"}):
                 self.assertIsNone(_config.get_config()["email"])
 
-    def test_p0_6_external_core_is_never_loaded(self):
+    def test_external_core_is_never_loaded(self):
         # NOUL_APP_DIR (opt-in external core) was removed in v2 Phase 1a: the packaged modules are always used.
         with tempfile.TemporaryDirectory() as temp:
             external = Path(temp) / "noul-search-app"
@@ -400,7 +375,7 @@ class AgentTestSuite(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.strip(), "noul.search.engine")
 
-    def test_p0_8_sqlite_connections_close_on_success_and_error(self):
+    def test_sqlite_connections_close_on_success_and_error(self):
         with _net_cache._conn() as conn:
             conn.execute("INSERT OR REPLACE INTO kv VALUES (?, ?, ?)", ("close-test", '{"committed": true}', 0))
         self.assertEqual(_net_cache.cache_get("close-test", max_age=0), {"committed": True})
@@ -414,7 +389,7 @@ class AgentTestSuite(unittest.TestCase):
             failed.execute("SELECT 1")
         self.assertEqual(_net_cache.cache_get("close-test", max_age=0), {"committed": True})
 
-    def test_p0_9_search_returns_before_slow_source_finishes(self):
+    def test_search_returns_before_slow_source_finishes(self):
         release, finished, returned = threading.Event(), threading.Event(), threading.Event()
         result = {}
 
@@ -448,7 +423,7 @@ class AgentTestSuite(unittest.TestCase):
         self.assertEqual(result["sources"], ["europepmc"])
         self.assertTrue(any("openalex: TimeoutError" in w for w in result["warnings"]))
 
-    def test_p0_10_http_byte_cap_and_html_fulltext(self):
+    def test_http_byte_cap_and_html_fulltext(self):
         import httpx
 
         from noul.net import http as nhttp
@@ -481,7 +456,7 @@ class AgentTestSuite(unittest.TestCase):
         fetch.assert_called_once_with(paper["pdf_url"], timeout=20, binary=True, public_only=True)
         self.assertNotIn("boilerplate", _net_cache.cache_get("ft:" + paper["id"])["text"])
 
-    def test_p0_12_tool_argument_validation(self):
+    def test_tool_argument_validation(self):
         with mock.patch(_support.core_target("search")) as search:
             for args in ([], "", {}, {"query": None}, {"query": "valid", "typo": 1}):
                 with self.subTest(args=args):
@@ -489,7 +464,7 @@ class AgentTestSuite(unittest.TestCase):
             search.assert_not_called()
         self.assertEqual(t.call("configure_noul", None), t.configure_noul())
 
-    def test_p0_14_europepmc_source_search(self):
+    def test_europepmc_source_search(self):
         fixture = {
             "resultList": {
                 "result": [
@@ -658,22 +633,22 @@ class AgentTestSuite(unittest.TestCase):
                 assert_http_error(403, _library_downloads.download_paper_pdf, paper["id"], str(pdf_dir))
             self.assertFalse((outside / "paper.pdf").exists())
 
-    def test_2_installer(self):
+    def test_installer_roundtrip(self):
         check_installer_roundtrip()
 
-    def test_3_workflow(self):
+    def test_research_workflow(self):
         check_dossier_download_and_multi_paper_workflow()
 
-    def test_p0_2_october_arxiv_id_not_confused_with_doi(self):
+    def test_october_arxiv_id_not_confused_with_doi(self):
         check_october_arxiv_id_not_confused_with_doi()
 
-    def test_p0_3_journal_impact_no_false_q1(self):
+    def test_journal_impact_no_false_q1(self):
         check_journal_impact_no_false_q1()
 
-    def test_p0_4_classifier_negative_contexts(self):
+    def test_classifier_negative_contexts(self):
         check_classifier_negative_contexts()
 
-    def test_p0_10_ssrf_protection(self):
+    def test_ssrf_protection(self):
         check_ssrf_protection()
 
     def test_config_and_deterministic_evidence_meter(self):
