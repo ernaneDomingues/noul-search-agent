@@ -3,15 +3,9 @@ baseline superiority scenarios (text & benchmark table) and the `noul failures` 
 
 import contextlib
 import io
-import sys
 import unittest
-from pathlib import Path
-from unittest import mock
 
-if str(Path(__file__).resolve().parent) not in sys.path:
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-import _support  # noqa: E402
+import _support
 
 FULLTEXT = """--- Page 1 ---
 1 Introduction
@@ -46,10 +40,7 @@ def setUpModule():
 
 class FailureModesTests(unittest.TestCase):
     def setUp(self):
-        for name in ("_http_json", "_http_get"):
-            patcher = mock.patch(_support.core_target(name), side_effect=_support.no_network)
-            patcher.start()
-            self.addCleanup(patcher.stop)
+        _support.block_http(self)
         self.pid = _support.seed_fulltext_paper(
             "doi:10.1000/failure-modes",
             FULLTEXT,

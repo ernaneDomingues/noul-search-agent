@@ -3,15 +3,9 @@
 import contextlib
 import io
 import json
-import sys
 import unittest
-from pathlib import Path
-from unittest import mock
 
-if str(Path(__file__).resolve().parent) not in sys.path:
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-import _support  # noqa: E402
+import _support
 
 ABSTRACT = "We present Sparse-7B, which achieves 78.4% on MMLU and is 3.4x faster than Llama-2 7B."
 FULLTEXT = """--- Page 1 ---
@@ -41,10 +35,7 @@ def setUpModule():
 
 class GroundingTests(unittest.TestCase):
     def setUp(self):
-        for name in ("_http_json", "_http_get"):
-            patcher = mock.patch(_support.core_target(name), side_effect=_support.no_network)
-            patcher.start()
-            self.addCleanup(patcher.stop)
+        _support.block_http(self)
         self.pid = _support.seed_fulltext_paper("doi:10.1000/ground", FULLTEXT, title="Sparse-7B", abstract=ABSTRACT)
 
     def _verify(self, *claims):

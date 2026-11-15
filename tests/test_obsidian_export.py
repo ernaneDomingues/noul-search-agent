@@ -138,8 +138,6 @@ class ObsidianExportTests(unittest.TestCase):
 
     def test_is_write_tool_for_http_mcp(self):
         import anyio
-        from mcp import Client
-        from mcp.client._memory import InMemoryTransport
 
         from noul import registry
         from noul.server.mcp import build_server
@@ -147,7 +145,7 @@ class ObsidianExportTests(unittest.TestCase):
         self.assertIn("export_obsidian_notes", registry.write_tools())
 
         async def call():
-            async with Client(InMemoryTransport(build_server(allow_write=False))) as client:
+            async with _support.mcp_client(build_server(allow_write=False)) as client:
                 args = {"paper_ids": self.ids, "vault_dir": "vault-http"}
                 return await client.call_tool("export_obsidian_notes", args)
 

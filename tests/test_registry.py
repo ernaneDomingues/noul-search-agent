@@ -87,8 +87,6 @@ class ContractTests(unittest.TestCase):
     def test_write_arguments_are_blocked_over_http_without_write_permission(self):
         """sanitize_bibtex is read-only unless `output_path` is set; with it, a server without write access refuses."""
         import anyio
-        from mcp import Client
-        from mcp.client._memory import InMemoryTransport
 
         from noul import registry
         from noul.server.mcp import build_server
@@ -100,7 +98,7 @@ class ContractTests(unittest.TestCase):
         self.assertFalse(registry.call_writes("no_such_tool", {}))
 
         async def session():
-            async with Client(InMemoryTransport(build_server(allow_write=False))) as client:
+            async with _support.mcp_client(build_server(allow_write=False)) as client:
                 listed = {t.name for t in (await client.list_tools()).tools}
                 args = {"bibtex_input": "@article{a, title={T}}", "output_path": "clean.bib"}
                 return listed, await client.call_tool("sanitize_bibtex", args)

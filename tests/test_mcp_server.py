@@ -9,8 +9,6 @@ from unittest import mock
 
 import anyio
 import mcp.types as types
-from mcp import Client
-from mcp.client._memory import InMemoryTransport
 
 import _support
 
@@ -26,13 +24,10 @@ def run(coro_fn, *args):
 
 class McpServerTests(unittest.TestCase):
     def setUp(self):
-        for name in ("_http_json", "_http_get"):
-            patcher = mock.patch(_support.core_target(name), side_effect=_support.no_network)
-            patcher.start()
-            self.addCleanup(patcher.stop)
+        _support.block_http(self)
 
     def client(self, server, **kwargs):
-        return Client(InMemoryTransport(server), **kwargs)
+        return _support.mcp_client(server, **kwargs)
 
     def test_tools_follow_profile_and_write_permission(self):
         from noul.server.mcp import build_server
@@ -261,7 +256,7 @@ class ElicitationTests(unittest.TestCase):
         async def go():
             server = build_server(elicit_email=True)
             kwargs = {"elicitation_callback": on_elicit} if callback else {}
-            async with Client(InMemoryTransport(server), **kwargs) as c:
+            async with _support.mcp_client(server, **kwargs) as c:
                 await c.call_tool("get_fulltext", {"id": "doi:10.1000/none"})
                 await c.call_tool("get_fulltext", {"id": "doi:10.1000/none"})
 
@@ -294,7 +289,7 @@ class ElicitationTests(unittest.TestCase):
             return types.ElicitResult(action="decline")
 
         async def go():
-            async with Client(InMemoryTransport(build_server(elicit_email=True)), elicitation_callback=on_elicit) as c:
+            async with _support.mcp_client(build_server(elicit_email=True), elicitation_callback=on_elicit) as c:
                 await c.call_tool("suggest_boolean_queries", {"query": "LLM quantization"})
                 await c.call_tool("evidence_meter", {"items": []})
 
@@ -318,7 +313,7 @@ class ElicitationTests(unittest.TestCase):
 
                 async def go(mode=mode):
                     server = build_server(elicit_email=True)
-                    async with Client(InMemoryTransport(server), elicitation_callback=slow, mode=mode) as c:
+                    async with _support.mcp_client(server, elicitation_callback=slow, mode=mode) as c:
                         async with anyio.create_task_group() as tg:
                             for _ in range(3):
                                 tg.start_soon(c.call_tool, "get_fulltext", {"id": "doi:10.1000/none"})

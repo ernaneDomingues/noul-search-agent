@@ -4,7 +4,6 @@ import io
 import json
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
-from unittest import mock
 
 import _support
 
@@ -32,13 +31,11 @@ def run_cli(name, args):
 
 def run_mcp(name, args):
     import anyio
-    from mcp import Client
-    from mcp.client._memory import InMemoryTransport
 
     from noul.server.mcp import build_server
 
     async def call():
-        async with Client(InMemoryTransport(build_server())) as client:
+        async with _support.mcp_client(build_server()) as client:
             return await client.call_tool(name, args)
 
     result = anyio.run(call)
@@ -47,10 +44,7 @@ def run_mcp(name, args):
 
 class ParityTests(unittest.TestCase):
     def setUp(self):
-        for name in ("_http_json", "_http_get"):
-            patcher = mock.patch(_support.core_target(name), side_effect=_support.no_network)
-            patcher.start()
-            self.addCleanup(patcher.stop)
+        _support.block_http(self)
 
     def test_every_registered_tool_is_reachable_from_the_cli(self):
         from noul import cli, registry

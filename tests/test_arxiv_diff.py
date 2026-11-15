@@ -4,15 +4,10 @@ new baselines/datasets, authorship changes and the `noul diff` CLI."""
 import contextlib
 import io
 import json
-import sys
 import unittest
-from pathlib import Path
 from unittest import mock
 
-if str(Path(__file__).resolve().parent) not in sys.path:
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-import _support  # noqa: E402
+import _support
 
 ATOM_V1 = """<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom" xmlns:arxiv="http://arxiv.org/schemas/atom">

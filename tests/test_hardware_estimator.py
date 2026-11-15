@@ -3,15 +3,9 @@
 import contextlib
 import io
 import json
-import sys
 import unittest
-from pathlib import Path
-from unittest import mock
 
-if str(Path(__file__).resolve().parent) not in sys.path:
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-import _support  # noqa: E402
+import _support
 
 SMALL = (
     "We release Atlas-7B, a 7B decoder-only language model. We compare it with GPT-3 175B and Llama-2 13B. "
@@ -38,10 +32,7 @@ def setUpModule():
 
 class HardwareEstimatorTests(unittest.TestCase):
     def setUp(self):
-        for name in ("_http_json", "_http_get"):
-            patcher = mock.patch(_support.core_target(name), side_effect=_support.no_network)
-            patcher.start()
-            self.addCleanup(patcher.stop)
+        _support.block_http(self)
         self.small = _support.seed_fulltext_paper("doi:10.1000/atlas7b", SMALL, title="Atlas-7B: an open model")
         self.large = _support.seed_fulltext_paper("doi:10.1000/titan", LARGE[1], title=LARGE[0])
         self.moe = _support.seed_fulltext_paper("doi:10.1000/mixtral", MOE, title="Mixtral of Experts")

@@ -3,7 +3,6 @@
 import json
 import os
 import unittest
-from unittest import mock
 
 from starlette.testclient import TestClient
 
@@ -43,10 +42,7 @@ def mcp_payloads(response):
 
 class HttpAppTests(unittest.TestCase):
     def setUp(self):
-        for name in ("_http_json", "_http_get"):
-            patcher = mock.patch(_support.core_target(name), side_effect=_support.no_network)
-            patcher.start()
-            self.addCleanup(patcher.stop)
+        _support.block_http(self)
 
     def test_healthz_is_open_and_everything_else_needs_the_token(self):
         with client() as c:
