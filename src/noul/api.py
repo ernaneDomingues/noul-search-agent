@@ -2,17 +2,16 @@
 stance classification and synthesis; these tools retrieve, structure, download, and persist evidence."""
 
 import json
-import os
 import re
 import sqlite3
 import time
-from pathlib import Path
 
 from noul import config as _config
 from noul import errors as _errors
 from noul import ids as _ids
 from noul import log as _log
 from noul import registry as _registry
+from noul import workspace as _workspace
 from noul.evidence import classify as _classify
 from noul.evidence import contract as _contract
 from noul.evidence import integrity as _integrity
@@ -63,48 +62,6 @@ STANCE_ALIASES = {
     "unclear": "inconclusive",
     "inconclusivo": "inconclusive",
 }
-
-
-def _safe_output_dir(requested_dir=None, default_subdir="papers") -> Path:
-    """Resolve an output directory confined to the configured workspace (relative paths are workspace-relative)."""
-    cfg = _config.get_config()
-    workspace = Path(cfg["workspace"]).resolve()
-    cfg_key = {"papers": "download_dir", "research": "research_dir"}.get(default_subdir, f"{default_subdir}_dir")
-    raw = requested_dir or cfg.get(cfg_key) or f"./{default_subdir}"
-    p = Path(str(raw)).expanduser()
-    target = p.resolve() if p.is_absolute() else (workspace / p).resolve()
-    if os.environ.get("NOUL_ALLOW_ANY_PATH") != "1":
-        try:
-            target.relative_to(workspace)
-        except ValueError:
-            raise _errors.HTTPError(
-                403,
-                f"Path '{target}' is outside the allowed workspace '{workspace}'. "
-                "Use a path inside the workspace. The user can change it with `noul config --workspace`, NOUL_WORKSPACE or "
-                "the extension's Noul folder setting; an environment value wins.",
-            ) from None
-        if _config._is_hidden_below(target, workspace):
-            raise _errors.HTTPError(403, f"Refusing to use the hidden path '{target}'.")
-    if _config._is_noul_home_path(target):
-        raise _errors.HTTPError(403, "Refusing to use Noul's own folder: keep the workspace outside NOUL_HOME.")
-    return target
-
-
-def _reject_symlink_path(path, requested_dir=None):
-    """Refuse (HTTP 403) output paths with a symlink in any component below the workspace root, checking both the
-    resolved path and the path as requested (whose symlinks `_safe_output_dir` already followed)."""
-    workspace = Path(_config.get_config()["workspace"]).expanduser()
-    roots = {Path(os.path.abspath(workspace)), workspace.resolve()}
-    candidates = [Path(os.path.abspath(path))]
-    if requested_dir:
-        raw = Path(str(requested_dir)).expanduser()
-        candidates.append(Path(os.path.abspath(raw if raw.is_absolute() else workspace / raw)))
-    for cur in candidates:
-        while cur not in roots and any(r in cur.parents for r in roots):
-            if cur.is_symlink():
-                raise _errors.HTTPError(403, f"Refusing to write through symbolic link '{cur}'.")
-            cur = cur.parent
-    return Path(path)
 
 
 def _with_integrity(result, paper_id):
@@ -1028,7 +985,7 @@ def download_papers(ids, output_dir=None):
     """Download Open Access PDFs for the given paper IDs/DOIs to `output_dir` (confined to the workspace)."""
     if not ids:
         raise _errors.HTTPError(400, "Provide at least one paper id or DOI in `ids`")
-    dest = _safe_output_dir(output_dir, "papers")
+    dest = _workspace.safe_output_dir(output_dir, "papers")
     results = []
     for raw_id in ids[:25]:
         try:
@@ -1160,10 +1117,13 @@ def _dossier_slug(topic, parent):
 
 
 def _dossier_paths(directory):
-    base = _safe_output_dir(directory, "research")
+    base = _workspace.safe_output_dir(directory, "research")
     return (
         base,
-        *(_safe_output_dir(base / name, "research") for name in ("README.md", "papers.json", "references.bib")),
+        *(
+            _workspace.safe_output_dir(base / name, "research")
+            for name in ("README.md", "papers.json", "references.bib")
+        ),
     )
 
 
@@ -1185,7 +1145,7 @@ def _dossier_paths(directory):
 def save_research_dossier(topic, synthesis_markdown, paper_ids=None, output_dir=None):
     """Save a structured research dossier (README.md, papers.json, references.bib) so the user can
     converse over the research documentation and revisit it across sessions."""
-    parent = _safe_output_dir(output_dir, "research")
+    parent = _workspace.safe_output_dir(output_dir, "research")
     slug = _dossier_slug(topic, parent)
     base, md_path, json_path, bib_path = _dossier_paths(parent / slug)
     base.mkdir(parents=True, exist_ok=True)
@@ -1262,7 +1222,7 @@ def save_research_dossier(topic, synthesis_markdown, paper_ids=None, output_dir=
 )
 def list_research_dossiers(output_dir=None):
     """List saved research dossiers from both the workspace directory and the index."""
-    base = _safe_output_dir(output_dir, "research")
+    base = _workspace.safe_output_dir(output_dir, "research")
     items = {}
     index = _cache.cache_get("dossiers:index", max_age=0) or {}
     for slug, info in index.items():

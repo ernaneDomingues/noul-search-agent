@@ -61,8 +61,8 @@ class ToolTests(Base):
             self.assertEqual(caught.exception.code, 403)
 
     def test_readers_refuse_paths_outside_the_workspace_and_symlinks_with_403(self):
+        from noul import workspace
         from noul.errors import HTTPError
-        from noul.tools import authoring_tools
 
         outside = _support.tmp_path("outside.md")
         outside.write_text("secret", encoding="utf-8")
@@ -75,14 +75,14 @@ class ToolTests(Base):
             pass  # symlinks unavailable (Windows without the privilege)
         for path in cases:
             with self.subTest(path=path), self.assertRaises(HTTPError) as caught:
-                authoring_tools._validate_workspace_path(path)
+                workspace.validate_path(path)
             self.assertEqual(caught.exception.code, 403)
 
     def test_ordinary_files_still_work(self):
-        from noul.tools import authoring_tools
+        from noul import workspace
 
         (self.workspace / "draft.md").write_text("A draft.", encoding="utf-8")
-        self.assertEqual(authoring_tools._validate_workspace_path("draft.md").name, "draft.md")
+        self.assertEqual(workspace.validate_path("draft.md").name, "draft.md")
 
     def test_sanitize_bibtex_writes_only_bib_files(self):
         from noul import registry
@@ -150,8 +150,8 @@ class StoredWorkspaceTests(Base):
         self.assertEqual(shown["workspace_ignored"], "/proc")
 
     def test_relocated_databases_are_refused(self):
+        from noul import workspace
         from noul.errors import HTTPError
-        from noul.tools import authoring_tools
 
         db = self.workspace / "my.db"
         copy = self.workspace / "my.db.bak"
@@ -161,7 +161,7 @@ class StoredWorkspaceTests(Base):
         with mock.patch.dict(os.environ, {"NOUL_PROJECTS_DB": str(db)}):
             for name in ("my.db", "my.db.bak", "my.db-wal"):
                 with self.subTest(name=name), self.assertRaises(HTTPError) as caught:
-                    authoring_tools._validate_workspace_path(name, must_exist=False)
+                    workspace.validate_path(name, must_exist=False)
                 self.assertEqual(caught.exception.code, 403)
 
     def test_a_home_folder_cannot_be_found_in_a_container(self):
@@ -187,9 +187,8 @@ class StoredWorkspaceTests(Base):
             self.assertEqual(config._default_workspace(), str(Path.home() / "Documents" / "Noul"))
 
     def test_noul_home_inside_the_workspace_stays_out_of_reach(self):
-        from noul import config, registry
+        from noul import config, registry, workspace
         from noul.errors import HTTPError
-        from noul.tools import authoring_tools
 
         home = self.workspace / "noul-home"
         home.mkdir()
@@ -201,7 +200,7 @@ class StoredWorkspaceTests(Base):
                 "noul-home/x.bib",
             ):
                 with self.subTest(name=name), self.assertRaises(HTTPError) as caught:
-                    authoring_tools._validate_workspace_path(name, must_exist=False)
+                    workspace.validate_path(name, must_exist=False)
                 self.assertEqual(caught.exception.code, 403)
             with self.assertRaises(HTTPError) as caught:
                 registry.call(

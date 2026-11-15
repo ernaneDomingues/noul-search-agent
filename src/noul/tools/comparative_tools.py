@@ -7,6 +7,7 @@ import re
 from collections import Counter
 
 from noul import errors as _errors
+from noul import workspace as _workspace
 from noul.evidence import classify as _classify
 from noul.library import export as _exporting
 from noul.library import fulltext as _ft
@@ -890,11 +891,9 @@ def _write_note(path, text):
 def export_obsidian_notes(paper_ids, vault_dir=None, include_related_wikilinks=True):
     """Atomic Markdown notes (#06) with YAML frontmatter, TL;DR, findings/methodology, open artifacts,
     [[wikilinks]] between the exported papers and a BibTeX block, written inside the workspace."""
-    from noul import api  # lazy: noul.api imports this module
-
     ids = _validate_ids(paper_ids, MAX_EXPORT)
-    dest = api._safe_output_dir(vault_dir, default_subdir="obsidian")
-    api._reject_symlink_path(dest, vault_dir)
+    dest = _workspace.safe_output_dir(vault_dir, default_subdir="obsidian")
+    _workspace.reject_symlink_path(dest, vault_dir)
     records, warnings = _resolve_all(ids)
     rows = [analyze_paper(p) for p, _ in records]
 
@@ -908,7 +907,7 @@ def export_obsidian_notes(paper_ids, vault_dir=None, include_related_wikilinks=T
         names.append(name)
 
     dest.mkdir(parents=True, exist_ok=True)
-    api._reject_symlink_path(dest, vault_dir)
+    _workspace.reject_symlink_path(dest, vault_dir)
     notes = []
     for i, ((dim, ex), name) in enumerate(zip(rows, names, strict=False)):
         path = dest / f"{name}.md"

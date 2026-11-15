@@ -9,12 +9,12 @@ Executes a 4-stage deterministic audit:
 import re
 
 from noul import errors as _errors
+from noul import workspace as _workspace
 from noul.evidence import contract as _contract
 from noul.evidence import untrusted as _untrusted
 from noul.library import fulltext as _ft
 from noul.schemas.authoring import GatekeeperCheckItem, SubmissionGatekeeperReport
 from noul.schemas.evidence import AnalysisSubject, ChecklistItem, Signal
-from noul.tools import authoring_tools
 
 _DOUBLE_BLIND_VENUES = frozenset({"neurips", "icml", "iclr", "acl"})
 _SUPPORTED_GATEKEEPER_VENUES = frozenset(
@@ -107,8 +107,8 @@ def _load_manuscript_text(draft_path: str) -> tuple[str, str]:
     if not isinstance(draft_path, str) or not draft_path.strip():
         raise _errors.HTTPError(400, "draft_path must be a non-empty file path or manuscript text.")
     s = draft_path.strip()
-    if authoring_tools._looks_like_filepath(s):
-        path = authoring_tools._validate_workspace_path(s, must_exist=True)
+    if _workspace.looks_like_filepath(s):
+        path = _workspace.validate_path(s, must_exist=True)
         if path.suffix.lower() == ".pdf":
             raw = path.read_bytes()
             return _extract_pdf_fallback_bytes(raw), path.name

@@ -19,6 +19,7 @@ from pydantic import BaseModel, ValidationError
 
 from noul import errors as _errors
 from noul import log as _log
+from noul import workspace as _workspace
 
 _JSON_TYPES: dict[Any, str] = {str: "string", int: "integer", float: "number", bool: "boolean", dict: "object"}
 
@@ -255,9 +256,7 @@ def call_reads_file(name: Any, args: Any) -> bool:
         return False
     if any(args.get(a) not in (None, "") for a in tool.folder_args):
         return True
-    from noul.tools import authoring_tools
-
-    return any(isinstance(args.get(a), str) and authoring_tools._looks_like_filepath(args[a]) for a in tool.file_args)
+    return any(isinstance(args.get(a), str) and _workspace.looks_like_filepath(args[a]) for a in tool.file_args)
 
 
 def call_writes(name: Any, args: Any) -> bool:
