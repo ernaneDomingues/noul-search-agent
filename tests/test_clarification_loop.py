@@ -1,4 +1,4 @@
-"""Etapa 4 (#01): clarification loop — broad-query heuristic, domain questions, refined query, MCP and CLI."""
+"""clarification loop — broad-query heuristic, domain questions, refined query, MCP and CLI."""
 
 import contextlib
 import datetime

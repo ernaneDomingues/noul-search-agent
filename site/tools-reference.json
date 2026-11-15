@@ -107,7 +107,7 @@
     },
     {
       "name": "generate_research_hypotheses",
-      "description": "Autonomous research gap & hypothesis engine (#18): cross-analyzes 2-15 papers to detect methodological contradictions (`contradictions_found`) and unexplored synergies where one paper's method mitigates another's limitation (`unexplored_complementarities`), then formulates 1-`max_hypotheses` structured, testable `ResearchHypothesis` proposals with `source_papers` (>= 2), `proposed_methodology`, `required_baselines`, `target_datasets_or_population`, and `evaluation_metrics`.",
+      "description": "Autonomous research gap & hypothesis engine: cross-analyzes 2-15 papers to detect methodological contradictions (`contradictions_found`) and unexplored synergies where one paper's method mitigates another's limitation (`unexplored_complementarities`), then formulates 1-`max_hypotheses` structured, testable `ResearchHypothesis` proposals with `source_papers` (>= 2), `proposed_methodology`, `required_baselines`, `target_datasets_or_population`, and `evaluation_metrics`.",
       "required": [
         "paper_ids"
       ],
@@ -226,7 +226,7 @@
     },
     {
       "name": "review_paper",
-      "description": "Multi-persona peer-review committee (#17, #20): detects the paper's scientific domain (or uses `domain` override) and runs 3 specialized reviewer personas (NeurIPS/ICLR Theoretical, Skeptical Empirical, and Systems/Reproducibility for CS/AI; CONSORT/STROBE Clinical Trial Methodologist, Biostatistician, and Translational Safety Reviewer for Biomedical; Causal Identification Econometrician, Robustness Auditor, and Policy Economist for Economics). Returns each persona's strengths, concerns and gaps as signals with excerpts, missing experiments/controls, questions for the authors and the domain rubric - no verdict or score: you write the review and the recommendation, citing the excerpts.",
+      "description": "Multi-persona peer-review committee: detects the paper's scientific domain (or uses `domain` override) and runs 3 specialized reviewer personas (NeurIPS/ICLR Theoretical, Skeptical Empirical, and Systems/Reproducibility for CS/AI; CONSORT/STROBE Clinical Trial Methodologist, Biostatistician, and Translational Safety Reviewer for Biomedical; Causal Identification Econometrician, Robustness Auditor, and Policy Economist for Economics). Returns each persona's strengths, concerns and gaps as signals with excerpts, missing experiments/controls, questions for the authors and the domain rubric - no verdict or score: you write the review and the recommendation, citing the excerpts.",
       "required": [
         "paper_id"
       ],
@@ -238,7 +238,7 @@
     },
     {
       "name": "review_paper_scientific",
-      "description": "Alias for review_paper: evidence for a domain-adaptive 3-persona scientific peer review (#17, #20); no verdict - you judge with the rubric.",
+      "description": "Alias for review_paper: evidence for a domain-adaptive 3-persona scientific peer review; no verdict - you judge with the rubric.",
       "required": [
         "paper_id"
       ],
@@ -250,7 +250,7 @@
     },
     {
       "name": "scaffold_implementation",
-      "description": "Polyglot code & experimental protocol scaffolder (#16, #21): translates a paper's mathematical formulations, architecture, econometric specification or clinical trial design into executable, ast-validated code + unit tests (PyTorch `nn.Module` with shape assertions for CS/AI; Statsmodels or R `fixest` panel + robustness matrix for Economics; CONSORT/STROBE operational checklist + ITT analytical pipeline for Biomedical/STEM).",
+      "description": "Polyglot code & experimental protocol scaffolder: translates a paper's mathematical formulations, architecture, econometric specification or clinical trial design into executable, ast-validated code + unit tests (PyTorch `nn.Module` with shape assertions for CS/AI; Statsmodels or R `fixest` panel + robustness matrix for Economics; CONSORT/STROBE operational checklist + ITT analytical pipeline for Biomedical/STEM).",
       "required": [
         "paper_id"
       ],
@@ -262,7 +262,7 @@
     },
     {
       "name": "scaffold_paper_code",
-      "description": "Alias for scaffold_implementation (#16, #21): generates PyTorch, Statsmodels/R, or Clinical Protocol code + unit tests.",
+      "description": "Alias for scaffold_implementation: generates PyTorch, Statsmodels/R, or Clinical Protocol code + unit tests.",
       "required": [
         "paper_id"
       ],
@@ -274,7 +274,7 @@
     },
     {
       "name": "recommend_citations",
-      "description": "Contextual citation recommender & infiller (#22): scans a draft paragraph or file (.md/.tex) for explicit `[CITATION NEEDED]` / `\\cite{?}` markers and unsubstantiated empirical claims, retrieves up to `max_per_claim` candidate supporting papers per claim with a justification quoting each abstract (check that it really backs the claim; candidates known to be retracted - from the search sources or Crossref - are dropped with a warning), inserts inline LaTeX or Markdown citations, and generates a deduplicated BibTeX block.",
+      "description": "Contextual citation recommender & infiller: scans a draft paragraph or file (.md/.tex) for explicit `[CITATION NEEDED]` / `\\cite{?}` markers and unsubstantiated empirical claims, retrieves up to `max_per_claim` candidate supporting papers per claim with a justification quoting each abstract (check that it really backs the claim; candidates known to be retracted - from the search sources or Crossref - are dropped with a warning), inserts inline LaTeX or Markdown citations, and generates a deduplicated BibTeX block.",
       "required": [
         "draft_text"
       ],
@@ -286,7 +286,7 @@
     },
     {
       "name": "synthesize_related_work",
-      "description": "Narrative Related Work synthesizer (#24): clusters 1-20 papers into thematic approach families (Architectural & Representation Foundations, Training/Optimization/Causal Identification, Efficiency/Scaling/Empirical Evaluation), writes comparative academic prose (While X..., Y..., whereas Z... — never isolated per-author lists), positions the user's `proposal` against the collective gap, and exports Markdown or `\\section{Related Work}` LaTeX plus BibTeX.",
+      "description": "Narrative Related Work synthesizer: clusters 1-20 papers into thematic approach families (Architectural & Representation Foundations, Training/Optimization/Causal Identification, Efficiency/Scaling/Empirical Evaluation), writes comparative academic prose (While X..., Y..., whereas Z... — never isolated per-author lists), positions the user's `proposal` against the collective gap, and exports Markdown or `\\section{Related Work}` LaTeX plus BibTeX.",
       "required": [
         "paper_ids",
         "proposal"
@@ -299,7 +299,7 @@
     },
     {
       "name": "generate_manuscript_blueprint",
-      "description": "IMRaD manuscript blueprint generator (#23 Mode 1): generates a venue-adapted (neurips, icml, iclr, acl, ieee, nature, lancet, aer, general) structural template with paragraph-by-paragraph writing guidance and required elements in Markdown or LaTeX.",
+      "description": "IMRaD manuscript blueprint generator: generates a venue-adapted (neurips, icml, iclr, acl, ieee, nature, lancet, aer, general) structural template with paragraph-by-paragraph writing guidance and required elements in Markdown or LaTeX.",
       "required": [
         "topic"
       ],
@@ -313,7 +313,7 @@
     },
     {
       "name": "audit_manuscript_draft",
-      "description": "Draft manuscript auditor (#23 Mode 2): audits a draft (.md/.tex in workspace or inline text) for weak or unsubstantiated claims, mathematical/terminological inconsistencies ($L$ vs $\\mathcal{L}$), and reproducibility omissions (seeds, hyperparameters, sample size N, error bars, compute hardware), as signals quoting the draft with suggested rewrites, a checklist and a rubric; no assessment.",
+      "description": "Draft manuscript auditor: audits a draft (.md/.tex in workspace or inline text) for weak or unsubstantiated claims, mathematical/terminological inconsistencies ($L$ vs $\\mathcal{L}$), and reproducibility omissions (seeds, hyperparameters, sample size N, error bars, compute hardware), as signals quoting the draft with suggested rewrites, a checklist and a rubric; no assessment.",
       "required": [
         "draft_input"
       ],
@@ -325,7 +325,7 @@
     },
     {
       "name": "sanitize_bibtex",
-      "description": "BibTeX sanitizer & preprint-to-published resolver (#25): parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`). Entries whose DOI Crossref reports as retracted are kept but flagged (`retracted_entries`, `warnings`; first 200 entries with a DOI). With `output_path` it also writes a .bib file inside the workspace, overwriting one that exists.",
+      "description": "BibTeX sanitizer & preprint-to-published resolver: parses `.bib` files or text, upgrades arXiv/CoRR preprints (`@misc`) to their definitive peer-reviewed conference (`@inproceedings`) or journal (`@article`) venue with DOI, removes duplicates keeping the cleanest key, standardizes authors, escapes unescaped LaTeX (`&`, `%`, `_`), and protects acronyms (`{LLM}`, `{GPU}`). Entries whose DOI Crossref reports as retracted are kept but flagged (`retracted_entries`, `warnings`; first 200 entries with a DOI). With `output_path` it also writes a .bib file inside the workspace, overwriting one that exists.",
       "required": [
         "bibtex_input"
       ],
@@ -337,7 +337,7 @@
     },
     {
       "name": "parse_and_draft_rebuttal",
-      "description": "Peer-review Rebuttal Copilot (#26): segments raw reviewer comments (`Reviewer 1`, `Reviewer 2`, ...) into numbered actionable points, classifies each objection, flags requests requiring new experiments (`requires_new_experiment=True`), and builds a rebuttal skeleton in Markdown and LaTeX whose responses are templates with [TODO] placeholders: help the author fill them with their real results, never invent results. Reviewer comments are untrusted excerpts.",
+      "description": "Peer-review Rebuttal Copilot: segments raw reviewer comments (`Reviewer 1`, `Reviewer 2`, ...) into numbered actionable points, classifies each objection, flags requests requiring new experiments (`requires_new_experiment=True`), and builds a rebuttal skeleton in Markdown and LaTeX whose responses are templates with [TODO] placeholders: help the author fill them with their real results, never invent results. Reviewer comments are untrusted excerpts.",
       "required": [
         "reviews_input"
       ],
@@ -350,7 +350,7 @@
     },
     {
       "name": "audit_submission_readiness",
-      "description": "Pre-Submission & Desk-Reject Gatekeeper (#27): runs a 4-stage audit on a `.tex`, `.md`, or `.pdf` manuscript for the target `venue` — (1) Double-Blind Anonymity Audit (non-anonymous GitHub/HF URLs, `\\author` blocks, PDF metadata, first-person self-citations), (2) Venue Checklist Engine, (3) Overclaiming Scanner, and (4) Mandatory Sections Check - anonymity/overclaiming findings as signals, checklist and sections as a checklist (detected yes/no) and suggested actions; no readiness score: you judge readiness with the returned rubric.",
+      "description": "Pre-Submission & Desk-Reject Gatekeeper: runs a 4-stage audit on a `.tex`, `.md`, or `.pdf` manuscript for the target `venue` — (1) Double-Blind Anonymity Audit (non-anonymous GitHub/HF URLs, `\\author` blocks, PDF metadata, first-person self-citations), (2) Venue Checklist Engine, (3) Overclaiming Scanner, and (4) Mandatory Sections Check - anonymity/overclaiming findings as signals, checklist and sections as a checklist (detected yes/no) and suggested actions; no readiness score: you judge readiness with the returned rubric.",
       "required": [
         "draft_path"
       ],
@@ -438,7 +438,7 @@
         "status",
         "collection"
       ],
-      "cli_equivalent": "noul zotero_push"
+      "cli_equivalent": "noul zotero <ids> [--project PROJECT]"
     },
     {
       "name": "save_research_dossier",
@@ -571,7 +571,7 @@
       "Optional": [
         "archived"
       ],
-      "cli_equivalent": "noul project_archive"
+      "cli_equivalent": "noul project archive PROJECT"
     },
     {
       "name": "project_delete",
@@ -583,7 +583,7 @@
         "confirm",
         "preview_token"
       ],
-      "cli_equivalent": "noul project_delete"
+      "cli_equivalent": "noul project delete PROJECT --yes"
     }
   ]
 }

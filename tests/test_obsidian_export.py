@@ -1,4 +1,4 @@
-"""Etapa 4 (#06): export_obsidian_notes — atomic notes, YAML frontmatter, wikilinks, BibTeX, workspace confinement."""
+"""export_obsidian_notes — atomic notes, YAML frontmatter, wikilinks, BibTeX, workspace confinement."""
 
 import contextlib
 import io

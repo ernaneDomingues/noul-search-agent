@@ -1,4 +1,4 @@
-"""Fase 3 / Etapa 3 (#09): estimate_hardware_specs — VRAM per precision, KV cache, MoE, reported hardware, CLI."""
+"""estimate_hardware_specs — VRAM per precision, KV cache, MoE, reported hardware, CLI."""
 
 import contextlib
 import io

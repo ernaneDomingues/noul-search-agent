@@ -1,6 +1,6 @@
 """Hardened HTTP server: Streamable HTTP MCP at /mcp plus REST/OpenAPI routes, on Starlette + uvicorn.
 
-Same protections as v1 for every route: Host validation when bound to loopback (DNS rebinding), CORS only for
+Every route has the same protections: Host validation when bound to loopback (DNS rebinding), CORS only for
 NOUL_CORS_ORIGINS (any other Origin is rejected), optional Bearer token (NOUL_HTTP_TOKEN; /healthz is open),
 a 1 MB request-body cap, and write tools hidden/blocked unless NOUL_HTTP_ALLOW_WRITE=1 *and* a token is set."""
 

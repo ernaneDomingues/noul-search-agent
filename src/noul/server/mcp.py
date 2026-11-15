@@ -1,7 +1,8 @@
 """MCP server on the official SDK (`mcp` 2.x): stdio by default, Streamable HTTP with `--http` (noul.server.http).
 
 Tools, schemas, annotations and profiles come from the registry (`noul.registry`); calls run in a worker thread
-through `registry.call`, so validation, logging and the HTTP write block are the same as in the CLI."""
+through `registry.call`, so validation and logging are the same as in the CLI. What a transport may see or
+write is decided here and in `noul.server.common`."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Fase 3 / Etapa 4 (#10): verify_paper_claims — strict attribution, extrapolation alerts, auto claims, CLI."""
+"""verify_paper_claims — strict attribution, extrapolation alerts, auto claims, CLI."""
 
 import contextlib
 import io

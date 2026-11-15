@@ -177,7 +177,7 @@ def _validate_workspace_path(raw_path: str, must_exist: bool = True) -> Path:
     cur = candidate_abs
     while True:
         if cur.is_symlink():
-            raise _errors.HTTPError(400, f"Refusing to access symbolic link '{cur}'.")
+            raise _errors.HTTPError(403, f"Refusing to access symbolic link '{cur}'.")
         if cur in roots or cur.parent == cur:
             break
         cur = cur.parent
@@ -190,13 +190,13 @@ def _validate_workspace_path(raw_path: str, must_exist: bool = True) -> Path:
             resolved.relative_to(ws)
         except ValueError:
             raise _errors.HTTPError(
-                400,
+                403,
                 f"Path '{resolved}' is outside the allowed workspace '{ws}'.",
             ) from None
         if _config._is_hidden_below(resolved, ws):
             raise _errors.HTTPError(403, f"Refusing to access the hidden path '{raw_str}'.")
     if resolved.is_symlink():
-        raise _errors.HTTPError(400, f"Refusing to access symbolic link '{resolved}'.")
+        raise _errors.HTTPError(403, f"Refusing to access symbolic link '{resolved}'.")
     if must_exist and not resolved.is_file():
         raise _errors.HTTPError(404, f"File not found in workspace: '{raw_str}'")
     return resolved

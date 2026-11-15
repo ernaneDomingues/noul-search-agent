@@ -1,4 +1,4 @@
-"""Etapa 3 (#03): get_paper_references — S2 graph, sorting, chained cache, OpenAlex fallback on 429."""
+"""get_paper_references — S2 graph, sorting, chained cache, OpenAlex fallback on 429."""
 
 import contextlib
 import io

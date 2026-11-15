@@ -1,4 +1,4 @@
-"""Fase 3 / Etapa 2 (#08): extract_benchmark_tables — Markdown, LaTeX and plain-text tables, normalization, CLI."""
+"""extract_benchmark_tables — Markdown, LaTeX and plain-text tables, normalization, CLI."""
 
 import contextlib
 import io

@@ -1,4 +1,4 @@
-"""Etapa 0: Phase 1 data contracts (Pydantic v2) and package foundation."""
+"""Phase 1 data contracts (Pydantic v2) and package foundation."""
 
 import json
 import unittest

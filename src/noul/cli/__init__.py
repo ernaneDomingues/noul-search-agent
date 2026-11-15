@@ -156,13 +156,13 @@ def _double_click_install():
     window open so the result can be read."""
     from noul import install
 
-    print(f"Noul {__version__} - instalador / installer\n")
+    print(f"Noul {__version__} installer\n")
     try:
         code = install.main([])
     except KeyboardInterrupt:
         code = 1
     try:
-        input("\nPressione Enter para fechar / Press Enter to close...")
+        input("\nPress Enter to close...")
     except (EOFError, KeyboardInterrupt):
         pass
     return code
@@ -184,7 +184,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(
         prog="noul", description="Noul Search: scientific literature search for humans and agents."
     )
-    ap.add_argument("--pretty", action="store_true", help="Human-friendly Markdown output")
+    ap.add_argument("--pretty", dest="global_pretty", action="store_true", help="Human-friendly Markdown output")
     ap.add_argument("--version", action="version", version=f"noul-search-agent {__version__}")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
@@ -313,20 +313,20 @@ def main(argv=None):
     sc_p.add_argument("--domain", help=DOMAIN_HELP)
     sc_p.add_argument("--pretty", action="store_true")
 
-    cite_p = sub.add_parser("cite", help="Contextual citation recommender and BibTeX infiller (#22)")
+    cite_p = sub.add_parser("cite", help="Contextual citation recommender and BibTeX infiller")
     cite_p.add_argument("draft_text", help="Draft paragraph or path to .md/.tex file inside workspace")
     cite_p.add_argument("--limit-per-claim", type=int, default=2, help="max papers recommended per claim (default: 2)")
     cite_p.add_argument("--style", choices=["latex", "markdown"], default="latex")
     cite_p.add_argument("--pretty", action="store_true")
 
-    rw_p = sub.add_parser("related-work", help="Synthesize comparative Related Work section from papers (#24)")
+    rw_p = sub.add_parser("related-work", help="Synthesize comparative Related Work section from papers")
     rw_p.add_argument("ids", nargs="+", help="Paper IDs/DOIs (space- or comma-separated)")
     rw_p.add_argument("--proposal", required=True, help="Summary of your proposed contribution/innovation")
     rw_p.add_argument("--style", choices=["latex", "numeric"], default="latex")
     rw_p.add_argument("--format", dest="output_format", choices=["markdown", "latex"], default="markdown")
     rw_p.add_argument("--pretty", action="store_true")
 
-    dr_p = sub.add_parser("draft", help="IMRaD manuscript blueprint generator and draft auditor (#23)")
+    dr_p = sub.add_parser("draft", help="IMRaD manuscript blueprint generator and draft auditor")
     dr_sub = dr_p.add_subparsers(dest="draft_cmd", required=True)
     dr_struct = dr_sub.add_parser("structure", help="Generate IMRaD manuscript blueprint")
     dr_struct.add_argument("--topic", required=True, help="Manuscript topic or working title")
@@ -344,7 +344,7 @@ def main(argv=None):
     dr_audit.add_argument("--format", dest="output_format", choices=["markdown", "latex"], default="markdown")
     dr_audit.add_argument("--pretty", action="store_true")
 
-    bib_p = sub.add_parser("bibtex", help="BibTeX sanitizer and preprint-to-published resolver (#25)")
+    bib_p = sub.add_parser("bibtex", help="BibTeX sanitizer and preprint-to-published resolver")
     bib_sub = bib_p.add_subparsers(dest="bibtex_cmd", required=True)
     bib_san = bib_sub.add_parser("sanitize", help="Sanitize .bib file/text and upgrade arXiv preprints")
     bib_san.add_argument("bibtex_input", help="Path to .bib file in workspace or raw BibTeX string")
@@ -353,7 +353,7 @@ def main(argv=None):
     bib_san.add_argument("--output", dest="output_path", default=None, help="Output .bib path inside workspace")
     bib_san.add_argument("--pretty", action="store_true")
 
-    reb_p = sub.add_parser("rebuttal", help="Peer-review Rebuttal Copilot (#26)")
+    reb_p = sub.add_parser("rebuttal", help="Peer-review Rebuttal Copilot")
     reb_sub = reb_p.add_subparsers(dest="rebuttal_cmd", required=True)
     reb_parse = reb_sub.add_parser("parse", help="Parse reviewer comments and draft structured rebuttal")
     reb_parse.add_argument("reviews_input", help="Path to reviews.txt/.md in workspace or raw reviews text")
@@ -362,7 +362,7 @@ def main(argv=None):
     reb_parse.add_argument("--format", dest="output_format", choices=["markdown", "latex"], default="markdown")
     reb_parse.add_argument("--pretty", action="store_true")
 
-    gk_p = sub.add_parser("gatekeeper", help="Pre-submission & desk-reject gatekeeper (#27)")
+    gk_p = sub.add_parser("gatekeeper", help="Pre-submission & desk-reject gatekeeper")
     gk_sub = gk_p.add_subparsers(dest="gatekeeper_cmd", required=True)
     gk_aud = gk_sub.add_parser("audit", help="Audit manuscript readiness (anonymity, venue checklist, overclaiming)")
     gk_aud.add_argument("draft_path", help="Path to .tex, .md, or .pdf inside workspace (or inline text)")
@@ -491,6 +491,8 @@ def main(argv=None):
     sub.add_parser("install", help="Install into Claude, Copilot, Codex, Gemini, Antigravity", add_help=False)
 
     a = ap.parse_args(argv)
+    # A subcommand's own --pretty default would overwrite the global flag, so the two are merged here.
+    a.pretty = bool(getattr(a, "pretty", False) or a.global_pretty)
 
     def split(v):
         return [x.strip() for x in v.split(",") if x.strip()] if v else None
