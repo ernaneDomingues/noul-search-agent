@@ -100,6 +100,51 @@ class ResolvePaperTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, 429)
 
 
+class UnavailableSourceTests(unittest.TestCase):
+    """Tools that take several ids keep "not found" apart from "the source did not answer"."""
+
+    def setUp(self):
+        from noul.net import cache
+
+        cache.put_paper("doi:10.1000/known", {"id": "doi:10.1000/known", "title": "Known", "doi": "10.1000/known"})
+
+        def answer(url, *args, **kwargs):
+            raise errors.HTTPError(429 if "limited" in url else 404, "upstream")
+
+        patcher = mock.patch(_support.core_target("_http_json"), side_effect=answer)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_project_add_papers(self):
+        slug = registry.call("project_create", {"title": "Unavailable sources"})["slug"]
+        out = registry.call(
+            "project_add_papers",
+            {"project": slug, "ids": ["doi:10.1000/known", "10.1000/limited", "10.1000/absent"]},
+        )
+        self.assertEqual(out["added"], ["doi:10.1000/known"])
+        self.assertEqual(out["unavailable"], ["10.1000/limited"])
+        self.assertEqual(out["not_found"], ["10.1000/absent"])
+
+    def test_export_papers(self):
+        out = registry.call("export_papers", {"ids": ["doi:10.1000/known", "10.1000/limited", "10.1000/absent"]})
+        text = " | ".join(out.warnings)
+        self.assertIn("could not be found: 10.1000/absent", text)
+        self.assertIn("did not answer (try again): 10.1000/limited", text)
+        with self.assertRaises(errors.HTTPError) as caught:
+            registry.call("export_papers", {"ids": ["10.1000/limited"]})
+        self.assertEqual(caught.exception.code, 503)
+        with self.assertRaises(errors.HTTPError) as caught:
+            registry.call("export_papers", {"ids": ["10.1000/absent"]})
+        self.assertEqual(caught.exception.code, 404)
+
+    def test_save_research_dossier_names_the_papers_it_left_out(self):
+        out = registry.call(
+            "save_research_dossier",
+            {"topic": "Left out", "synthesis_markdown": "x", "paper_ids": ["doi:10.1000/known", "10.1000/limited"]},
+        )
+        self.assertEqual((out["paper_count"], out["papers_left_out"]), (1, ["10.1000/limited"]))
+
+
 class SearchSignatureTests(unittest.TestCase):
     def test_search_takes_query_filters_and_sources(self):
         import inspect

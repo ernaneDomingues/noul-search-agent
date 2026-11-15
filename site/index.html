@@ -639,7 +639,7 @@ uv run noul-mcp --http 8765   # MCP at /mcp, OpenAPI at /openapi.json</pre>
           </article>
           <article class="tool-card" data-tool="project_add_papers">
             <h4 class="mono">project_add_papers</h4>
-            <p>Add papers (ids, DOIs, PMIDs or arXiv ids from search_papers) to a research project with a status (candidate by default) and an optional reason. Papers already in the project keep their status; use project_set_status to change it. `id_map` gives the project id of each input id.</p>
+            <p>Add papers (ids, DOIs, PMIDs or arXiv ids from search_papers) to a research project with a status (candidate by default) and an optional reason. Papers already in the project keep their status; use project_set_status to change it. `id_map` gives the project id of each input id; `unavailable` lists ids whose source did not answer (rate limited or down): they may exist, so try them again later.</p>
             <div class="tool-meta mono">
               <div><strong>Required:</strong> project, ids | <strong>Optional:</strong> status, reason</div>
               <div><strong>CLI:</strong> <code>noul project add PROJECT ID1,ID2 --status candidate</code></div>

@@ -527,7 +527,7 @@
     },
     {
       "name": "project_add_papers",
-      "description": "Add papers (ids, DOIs, PMIDs or arXiv ids from search_papers) to a research project with a status (candidate by default) and an optional reason. Papers already in the project keep their status; use project_set_status to change it. `id_map` gives the project id of each input id.",
+      "description": "Add papers (ids, DOIs, PMIDs or arXiv ids from search_papers) to a research project with a status (candidate by default) and an optional reason. Papers already in the project keep their status; use project_set_status to change it. `id_map` gives the project id of each input id; `unavailable` lists ids whose source did not answer (rate limited or down): they may exist, so try them again later.",
       "required": [
         "project",
         "ids"

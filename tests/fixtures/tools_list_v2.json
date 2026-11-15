@@ -7109,7 +7109,7 @@
   {
     "name": "project_add_papers",
     "title": "Add papers to research project",
-    "description": "Add papers (ids, DOIs, PMIDs or arXiv ids from search_papers) to a research project with a status (candidate by default) and an optional reason. Papers already in the project keep their status; use project_set_status to change it. `id_map` gives the project id of each input id.",
+    "description": "Add papers (ids, DOIs, PMIDs or arXiv ids from search_papers) to a research project with a status (candidate by default) and an optional reason. Papers already in the project keep their status; use project_set_status to change it. `id_map` gives the project id of each input id; `unavailable` lists ids whose source did not answer (rate limited or down): they may exist, so try them again later.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -7238,7 +7238,7 @@
           "type": "object"
         }
       },
-      "description": "`project_add_papers`: ids added, ids already in the project (status unchanged) and ids not found.",
+      "description": "`project_add_papers`: ids added, ids already in the project (status unchanged), ids not found and ids whose\nsource did not answer (`unavailable`: worth trying again).",
       "properties": {
         "project": {
           "$ref": "#/$defs/ProjectSummary"
@@ -7262,6 +7262,13 @@
             "type": "string"
           },
           "title": "Not Found",
+          "type": "array"
+        },
+        "unavailable": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Unavailable",
           "type": "array"
         },
         "id_map": {
