@@ -481,52 +481,6 @@ class ConfigureNoulInput(_ToolInput):
     clear: bool | None = False
 
 
-INPUT_MODELS: dict[str, type[_ToolInput]] = {
-    "search_papers": SearchPapersInput,
-    "zotero_push": ZoteroPushInput,
-    "clarify_search_scope": ClarifySearchScopeInput,
-    "get_paper": GetPaperInput,
-    "detect_paper_domain": DetectPaperDomainInput,
-    "scan_paper_artifacts": ScanPaperArtifactsInput,
-    "get_paper_references": GetPaperReferencesInput,
-    "compare_papers": ComparePapersInput,
-    "get_thematic_insights": GetThematicInsightsInput,
-    "generate_research_hypotheses": GenerateResearchHypothesesInput,
-    "export_obsidian_notes": ExportObsidianNotesInput,
-    "suggest_boolean_queries": SuggestBooleanQueriesInput,
-    "extract_benchmark_tables": ExtractBenchmarkTablesInput,
-    "estimate_hardware_specs": EstimateHardwareSpecsInput,
-    "verify_paper_claims": VerifyPaperClaimsInput,
-    "extract_paper_math": ExtractPaperMathInput,
-    "analyze_ablation_tables": AnalyzeAblationTablesInput,
-    "extract_prompts_and_decoding": ExtractPromptsAndDecodingInput,
-    "detect_failure_modes": DetectFailureModesInput,
-    "diff_arxiv_versions": DiffArxivVersionsInput,
-    "review_paper": ReviewPaperInput,
-    "review_paper_scientific": ReviewPaperScientificInput,
-    "scaffold_implementation": ScaffoldImplementationInput,
-    "scaffold_paper_code": ScaffoldPaperCodeInput,
-    "recommend_citations": RecommendCitationsInput,
-    "synthesize_related_work": SynthesizeRelatedWorkInput,
-    "generate_manuscript_blueprint": GenerateManuscriptBlueprintInput,
-    "audit_manuscript_draft": AuditManuscriptDraftInput,
-    "sanitize_bibtex": SanitizeBibtexInput,
-    "parse_and_draft_rebuttal": ParseAndDraftRebuttalInput,
-    "audit_submission_readiness": AuditSubmissionReadinessInput,
-    "get_fulltext": GetFulltextInput,
-    "query_fulltexts": QueryFulltextsInput,
-    "citation_graph": CitationGraphInput,
-    "related_papers": RelatedPapersInput,
-    "download_papers": DownloadPapersInput,
-    "save_research_dossier": SaveResearchDossierInput,
-    "list_research_dossiers": ListResearchDossiersInput,
-    "get_research_dossier": GetResearchDossierInput,
-    "export_papers": ExportPapersInput,
-    "evidence_meter": EvidenceMeterInput,
-    "configure_noul": ConfigureNoulInput,
-}
-
-
 _PROJECT = Field(
     ..., min_length=1, max_length=120, description="Project slug (from project_create / project_list) or numeric id"
 )

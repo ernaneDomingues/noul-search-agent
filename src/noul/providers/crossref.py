@@ -1,14 +1,10 @@
 """Crossref search."""
 
-import urllib.error
 import urllib.parse
-import urllib.request
 
 from noul import ids as _ids
-from noul.evidence import classify as _classify
-from noul.evidence import impact as _impact
 from noul.net import http as _nhttp
-from noul.providers import annotate as _annotate
+from noul.providers import assemble as _assemble
 
 
 def _search_crossref(query, limit=15, year_min=None):
@@ -35,7 +31,7 @@ def _search_crossref(query, limit=15, year_min=None):
         containers = it.get("container-title") or []
         journal = _ids._clean_text(containers[0] if containers else "")
         authors = []
-        for a in (it.get("author") or [])[:10]:
+        for a in it.get("author") or []:
             name = f"{a.get('given', '')} {a.get('family', '')}".strip()
             if name:
                 authors.append(name)
@@ -45,30 +41,22 @@ def _search_crossref(query, limit=15, year_min=None):
             if "pdf" in (lnk.get("content-type") or "").lower() and lnk.get("URL"):
                 pdf_url = lnk["URL"]
                 break
-        ev = _classify.classify_evidence(title, abstract, [it.get("type")])
-        impact, tier = _impact._estimate_impact(citations, yr, journal)
-        pid = _ids._paper_id(doi=doi, title=title)
         subjects = _ids._unique(it.get("subject") or [])
         out.append(
-            _annotate.annotate_paper(
-                {
-                    "id": pid,
-                    "title": title,
-                    "authors": authors,
-                    "year": yr,
-                    "journal": journal,
-                    "doi": doi,
-                    "citations": citations,
-                    "abstract": abstract,
-                    "evidence": ev,
-                    "impact": impact,
-                    "tier": tier,
-                    "open_access": bool(pdf_url),
-                    "pdf_url": pdf_url,
-                    "primary_category": subjects[0] if subjects else None,
-                    "fields_of_study": subjects,
-                    "sources": ["crossref"],
-                }
+            _assemble.assemble_paper(
+                "crossref",
+                title=title,
+                abstract=abstract,
+                authors=authors,
+                year=yr,
+                journal=journal,
+                citations=citations,
+                pub_types=[it.get("type")],
+                open_access=bool(pdf_url),
+                pdf_url=pdf_url,
+                ids={"doi": doi},
+                primary_category=subjects[0] if subjects else None,
+                fields_of_study=subjects,
             )
         )
     return out

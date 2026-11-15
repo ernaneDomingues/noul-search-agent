@@ -202,7 +202,7 @@ def search_papers(
         f["sort"] = sort
     if study_types:
         f["study_types"] = [t for t in study_types if t in EVIDENCE]
-    r = _engine.search(query, "quick", None, f, "en", sources)
+    r = _engine.search(query, f, sources)
     all_papers = r["papers"]
     if exclude_ids:
         excl = set(exclude_ids)

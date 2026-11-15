@@ -1,15 +1,11 @@
 """arXiv API search (Atom feed)."""
 
-import urllib.error
 import urllib.parse
-import urllib.request
 import xml.etree.ElementTree as ET
 
 from noul import ids as _ids
-from noul.evidence import classify as _classify
-from noul.evidence import impact as _impact
 from noul.net import http as _nhttp
-from noul.providers import annotate as _annotate
+from noul.providers import assemble as _assemble
 
 
 def _search_arxiv(query, limit=15, year_min=None):
@@ -53,7 +49,7 @@ def _parse_feed(xml_txt, year_min=None):
         doi = _ids._norm_doi(entry.findtext("arxiv:doi", "", ns))
         authors = [
             _ids._clean_text(a.findtext("a:name", "", ns))
-            for a in entry.findall("a:author", ns)[:10]
+            for a in entry.findall("a:author", ns)
             if a.findtext("a:name", "", ns)
         ]
         pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf" if arxiv_id else None
@@ -62,30 +58,20 @@ def _parse_feed(xml_txt, year_min=None):
         categories = _ids._unique(
             [primary_category] + [cat.attrib.get("term") for cat in entry.findall("a:category", ns)]
         )
-        ev = _classify.classify_evidence(title, abstract, ["preprint"])
-        impact, tier = _impact._estimate_impact(0, year, "arXiv")
-        pid = _ids._paper_id(doi=doi, arxiv_id=arxiv_id, title=title)
         out.append(
-            _annotate.annotate_paper(
-                {
-                    "id": pid,
-                    "title": title,
-                    "authors": authors,
-                    "year": year,
-                    "journal": "arXiv",
-                    "doi": doi,
-                    "arxiv_id": arxiv_id,
-                    "citations": 0,
-                    "abstract": abstract,
-                    "evidence": ev,
-                    "impact": impact,
-                    "tier": tier,
-                    "open_access": True,
-                    "pdf_url": pdf_url,
-                    "primary_category": primary_category or (categories[0] if categories else None),
-                    "categories": categories,
-                    "sources": ["arxiv"],
-                }
+            _assemble.assemble_paper(
+                "arxiv",
+                title=title,
+                abstract=abstract,
+                authors=authors,
+                year=year,
+                journal="arXiv",
+                pub_types=["preprint"],
+                open_access=True,
+                pdf_url=pdf_url,
+                ids={"doi": doi, "arxiv_id": arxiv_id},
+                primary_category=primary_category or (categories[0] if categories else None),
+                categories=categories,
             )
         )
     return out

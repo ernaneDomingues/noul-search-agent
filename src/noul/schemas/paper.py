@@ -1,10 +1,61 @@
 """Canonical paper entities."""
 
 from datetime import date
+from typing import Any, TypedDict
 
 from pydantic import BaseModel, Field, HttpUrl
 
 from noul.schemas.domain import ScientificDomain
+
+
+class Paper(TypedDict, total=False):
+    """The paper record every provider returns and the cache stores (a plain dict; all keys but the first block
+    are optional). `noul.providers.assemble.assemble_paper` builds it."""
+
+    # Always present.
+    id: str
+    title: str
+    authors: list[str]
+    year: int | None
+    journal: str
+    citations: int
+    abstract: str
+    evidence: str
+    impact: str
+    tier: str
+    open_access: bool
+    pdf_url: str | None
+    sources: list[str]
+    # Identifiers: the ones the source knows.
+    doi: str | None
+    pmid: str | None
+    pmc_id: str | None
+    arxiv_id: str | None
+    s2_id: str | None
+    openalex_id: str | None
+    # Classification.
+    primary_category: str | None
+    fields_of_study: list[str]
+    categories: list[str]
+    mesh_terms: list[str]
+    domain: str
+    # Citation graph (OpenAlex ids).
+    referenced_works: list[str]
+    related_works: list[str]
+    # Open artifacts (noul.providers.artifact_radar).
+    has_code: bool
+    has_weights: bool
+    has_dataset: bool
+    code_url: str | None
+    weights_url: str | None
+    dataset_url: str | None
+    artifact_urls: list[str]
+    evasive_availability_statement: bool
+    artifacts: dict[str, Any]
+    # Integrity facts (noul.evidence.integrity).
+    retraction: dict[str, Any]
+    concern: dict[str, Any]
+    versions: dict[str, Any]
 
 
 class PaperReference(BaseModel):

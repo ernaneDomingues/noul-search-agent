@@ -1,14 +1,10 @@
 """Semantic Scholar search and paper parsing."""
 
-import urllib.error
 import urllib.parse
-import urllib.request
 
 from noul import ids as _ids
-from noul.evidence import classify as _classify
-from noul.evidence import impact as _impact
 from noul.net import http as _nhttp
-from noul.providers import annotate as _annotate
+from noul.providers import assemble as _assemble
 from noul.providers import endpoints as _endpoints
 
 S2_PAPER_FIELDS = (
@@ -47,39 +43,28 @@ def _parse_s2_paper(item):
     abstract = _ids._clean_text(item.get("abstract") or "")
     year = item.get("year")
     journal = item.get("venue") or ("arXiv" if arxiv_id else "")
-    authors = [a.get("name") for a in (item.get("authors") or [])[:100] if a.get("name")]
+    authors = [a.get("name") for a in (item.get("authors") or []) if a.get("name")]
     citations = int(item.get("citationCount") or 0)
     oa_pdf = (item.get("openAccessPdf") or {}).get("url")
     if not oa_pdf and arxiv_id:
         oa_pdf = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
     is_oa = bool(item.get("isOpenAccess") or oa_pdf)
-    ev = _classify.classify_evidence(title, abstract, item.get("publicationTypes") or [])
-    impact, tier = _impact._estimate_impact(citations, year, journal)
-    pid = _ids._paper_id(doi=doi, pmid=pmid, s2_id=s2_id, arxiv_id=arxiv_id, title=title)
     fields = _ids._unique(
         list(item.get("fieldsOfStudy") or [])
         + [f.get("category") for f in (item.get("s2FieldsOfStudy") or []) if isinstance(f, dict)]
     )
-    return _annotate.annotate_paper(
-        {
-            "id": pid,
-            "title": title,
-            "authors": authors,
-            "year": year,
-            "journal": journal,
-            "doi": doi,
-            "pmid": pmid,
-            "arxiv_id": arxiv_id,
-            "s2_id": s2_id,
-            "citations": citations,
-            "abstract": abstract,
-            "evidence": ev,
-            "impact": impact,
-            "tier": tier,
-            "open_access": is_oa,
-            "pdf_url": oa_pdf,
-            "primary_category": fields[0] if fields else None,
-            "fields_of_study": fields,
-            "sources": ["s2"],
-        }
+    return _assemble.assemble_paper(
+        "s2",
+        title=title,
+        abstract=abstract,
+        authors=authors,
+        year=year,
+        journal=journal,
+        citations=citations,
+        pub_types=item.get("publicationTypes") or [],
+        open_access=is_oa,
+        pdf_url=oa_pdf,
+        ids={"doi": doi, "pmid": pmid, "arxiv_id": arxiv_id, "s2_id": s2_id},
+        primary_category=fields[0] if fields else None,
+        fields_of_study=fields,
     )

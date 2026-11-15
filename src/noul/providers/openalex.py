@@ -1,15 +1,11 @@
 """OpenAlex search and work parsing."""
 
-import urllib.error
 import urllib.parse
-import urllib.request
 
 from noul import ids as _ids
-from noul.evidence import classify as _classify
-from noul.evidence import impact as _impact
 from noul.evidence import integrity as _integrity
 from noul.net import http as _nhttp
-from noul.providers import annotate as _annotate
+from noul.providers import assemble as _assemble
 from noul.providers import endpoints as _endpoints
 
 
@@ -44,7 +40,7 @@ def _parse_openalex_work(w):
     src = loc.get("source") or {}
     journal = src.get("display_name") or ""
     authors = []
-    for a in (w.get("authorships") or [])[:100]:
+    for a in w.get("authorships") or []:
         name = (a.get("author") or {}).get("display_name")
         if name:
             authors.append(name)
@@ -53,10 +49,6 @@ def _parse_openalex_work(w):
     best_oa = w.get("best_oa_location") or {}
     pdf_url = best_oa.get("pdf_url") or loc.get("pdf_url") or oa_info.get("oa_url")
     is_oa = bool(oa_info.get("is_oa") or pdf_url)
-    pub_types = [w.get("type"), w.get("type_crossref")]
-    ev = _classify.classify_evidence(title, abstract, pub_types)
-    impact, tier = _impact._estimate_impact(citations, year, journal)
-    pid = _ids._paper_id(doi=doi, openalex_id=oa_id, pmid=pmid, title=title)
     topic = w.get("primary_topic") or {}
     fields = _ids._unique([(topic.get(k) or {}).get("display_name") for k in ("field", "domain")])
     if not fields:
@@ -68,30 +60,23 @@ def _parse_openalex_work(w):
             ]
         )
     primary_category = (topic.get("subfield") or {}).get("display_name") or (fields[0] if fields else None)
-    return _annotate.annotate_paper(
-        {
-            "id": pid,
-            "title": title,
-            "authors": authors,
-            "year": year,
-            "journal": journal,
-            "doi": doi,
-            "pmid": pmid,
-            "openalex_id": oa_id,
-            "citations": citations,
-            "abstract": abstract,
-            "evidence": ev,
-            "impact": impact,
-            "tier": tier,
-            "open_access": is_oa,
-            "pdf_url": pdf_url,
-            "referenced_works": [x.rstrip("/").split("/")[-1] for x in (w.get("referenced_works") or [])[:40]],
-            "related_works": [x.rstrip("/").split("/")[-1] for x in (w.get("related_works") or [])[:40]],
-            "primary_category": primary_category,
-            "fields_of_study": fields,
-            "sources": ["openalex"],
-            **({"retraction": r} if (r := _integrity.from_openalex(w)) else {}),
-        }
+    return _assemble.assemble_paper(
+        "openalex",
+        title=title,
+        abstract=abstract,
+        authors=authors,
+        year=year,
+        journal=journal,
+        citations=citations,
+        pub_types=[w.get("type"), w.get("type_crossref")],
+        open_access=is_oa,
+        pdf_url=pdf_url,
+        ids={"doi": doi, "pmid": pmid, "openalex_id": oa_id},
+        referenced_works=[x.rstrip("/").split("/")[-1] for x in (w.get("referenced_works") or [])[:40]],
+        related_works=[x.rstrip("/").split("/")[-1] for x in (w.get("related_works") or [])[:40]],
+        primary_category=primary_category,
+        fields_of_study=fields,
+        **({"retraction": r} if (r := _integrity.from_openalex(w)) else {}),
     )
 
 
