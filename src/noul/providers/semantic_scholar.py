@@ -3,9 +3,10 @@
 import urllib.parse
 
 from noul.net import http as _nhttp
+from noul.providers import endpoints as _endpoints
 from noul.providers import s2 as _s2
 
-GRAPH = "https://api.semanticscholar.org/graph/v1/paper"
+GRAPH = _endpoints.S2_PAPER
 REF_FIELDS = "isInfluential,paperId,title,authors,year,venue,citationCount,externalIds"
 FETCH_LIMIT = 100  # fetch a wide page, sort locally, then cut to the caller's limit
 _KEYS = {"references": "citedPaper", "citations": "citingPaper"}

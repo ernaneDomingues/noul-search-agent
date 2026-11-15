@@ -245,15 +245,9 @@ def _search_cached_papers_for_claim(query: str, limit: int = 2) -> list[dict]:
     q_terms = set(re.findall(r"[a-z0-9]{3,}", (query or "").lower()))
     candidates = []
     try:
-        with _cache._conn() as conn:
-            rows = conn.execute("SELECT v FROM kv WHERE k LIKE 'paper:%'").fetchall()
         seen_ids = set()
-        for (val_json,) in rows:
-            try:
-                p = __import__("json").loads(val_json)
-            except Exception:
-                continue
-            if not isinstance(p, dict) or not p.get("title"):
+        for p in _cache.scan(_cache.PAPER, newest_first=False):
+            if not p.get("title"):
                 continue
             pid = p.get("id") or p.get("title")
             if pid in seen_ids:

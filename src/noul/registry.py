@@ -6,6 +6,8 @@ catalog and the SKILL tool list are all derived from it."""
 
 from __future__ import annotations
 
+import functools
+import json
 import sys
 import time
 import types
@@ -84,9 +86,16 @@ def tool_annotations(tool: Tool) -> dict[str, Any]:
     }
 
 
+@functools.cache
+def _output_schema_json(model: type[BaseModel]) -> str:
+    return json.dumps(model.model_json_schema(mode="serialization"))
+
+
 def output_schema(name: str) -> dict[str, Any] | None:
+    """MCP `outputSchema` of a tool. Pydantic takes ~0.5 ms per model and servers ask for the whole catalog on
+    every call, so the JSON is kept per model; each caller gets its own copy."""
     model = _loaded()[name].output
-    return model.model_json_schema(mode="serialization") if model is not None else None
+    return json.loads(_output_schema_json(model)) if model is not None else None
 
 
 def _loaded() -> dict[str, Tool]:

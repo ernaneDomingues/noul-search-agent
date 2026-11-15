@@ -9,7 +9,8 @@ from noul.evidence import classify as _classify
 from noul.evidence import impact as _impact
 from noul.evidence import integrity as _integrity
 from noul.net import http as _nhttp
-from noul.search import engine as _engine
+from noul.providers import annotate as _annotate
+from noul.providers import endpoints as _endpoints
 
 
 def _reconstruct_openalex_abstract(inv):
@@ -67,7 +68,7 @@ def _parse_openalex_work(w):
             ]
         )
     primary_category = (topic.get("subfield") or {}).get("display_name") or (fields[0] if fields else None)
-    return _engine._annotate_paper(
+    return _annotate.annotate_paper(
         {
             "id": pid,
             "title": title,
@@ -103,7 +104,7 @@ def _search_openalex(query, limit=25, year_min=None, open_access=False):
         filters.append("is_oa:true")
     if filters:
         params["filter"] = ",".join(filters)
-    url = "https://api.openalex.org/works?" + urllib.parse.urlencode(params)
+    url = _endpoints.OPENALEX_WORKS + "?" + urllib.parse.urlencode(params)
     data = _nhttp._http_json(url)
     out = []
     for w in data.get("results") or []:

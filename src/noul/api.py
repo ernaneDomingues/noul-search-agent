@@ -71,7 +71,7 @@ def _with_integrity(result, paper_id):
     except _errors.HTTPError:
         return result  # the tool itself resolved the paper; a lookup failure here must not hide its result
     check_failed = paper.pop(_integrity.CHECK_FAILED, False)
-    _cache.cache_set("paper:" + paper["id"], paper)
+    _cache.put_paper(paper["id"], paper)
     retraction, signals = _contract.integrity_signals(paper)
     if not signals and not check_failed:
         return result
@@ -292,7 +292,7 @@ def get_paper(id, domain=None):
     forced = _domain_override(domain)
     p = _integrity.enrich(_resolve(id))
     check_failed = p.pop(_integrity.CHECK_FAILED, False)
-    _cache.cache_set("paper:" + p["id"], p)  # offline tools (evidence_meter) see the integrity facts too
+    _cache.put_paper(p["id"], p)  # offline tools (evidence_meter) see the integrity facts too
     out = _slim(p, abstract_chars=10000)
     if check_failed:
         out["warnings"] = [_integrity.CHECK_FAILED_WARNING]
@@ -370,7 +370,7 @@ def scan_paper_artifacts(id, verify_http=True, inspect_fulltext=False):
     res = radar.scan_artifacts_from_paper(
         p, fulltext=text, verify_http=bool(verify_http), max_urls=radar.MAX_VERIFY_URLS
     )
-    _cache.cache_set("paper:" + pid, p)
+    _cache.put_paper(pid, p)
     out = {
         "id": pid,
         "title": p.get("title"),
@@ -1281,7 +1281,7 @@ def get_research_dossier(slug, output_dir=None):
             papers = data.get("papers") or []
             for p in papers:
                 if p.get("id"):
-                    _cache.cache_set("paper:" + p["id"], p)
+                    _cache.put_paper(p["id"], p)
         except Exception:
             pass
     return {
@@ -1334,12 +1334,12 @@ def configure_noul(
 def _cached_paper(pid):
     if not pid:
         return None
-    p = _cache.cache_get("paper:" + str(pid))
+    p = _cache.get_paper(str(pid))
     if p:
         return p
     doi = _ids._norm_doi(pid)
     if doi:
-        return _cache.cache_get("paper:" + _ids._paper_id(doi=doi))
+        return _cache.get_paper(_ids._paper_id(doi=doi))
     return None
 
 
@@ -1633,7 +1633,7 @@ def _paper_ids(ids):
 
 def _project_paper_id(raw):
     """The id under which a paper is stored, for an input id or DOI already resolved once (cache only)."""
-    cached = _cache.cache_get("paper:" + str(raw).strip(), max_age=0)
+    cached = _cache.get_paper(str(raw).strip(), max_age=0)
     return cached["id"] if isinstance(cached, dict) and cached.get("id") else str(raw).strip()
 
 

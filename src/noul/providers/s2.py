@@ -8,7 +8,8 @@ from noul import ids as _ids
 from noul.evidence import classify as _classify
 from noul.evidence import impact as _impact
 from noul.net import http as _nhttp
-from noul.search import engine as _engine
+from noul.providers import annotate as _annotate
+from noul.providers import endpoints as _endpoints
 
 S2_PAPER_FIELDS = (
     "paperId,externalIds,title,abstract,year,venue,authors,citationCount,isOpenAccess,openAccessPdf,"
@@ -22,7 +23,7 @@ def _search_s2(query, limit=20, year_min=None, open_access=False):
         params["year"] = f"{int(year_min)}-"
     if open_access:
         params["openAccessPdf"] = ""
-    url = "https://api.semanticscholar.org/graph/v1/paper/search?" + urllib.parse.urlencode(params)
+    url = _endpoints.S2_PAPER + "/search?" + urllib.parse.urlencode(params)
     data = _nhttp._http_json(url)
     out = []
     for item in data.get("data") or []:
@@ -59,7 +60,7 @@ def _parse_s2_paper(item):
         list(item.get("fieldsOfStudy") or [])
         + [f.get("category") for f in (item.get("s2FieldsOfStudy") or []) if isinstance(f, dict)]
     )
-    return _engine._annotate_paper(
+    return _annotate.annotate_paper(
         {
             "id": pid,
             "title": title,

@@ -9,7 +9,8 @@ from noul.evidence import classify as _classify
 from noul.evidence import impact as _impact
 from noul.evidence import integrity as _integrity
 from noul.net import http as _nhttp
-from noul.search import engine as _engine
+from noul.providers import annotate as _annotate
+from noul.providers import endpoints as _endpoints
 
 
 def _europepmc_pdf_url(pmc_id):
@@ -64,7 +65,7 @@ def _parse_europepmc_result(it):
             if isinstance(m, dict)
         ]
     )[:15]
-    return _engine._annotate_paper(
+    return _annotate.annotate_paper(
         {
             "id": pid,
             "title": title,
@@ -95,7 +96,7 @@ def _search_europepmc(query, limit=20, year_min=None, open_access=False):
     if open_access:
         q += " AND OPEN_ACCESS:y"
     params = {"query": q, "resultType": "core", "format": "json", "pageSize": min(limit, 50)}
-    url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search?" + urllib.parse.urlencode(params)
+    url = _endpoints.EUROPEPMC_REST + "/search?" + urllib.parse.urlencode(params)
     data = _nhttp._http_json(url)
     out = []
     for it in ((data.get("resultList") or {}).get("result")) or []:

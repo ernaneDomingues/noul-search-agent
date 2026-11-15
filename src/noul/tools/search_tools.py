@@ -1,6 +1,5 @@
 """Research tools built on search, library and evidence modules (registered in `noul.api.TOOLS`)."""
 
-import json
 import re
 from collections import Counter
 
@@ -390,17 +389,8 @@ def _cached_corpus(query, limit=MAX_EXPAND_PAPERS):
     words = [w for w in _query_words(query) if w not in STOPWORDS and len(w) > 2]
     if not words:
         return []
-    try:
-        with _cache._conn() as db:
-            rows = db.execute("SELECT v FROM kv WHERE k LIKE 'paper:%' ORDER BY ts DESC LIMIT 2000").fetchall()
-    except Exception:
-        return []
     need, scored = max(1, (len(words) + 1) // 2), []
-    for (raw,) in rows:
-        try:
-            p = json.loads(raw)
-        except (TypeError, ValueError):
-            continue
+    for p in _cache.scan(_cache.PAPER, limit=2000):
         text = {
             _norm_word(w)
             for w in re.findall(r"[A-Za-z0-9][A-Za-z0-9-]*", f"{p.get('title') or ''} {p.get('abstract') or ''}")

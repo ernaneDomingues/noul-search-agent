@@ -6,9 +6,6 @@ import hashlib
 import json
 import re
 import threading
-import urllib.error
-import urllib.parse
-import urllib.request
 from collections.abc import Callable
 
 from noul import errors as _errors
@@ -18,8 +15,10 @@ from noul.evidence import classify as _classify
 from noul.evidence import impact as _impact
 from noul.net import cache as _cache
 from noul.net import http as _nhttp
+from noul.providers import annotate as _annotate
 from noul.providers import arxiv_search as _arxiv_search
 from noul.providers import crossref as _crossref
+from noul.providers import endpoints as _endpoints
 from noul.providers import europepmc as _europepmc
 from noul.providers import openalex as _openalex
 from noul.providers import pubmed as _pubmed
@@ -32,39 +31,6 @@ DEFAULT_SOURCES = ("openalex", "pubmed", "s2", "crossref")
 
 
 SEARCH_TIMEOUT = 18
-
-
-_PROVIDERS: dict = {}
-
-
-def _provider(name):
-    """Lazily import an optional `noul.providers.<name>` module (None when the package is unavailable,
-    e.g. a stripped-down deployment)."""
-    if name not in _PROVIDERS:
-        try:
-            import importlib
-
-            _PROVIDERS[name] = importlib.import_module(f"noul.providers.{name}")
-        except Exception:
-            _PROVIDERS[name] = None
-    return _PROVIDERS[name]
-
-
-def _annotate_paper(p):
-    """Attach the scientific domain (#19) and offline artifact flags (#02). Enrichment must never break a search."""
-    dc = _provider("domain_classifier")
-    if dc is not None:
-        try:
-            p["domain"] = dc.resolve_domain(paper=p).value
-        except Exception:
-            pass
-    radar = _provider("artifact_radar")
-    if radar is not None:
-        try:
-            radar.scan_artifacts_from_paper(p, verify_http=False)
-        except Exception:
-            pass
-    return p
 
 
 def _merge_papers(lists):
@@ -116,7 +82,7 @@ def _merge_papers(lists):
                 cur["versions"] = {**p["versions"], **(cur.get("versions") or {})}
             if _classify.EV_W.get(p.get("evidence"), 0) > _classify.EV_W.get(cur.get("evidence"), 0):
                 cur["evidence"] = p["evidence"]
-            by_key[dedup_key] = _annotate_paper(cur)
+            by_key[dedup_key] = _annotate.annotate_paper(cur)
     return list(by_key.values())
 
 
@@ -159,13 +125,13 @@ def _report_progress(futs, total):
 def _remember_paper(p):
     """Cache a search result without losing what is known about it: most search sources do not report retractions,
     so a later search must not erase one (the meter would then count the paper)."""
-    prior = _cache.cache_get("paper:" + p["id"]) or {}
+    prior = _cache.get_paper(p["id"]) or {}
     for field in ("retraction", "concern"):
         if prior.get(field) and not p.get(field):
             p[field] = prior[field]
     if prior.get("versions"):
         p["versions"] = {**prior["versions"], **(p.get("versions") or {})}
-    _cache.cache_set("paper:" + p["id"], p)
+    _cache.put_paper(p["id"], p)
 
 
 def search(query, mode="quick", _unused=None, filters=None, lang="en", sources=None):
@@ -257,23 +223,15 @@ def search(query, mode="quick", _unused=None, filters=None, lang="en", sources=N
 def _resolve_arxiv(ax):
     """An arXiv id via Semantic Scholar, then OpenAlex (arXiv DOI 10.48550/arXiv.<id>), then the arXiv API: one
     rate-limited source (S2 answers 429 often without a key) must not make the paper unresolvable."""
-    from noul.providers import arxiv_search as _arxiv  # lazy: arxiv_search imports this module
-
     base = re.sub(r"v\d+$", "", ax)
     attempts = (
         lambda: _s2._parse_s2_paper(
-            _nhttp._http_json(
-                f"https://api.semanticscholar.org/graph/v1/paper/ARXIV:{urllib.parse.quote(ax, safe='/.')}"
-                f"?fields={_s2.S2_PAPER_FIELDS}"
-            )
+            _nhttp._http_json(_endpoints.s2_paper("ARXIV:" + ax, _s2.S2_PAPER_FIELDS, safe=":/."))
         ),
         lambda: _openalex._parse_openalex_work(
-            _nhttp._http_json(
-                "https://api.openalex.org/works/https://doi.org/"
-                f"{urllib.parse.quote('10.48550/arXiv.' + base, safe='')}{_nhttp._mailto_qs()}"
-            )
+            _nhttp._http_json(_endpoints.openalex_work(doi="10.48550/arXiv." + base))
         ),
-        lambda: next(iter(_arxiv.fetch_by_ids([ax])), None),
+        lambda: next(iter(_arxiv_search.fetch_by_ids([ax])), None),
     )
     for attempt in attempts:
         try:
@@ -293,7 +251,7 @@ def resolve_paper(identifier):
     ident = str(identifier).strip()
 
     # 1. Try direct cache hit
-    p = _cache.cache_get("paper:" + ident)
+    p = _cache.get_paper(ident)
     if p:
         return p
 
@@ -302,7 +260,7 @@ def resolve_paper(identifier):
     norm = None if is_arxiv else _ids._norm_doi(ident)
     if norm:
         cand_id = _ids._paper_id(doi=norm)
-        p = _cache.cache_get("paper:" + cand_id)
+        p = _cache.get_paper(cand_id)
         if p:
             return p
 
@@ -312,27 +270,27 @@ def resolve_paper(identifier):
         if is_arxiv:
             fetched = _resolve_arxiv(ident.split(":", 1)[-1].strip())
         elif norm:
-            url = f"https://api.openalex.org/works/https://doi.org/{urllib.parse.quote(norm, safe='')}{_nhttp._mailto_qs()}"
+            url = _endpoints.openalex_work(doi=norm)
             fetched = _openalex._parse_openalex_work(_nhttp._http_json(url))
         elif ident.startswith("oa:") or re.match(r"^W\d+$", ident, flags=re.I):
             oa_id = ident.split(":", 1)[-1].upper()
-            url = f"https://api.openalex.org/works/{urllib.parse.quote(oa_id, safe='')}{_nhttp._mailto_qs()}"
+            url = _endpoints.openalex_work(openalex_id=oa_id)
             fetched = _openalex._parse_openalex_work(_nhttp._http_json(url))
         elif ident.startswith("pmid:") or ident.isdigit():
             pmid = ident.split(":", 1)[-1]
-            url = f"https://api.openalex.org/works/pmid:{urllib.parse.quote(pmid, safe='')}{_nhttp._mailto_qs()}"
+            url = _endpoints.openalex_work(pmid=pmid)
             fetched = _openalex._parse_openalex_work(_nhttp._http_json(url))
         elif ident.startswith("s2:") or re.match(r"^[0-9a-f]{40}$", ident, flags=re.I):
             s2_id = ident.split(":", 1)[-1]
-            url = f"https://api.semanticscholar.org/graph/v1/paper/{urllib.parse.quote(s2_id, safe='')}?fields={_s2.S2_PAPER_FIELDS}"
+            url = _endpoints.s2_paper(s2_id, _s2.S2_PAPER_FIELDS)
             fetched = _s2._parse_s2_paper(_nhttp._http_json(url))
     except Exception:
         fetched = None
 
     if fetched:
-        _cache.cache_set("paper:" + fetched["id"], fetched)
+        _cache.put_paper(fetched["id"], fetched)
         if fetched["id"] != ident:
-            _cache.cache_set("paper:" + ident, fetched)
+            _cache.put_paper(ident, fetched)
         return fetched
 
     raise _errors.HTTPError(

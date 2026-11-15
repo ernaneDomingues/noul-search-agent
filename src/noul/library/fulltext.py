@@ -10,6 +10,7 @@ from noul import config as _config
 from noul import ids as _ids
 from noul.net import cache as _cache
 from noul.net import http as _nhttp
+from noul.providers import endpoints as _endpoints
 from noul.providers import europepmc as _europepmc
 from noul.search import engine as _engine
 
@@ -43,7 +44,7 @@ def resolve_pdf_url(paper):
     if doi:
         # 1. Try OpenAlex by DOI
         try:
-            url = f"https://api.openalex.org/works/https://doi.org/{urllib.parse.quote(doi, safe='')}{_nhttp._mailto_qs()}"
+            url = _endpoints.openalex_work(doi=doi)
             w = _nhttp._http_json(url, timeout=10)
             best_oa = w.get("best_oa_location") or {}
             oa_info = w.get("open_access") or {}
@@ -70,8 +71,10 @@ def resolve_pdf_url(paper):
 
         # 3. Try EuropePMC by DOI
         try:
-            epmc_url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search?" + urllib.parse.urlencode(
-                {"query": f'DOI:"{doi}"', "format": "json", "ResultType": "core"}
+            epmc_url = (
+                _endpoints.EUROPEPMC_REST
+                + "/search?"
+                + urllib.parse.urlencode({"query": f'DOI:"{doi}"', "format": "json", "ResultType": "core"})
             )
             ed = _nhttp._http_json(epmc_url, timeout=10)
             res_list = ((ed.get("resultList") or {}).get("result")) or []
@@ -273,10 +276,7 @@ def fulltext(id):
     # Fallback: check EuropePMC fullTextXML if PMC ID is available
     if p.get("pmc_id"):
         try:
-            xml_url = (
-                "https://www.ebi.ac.uk/europepmc/webservices/rest/"
-                f"{urllib.parse.quote(str(p['pmc_id']).strip(), safe='')}/fullTextXML"
-            )
+            xml_url = f"{_endpoints.EUROPEPMC_REST}/{urllib.parse.quote(str(p['pmc_id']).strip(), safe='')}/fullTextXML"
             xml_raw = _nhttp._http_get(xml_url, timeout=15, binary=True)
             cleaned = _jats_text(xml_raw)
             if len(cleaned) > 500:

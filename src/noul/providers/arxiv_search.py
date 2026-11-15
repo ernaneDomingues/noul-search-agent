@@ -9,7 +9,7 @@ from noul import ids as _ids
 from noul.evidence import classify as _classify
 from noul.evidence import impact as _impact
 from noul.net import http as _nhttp
-from noul.search import engine as _engine
+from noul.providers import annotate as _annotate
 
 
 def _search_arxiv(query, limit=15, year_min=None):
@@ -66,7 +66,7 @@ def _parse_feed(xml_txt, year_min=None):
         impact, tier = _impact._estimate_impact(0, year, "arXiv")
         pid = _ids._paper_id(doi=doi, arxiv_id=arxiv_id, title=title)
         out.append(
-            _engine._annotate_paper(
+            _annotate.annotate_paper(
                 {
                     "id": pid,
                     "title": title,

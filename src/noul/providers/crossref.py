@@ -8,7 +8,7 @@ from noul import ids as _ids
 from noul.evidence import classify as _classify
 from noul.evidence import impact as _impact
 from noul.net import http as _nhttp
-from noul.search import engine as _engine
+from noul.providers import annotate as _annotate
 
 
 def _search_crossref(query, limit=15, year_min=None):
@@ -50,7 +50,7 @@ def _search_crossref(query, limit=15, year_min=None):
         pid = _ids._paper_id(doi=doi, title=title)
         subjects = _ids._unique(it.get("subject") or [])
         out.append(
-            _engine._annotate_paper(
+            _annotate.annotate_paper(
                 {
                     "id": pid,
                     "title": title,
