@@ -1,14 +1,19 @@
 """Pieces shared by the MCP server (`noul.server.mcp`) and its HTTP transport (`noul.server.http`)."""
 
+from __future__ import annotations
+
 import copy
 import ipaddress
 import os
 import sys
+from dataclasses import dataclass
+from typing import Any
 
 from noul import __version__
 from noul import api as _api
 from noul import log as _log
 from noul import registry as _registry
+from noul.server import limits as _limits
 
 DEFAULT_PORT = 8765
 MAX_BODY_BYTES = 1024 * 1024
@@ -235,3 +240,121 @@ def public_caps(name):
 
 # Server-side dossiers are never exposed by the public connector.
 PUBLIC_HIDDEN_TOOLS = frozenset({"list_research_dossiers", "get_research_dossier", "project_list", "project_get"})
+
+
+# -----------------------------------------------------------------------------------------------------------------
+# Tool dispatch: the one place that decides whether a call may run, for the MCP handler and the REST route alike.
+
+
+@dataclass(frozen=True)
+class Policy:
+    """What a server instance lets its clients do; MCP and REST share one policy, hence one set of budgets."""
+
+    profile: str = "all"
+    allow_write: bool = True
+    public: bool = False
+    tool_limiter: _limits.RateLimiter | None = None  # per-instance ceiling on tool calls
+    concurrency: _limits.Concurrency | None = None  # tool calls running at once
+
+    def __post_init__(self) -> None:
+        if self.public:  # the hosted connector is read-only, whatever else was asked for
+            object.__setattr__(self, "allow_write", False)
+
+
+@dataclass(frozen=True)
+class Refusal:
+    """A call that will not run. `text` is what the client reads; `status` and `retry_after` are for HTTP."""
+
+    label: str
+    message: str
+    status: int
+    retry_after: int | None = None
+
+    @property
+    def text(self) -> str:
+        return f"{self.label}: {self.message}"
+
+
+@dataclass
+class Call:
+    """An admitted call: it holds a concurrency slot until `run()` returns, so run it exactly once."""
+
+    name: str
+    args: Any
+    caps: dict[str, int | None] | None
+    concurrency: _limits.Concurrency | None
+
+    def run(self) -> Any:
+        """Execute the tool (blocking: call it from a worker thread)."""
+        try:
+            return _registry.call(self.name, self.args, caps=self.caps)
+        finally:
+            if self.concurrency is not None:
+                self.concurrency.release()
+
+
+def refusal_for(name: str, args: Any, policy: Policy) -> Refusal | None:
+    """Why `policy` forbids this call (unknown or hidden tool, writes, file reads), or None when it may run."""
+    if name not in _registry.TOOLS:
+        return Refusal("NotFound", f"unknown tool '{name}'", 404)
+    if name not in {t["name"] for t in visible_tools(policy.profile, allow_write=True, public=policy.public)}:
+        why = f"it is not in the '{policy.profile}' tool profile (NOUL_TOOL_PROFILE / --profile)"
+        return Refusal("NotAvailable", f"tool '{name}' is not available here: {why}.", 404)
+    if policy.allow_write:
+        return None
+    if name in _registry.write_tools():
+        why = "it writes (to disk or an external account) and writes are disabled on this HTTP server"
+        return Refusal("NotAvailable", f"tool '{name}' is not available here: {why}.", 403)
+    if _registry.call_writes(name, args):
+        return Refusal(
+            "PermissionError",
+            f"Tool '{name}' writes (to disk or an external account) with these arguments and is disabled over HTTP "
+            "(set NOUL_HTTP_TOKEN and NOUL_HTTP_ALLOW_WRITE=1 to enable it).",
+            403,
+        )
+    if _registry.call_reads_file(name, args):
+        return Refusal("PermissionError", f"Tool '{name}' cannot read files on this server: send the text itself.", 403)
+    return None
+
+
+def dispatch(name: str, args: Any, policy: Policy) -> Call | Refusal:
+    """Admit one tool call under `policy`: permission first, then the tool-call rate limit, then a concurrency
+    slot. Returns the `Call` to run, or the `Refusal` to report (nothing is held in that case)."""
+    refusal = refusal_for(name, args, policy)
+    if refusal is not None:
+        return refusal
+    if policy.tool_limiter is not None and (wait := policy.tool_limiter.check("tools")) > 0:
+        seconds = max(1, int(wait + 0.999))
+        return Refusal(
+            "RateLimited",
+            f"the public Noul connector reached its tool-call limit. Wait about {seconds} s and retry this call "
+            "once; if it fails again, tell the user the public server is busy and continue with the results you "
+            "already have.",
+            429,
+            retry_after=seconds,
+        )
+    if policy.concurrency is not None and not policy.concurrency.try_acquire():
+        return Refusal(
+            "Busy",
+            "the Noul server is at capacity. Wait about 5 s and retry this call once; if it fails again, tell the "
+            "user the server is busy and continue with the results you already have.",
+            503,
+            retry_after=5,
+        )
+    return Call(name, args, public_caps(name) if policy.public else None, policy.concurrency)
+
+
+def error_text(exc: Exception) -> str:
+    """Error text for the host model: argument/lookup problems are not network failures (do not retry them)."""
+    code = getattr(exc, "code", None)
+    if code == 400:
+        return f"InvalidArguments: {exc}"
+    if code == 404:
+        return f"NotFound: {exc}"
+    return f"{type(exc).__name__}: {exc}"
+
+
+def error_status(exc: Exception) -> int:
+    """HTTP status for a tool that raised: its own 4xx/5xx code when it has one, else 500."""
+    code = getattr(exc, "code", None)
+    return code if isinstance(code, int) and 400 <= code < 600 else 500

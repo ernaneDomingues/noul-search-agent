@@ -19,7 +19,6 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from noul import __version__
-from noul import registry as _registry
 from noul.server import common as _common
 from noul.server import limits as _limits
 from noul.server import mcp as _mcp
@@ -174,16 +173,15 @@ def build_app(
     """Starlette app (wrapped in Guard). Writes are only possible with a token *and* allow_write, never in `public`
     mode (the hosted read-only connector: no token, request-size caps, no server dossiers)."""
     allow_write = bool(allow_write and token) and not public
-    # One concurrency budget shared by MCP and REST tool calls.
-    concurrency = _limits.Concurrency(max_concurrency) if max_concurrency else None
-    server = _mcp.build_server(
+    # One policy, hence one rate and concurrency budget, shared by MCP and REST tool calls.
+    policy = _common.Policy(
         profile=profile,
         allow_write=allow_write,
-        elicit_email=False,
         public=public,
-        max_concurrency=concurrency,
         tool_limiter=tool_limiter,
+        concurrency=_limits.Concurrency(max_concurrency) if max_concurrency else None,
     )
+    server = _mcp.build_server(policy=policy)
 
     async def healthz(request: Request) -> Response:
         return JSONResponse({"status": "ok", "version": __version__})
@@ -209,42 +207,14 @@ def build_app(
             body = json.loads(raw) if raw.strip() else {}
         except ValueError as e:
             return JSONResponse({"error": f"Invalid JSON: {e}"}, status_code=400)
-        if name not in {t["name"] for t in _common.visible_tools(profile, allow_write=True, public=public)}:
-            return JSONResponse({"error": f"Unknown tool {name}"}, status_code=404)
-        if not allow_write and _registry.call_writes(name, body):
-            return JSONResponse(
-                {
-                    "error": f"Tool '{name}' writes (to disk or an external account) with these arguments and is disabled over HTTP "
-                    "(set NOUL_HTTP_TOKEN and NOUL_HTTP_ALLOW_WRITE=1 to enable it)."
-                },
-                status_code=403,
-            )
-        if not allow_write and _registry.call_reads_file(name, body):
-            return JSONResponse(
-                {"error": f"Tool '{name}' cannot read files on this server: send the text itself."}, status_code=403
-            )
-        caps = _common.public_caps(name) if public else None
-        if tool_limiter is not None and (wait := tool_limiter.check("tools")) > 0:
-            return JSONResponse(
-                {"error": f"RateLimited: tool-call limit reached; retry in {int(wait + 0.999)} s."},
-                status_code=429,
-                headers={"Retry-After": str(max(1, int(wait + 0.999)))},
-            )
-        if concurrency is not None and not concurrency.try_acquire():
-            return JSONResponse(
-                {"error": "Busy: too many requests in progress; retry shortly."},
-                status_code=503,
-                headers={"Retry-After": "5"},
-            )
+        call = _common.dispatch(name, body, policy)
+        if isinstance(call, _common.Refusal):
+            retry = {"Retry-After": str(call.retry_after)} if call.retry_after else None
+            return JSONResponse({"error": call.text}, status_code=call.status, headers=retry)
         try:
-            result = await run_in_threadpool(_registry.call, name, body, caps)
+            result = await run_in_threadpool(call.run)
         except Exception as e:
-            code = getattr(e, "code", None)
-            status = code if isinstance(code, int) and 400 <= code < 600 else 500
-            return JSONResponse({"error": f"{type(e).__name__}: {e}"}, status_code=status)
-        finally:
-            if concurrency is not None:
-                concurrency.release()
+            return JSONResponse({"error": _common.error_text(e)}, status_code=_common.error_status(e))
         payload = result if isinstance(result, dict) else {"result": result}
         if getattr(result, "warnings", None):
             payload["warnings"] = list(result.warnings)

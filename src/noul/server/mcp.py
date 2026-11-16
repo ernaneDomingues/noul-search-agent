@@ -200,16 +200,6 @@ def _instructions(public: bool, prompts: list[str]) -> str:
     return text + (PUBLIC_INSTRUCTIONS if public else "")
 
 
-def _error_text(exc: Exception) -> str:
-    """Error text for the host model: argument/lookup problems are not network failures (do not retry them)."""
-    code = getattr(exc, "code", None)
-    if code == 400:
-        return f"InvalidArguments: {exc}"
-    if code == 404:
-        return f"NotFound: {exc}"
-    return f"{type(exc).__name__}: {exc}"
-
-
 class _EmailPrompt:
     """Asks for the polite-pool contact e-mail at most once per server process (stdio = one client)."""
 
@@ -220,10 +210,10 @@ class _EmailPrompt:
         # entry the server did not ask for is ignored (otherwise any client could overwrite the config).
         self.pending = False
 
-    def claim(self, tool: dict[str, Any], ctx: Any) -> bool:
+    def claim(self, name: str, ctx: Any) -> bool:
         """True for exactly one call that should ask (check-and-set with no await in between, so parallel tool
         calls on the same event loop never open several prompts)."""
-        if not self.enabled or self.asked or tool["name"] not in EMAIL_TOOLS:
+        if not self.enabled or self.asked or name not in EMAIL_TOOLS:
             return False
         caps = ctx.session.client_capabilities
         if not (caps and caps.elicitation):
@@ -258,15 +248,23 @@ def build_server(
     public: bool = False,
     max_concurrency: int | _limits.Concurrency | None = None,
     tool_limiter: _limits.RateLimiter | None = None,
+    policy: _common.Policy | None = None,
 ) -> Server:
     """MCP server exposing the tools of `profile`; write tools are hidden and refused unless `allow_write`.
 
     `public` (the hosted connector) forces read-only, hides the server's dossiers and caps request sizes;
-    `max_concurrency` bounds tool calls running at once (extra calls get a "busy" error to retry)."""
-    if public:
-        allow_write, elicit_email = False, False
+    `max_concurrency` bounds tool calls running at once (extra calls get a "busy" error to retry). A `policy`
+    replaces those five arguments: the HTTP app passes the one it shares with its REST routes."""
+    if policy is None:
+        policy = _common.Policy(
+            profile=profile,
+            allow_write=allow_write,
+            public=public,
+            tool_limiter=tool_limiter,
+            concurrency=_limits.Concurrency(max_concurrency) if isinstance(max_concurrency, int) else max_concurrency,
+        )
+    profile, allow_write, public = policy.profile, policy.allow_write, policy.public
     email_prompt = _EmailPrompt(elicit_email and allow_write)
-    limiter = _limits.Concurrency(max_concurrency) if isinstance(max_concurrency, int) else max_concurrency
 
     def visible() -> dict[str, dict[str, Any]]:
         return {t["name"]: t for t in _common.visible_tools(profile, allow_write, public)}
@@ -288,32 +286,16 @@ def build_server(
 
     async def call_tool(ctx: Any, params: types.CallToolRequestParams) -> Any:
         name, args = params.name, dict(params.arguments or {})
-        tools = visible()
-        if name not in tools:
-            if name not in _registry.TOOLS:
-                return _text_result(f"NotFound: unknown tool '{name}'", is_error=True)
-            if not allow_write and name in _registry.write_tools():
-                why = "it writes (to disk or an external account) and writes are disabled on this HTTP server"
-            else:
-                why = f"it is not in the '{profile}' tool profile (NOUL_TOOL_PROFILE / --profile)"
-            return _text_result(f"NotAvailable: tool '{name}' is not available here: {why}.", is_error=True)
-        if not allow_write and _registry.call_writes(name, args):
-            return _text_result(
-                f"PermissionError: Tool '{name}' writes (to disk or an external account) with these arguments and is disabled over HTTP "
-                "(set NOUL_HTTP_TOKEN and NOUL_HTTP_ALLOW_WRITE=1 to enable it).",
-                is_error=True,
-            )
-        if not allow_write and _registry.call_reads_file(name, args):
-            return _text_result(
-                f"PermissionError: Tool '{name}' cannot read files on this server: send the text itself.", is_error=True
-            )
+        refusal = _common.refusal_for(name, args, policy)
+        if refusal is not None:
+            return _text_result(refusal.text, is_error=True)
 
         # One-time contact e-mail elicitation (stdio only, Unpaywall tools): back-channel on handshake-era
         # protocols, input_required round trip on 2026-07-28+.
         answer = (params.input_responses or {}).get(EMAIL_REQUEST_KEY)
         if answer is not None and email_prompt.pending:
             email_prompt.save(answer)
-        elif email_prompt.claim(tools[name], ctx):
+        elif email_prompt.claim(name, ctx):
             message = (
                 "Noul can fetch more open-access full texts and PDFs (Unpaywall) with a contact e-mail, also used "
                 "for the scholarly APIs' polite pools. Share one? (optional; you will not be asked again)"
@@ -333,20 +315,9 @@ def build_server(
                     }
                 )
 
-        caps = _common.public_caps(name) if public else None
-        if tool_limiter is not None and (wait := tool_limiter.check("tools")) > 0:
-            return _text_result(
-                f"RateLimited: the public Noul connector reached its tool-call limit. Wait about {int(wait + 0.999)} s "
-                "and retry this call once; if it fails again, tell the user the public server is busy and continue "
-                "with the results you already have.",
-                is_error=True,
-            )
-        if limiter is not None and not limiter.try_acquire():
-            return _text_result(
-                "Busy: the Noul server is at capacity. Wait about 5 s and retry this call once; if it fails again, "
-                "tell the user the server is busy and continue with the results you already have.",
-                is_error=True,
-            )
+        call = _common.dispatch(name, args, policy)
+        if isinstance(call, _common.Refusal):
+            return _text_result(call.text, is_error=True)
 
         token = anyio.lowlevel.current_token()
         finished = threading.Event()
@@ -359,17 +330,14 @@ def build_server(
         def run() -> Any:
             _engine.SOURCE_PROGRESS.set(progress)
             try:
-                return _registry.call(name, args, caps=caps)
+                return call.run()
             finally:
                 finished.set()
 
         try:
             result = await anyio.to_thread.run_sync(contextvars.copy_context().run, run)
         except Exception as e:
-            return _text_result(_error_text(e), is_error=True)
-        finally:
-            if limiter is not None:
-                limiter.release()
+            return _text_result(_common.error_text(e), is_error=True)
         return _text_result(result, output=_registry.REGISTRY[name].output)
 
     async def list_resources(ctx: Any, params: Any) -> types.ListResourcesResult:
