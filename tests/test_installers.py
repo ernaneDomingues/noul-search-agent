@@ -35,7 +35,6 @@ class FrozenExecutableTests(unittest.TestCase):
                 mock.patch.object(install, "FROZEN", True),
                 mock.patch.object(sys, "_MEIPASS", bundle, create=True),
                 mock.patch.object(sys, "executable", str(exe)),
-                mock.patch.object(install, "RUNNER", "python"),
                 mock.patch.object(install, "app_dir", return_value=Path(app)),
             ):
                 self.assertEqual(install._asset_root(), Path(bundle))

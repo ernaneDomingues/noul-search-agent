@@ -14,7 +14,10 @@ import shutil
 import sys
 import sysconfig
 import tempfile
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 HERE = Path(__file__).resolve().parent
 # Repository root of a source checkout (src/noul/install.py -> repo); wheels ship templates under share/.
@@ -33,24 +36,7 @@ CLI_REFS = ("uv run --project ${CLAUDE_PLUGIN_ROOT} noul",)
 # Absolute-path launchers for when no console script is installed (see noul._bin).
 _LAUNCHERS = Path(__file__).resolve().parent / "_bin"
 
-DRY = False
-UNINSTALL = False
-RUNNER = "python"
-ASSETS = REPO
-# Folder written into rendered templates (`__NOUL_DIR__`); differs from ASSETS for the frozen executable, whose
-# bundle folder (sys._MEIPASS) is a temporary directory deleted when the process exits.
-INSTALL_ROOT: Path | None = None
-ERRORS: list[str] = []
 APP_FILES = ("skills", "agents", "commands")
-
-
-def log(msg):
-    print(("[dry-run] " if DRY else "") + msg)
-
-
-def fail(msg):
-    ERRORS.append(msg)
-    print(f"ERROR: {msg}", file=sys.stderr)
 
 
 def _asset_root():
@@ -83,9 +69,9 @@ def _q(s):
     return f'"{s}"' if any(ch.isspace() for ch in s) else s
 
 
-def mcp_command():
+def mcp_command(runner="python"):
     """(command, args) agents use to start the MCP server over stdio."""
-    if RUNNER == "uvx":
+    if runner == "uvx":
         return "uvx", [PKG, "mcp"]
     if FROZEN:
         return str(frozen_target()), ["mcp"]
@@ -95,8 +81,8 @@ def mcp_command():
     return sys.executable, [str(_LAUNCHERS / "noul_mcp_launcher.py")]
 
 
-def cli_command():
-    if RUNNER == "uvx":
+def cli_command(runner="python"):
+    if runner == "uvx":
         return f"uvx {PKG}"
     if FROZEN:
         return _q(frozen_target())
@@ -142,26 +128,6 @@ def frozen_target():
     return app_dir() / ("noul.exe" if os.name == "nt" else "noul")
 
 
-def deploy_frozen():
-    """Copy the running executable and its templates to app_dir(); returns that folder (also in dry-run)."""
-    root, target = app_dir(), frozen_target()
-    source = Path(sys.executable).resolve()
-    if source != target.resolve():
-        log(f"copy {source} -> {target}")
-        if not DRY:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            _atomic_copy(source, target)
-            target.chmod(0o755)
-    for name in APP_FILES:
-        src = ASSETS / name
-        if src.is_dir() and src.resolve() != (root / name).resolve():
-            log(f"copy {src.name}/ -> {root / name}")
-            if not DRY:
-                shutil.rmtree(root / name, ignore_errors=True)
-                shutil.copytree(src, root / name)
-    return root
-
-
 def _atomic_copy(src, dst):
     fd, tmp = tempfile.mkstemp(prefix=f".{dst.name}.", dir=dst.parent)
     os.close(fd)
@@ -171,36 +137,6 @@ def _atomic_copy(src, dst):
     except BaseException:
         Path(tmp).unlink(missing_ok=True)
         raise
-
-
-def render(path, skill_path=None):
-    text = path.read_text(encoding="utf-8")
-    if skill_path:
-        for ref in SKILL_REFS:
-            text = text.replace(ref, str(skill_path))
-    for ref in CLI_REFS:
-        text = text.replace(ref, cli_command())
-    root = str(INSTALL_ROOT or ASSETS)
-    return text.replace("__NOUL_DIR__", root).replace("${CLAUDE_PLUGIN_ROOT}", root)
-
-
-def backup(path):
-    bak = path.with_name(path.name + ".bak")
-    if path.is_file() and not bak.exists():
-        log(f"backup {path} -> {bak.name}")
-        if not DRY:
-            shutil.copy2(path, bak)
-
-
-def write(dst, text, keep_backup=False):
-    if dst.is_file() and dst.read_text(encoding="utf-8", errors="replace") == text:
-        return log(f"unchanged {dst}")
-    if keep_backup:
-        backup(dst)
-    log(f"write {dst}")
-    if not DRY:
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        _atomic_write(dst, text)
 
 
 def _atomic_write(dst, text):
@@ -218,87 +154,12 @@ def _atomic_write(dst, text):
         raise
 
 
-def remove(p):
-    if p.exists():
-        log(f"remove {p}")
-        if not DRY:
-            shutil.rmtree(p) if p.is_dir() else p.unlink()
-
-
-def install_skill(root):
-    dst = root / "noul-search"
-    if UNINSTALL:
-        return remove(dst)
-    write(dst / "SKILL.md", render(ASSETS / "skills/noul-search/SKILL.md"))
-    # The skill is layered: SKILL.md routes to one reference per journey (search, review, writing, submission).
-    for ref in sorted((ASSETS / "skills/noul-search/references").glob("*.md")):
-        write(dst / "references" / ref.name, render(ref))
-
-
-def install_agent(dst, src):
-    remove(dst) if UNINSTALL else write(dst, render(ASSETS / "agents" / src))
-
-
-def install_command(dst, src):
-    remove(dst) if UNINSTALL else write(dst, render(ASSETS / "commands" / src))
-
-
-def patch_block(path, body, begin, end):
-    """Insert/replace/remove a marked block in a text file."""
-    if UNINSTALL and not path.exists():
-        return
-    try:
-        original = path.read_text(encoding="utf-8") if path.exists() else ""
-    except UnicodeDecodeError as e:
-        return fail(f"{path} is not valid UTF-8 ({e}); left untouched.")
-    text = re.sub(re.escape(begin) + r".*?" + re.escape(end) + r"\n?", "", original, flags=re.S).rstrip("\n")
-    user_content = bool(text.strip())
-    if not UNINSTALL:
-        text += f"\n\n{begin}\n{body.strip()}\n{end}\n"
-    elif user_content:
-        text += "\n"
-    if UNINSTALL and not user_content:
-        return remove(path)
-    write(path, text.lstrip("\n"), keep_backup=True)
-
-
-def json_mcp(path, entry, key="mcpServers"):
-    if not path.exists():
-        if UNINSTALL:
-            return
-        cfg = {}
-    else:
-        try:
-            raw = path.read_text(encoding="utf-8")
-            cfg = json.loads(raw) if raw.strip() else {}
-        except (json.JSONDecodeError, UnicodeDecodeError) as e:
-            return fail(f"{path} is not valid JSON ({e}). It was left untouched; fix it and re-run.")
-    if not isinstance(cfg, dict) or not isinstance(cfg.get(key, {}), dict):
-        return fail(f"{path} does not contain a JSON object with an '{key}' object; left untouched.")
-    servers = cfg.setdefault(key, {})
-    if UNINSTALL:
-        if "noul" not in servers:
-            return
-        servers.pop("noul")
-    else:
-        servers["noul"] = entry
-    write(path, json.dumps(cfg, indent=2, ensure_ascii=False) + "\n", keep_backup=True)
-
-
 def _toml_str(s):
     """TOML literal string ('...': no escapes, safe for Windows paths) or, if impossible, a basic string."""
     s = str(s)
     if "'" not in s and "\n" not in s and "\r" not in s:
         return f"'{s}'"
     return json.dumps(s)
-
-
-def claude():
-    install_skill(HOME / ".claude/skills")
-    install_agent(HOME / ".claude/agents/noul-researcher.md", "claude-noul-researcher.md")
-    install_command(HOME / ".claude/commands/noul-search-config.md", "noul-search-config.md")
-    cmd, args = mcp_command()
-    json_mcp(HOME / ".claude.json", {"type": "stdio", "command": cmd, "args": args, "env": {}})
 
 
 def _app_config_dir(app):
@@ -310,97 +171,229 @@ def _app_config_dir(app):
     return HOME / ".config" / app
 
 
-def claude_desktop():
-    cfg_path = _app_config_dir("Claude") / "claude_desktop_config.json"
-    cmd, args = mcp_command()
-    json_mcp(cfg_path, {"command": cmd, "args": args})
+@dataclass
+class Install:
+    """One installer run: its options, where its templates come from, and the errors it met. Every file
+    operation goes through it, so `dry` and `uninstall` are honoured in one place."""
+
+    dry: bool = False
+    uninstall: bool = False
+    runner: str = "python"
+    assets: Path = REPO
+    # Folder written into rendered templates (`__NOUL_DIR__`); differs from `assets` for the frozen executable,
+    # whose bundle folder (sys._MEIPASS) is a temporary directory deleted when the process exits.
+    install_root: Path | None = None
+    errors: list[str] = field(default_factory=list)
+
+    def log(self, msg):
+        print(("[dry-run] " if self.dry else "") + msg)
+
+    def fail(self, msg):
+        self.errors.append(msg)
+        print(f"ERROR: {msg}", file=sys.stderr)
+
+    def mcp_command(self):
+        return mcp_command(self.runner)
+
+    def cli_command(self):
+        return cli_command(self.runner)
+
+    def deploy_frozen(self):
+        """Copy the running executable and its templates to app_dir(); returns that folder (also in dry-run)."""
+        root, target = app_dir(), frozen_target()
+        source = Path(sys.executable).resolve()
+        if source != target.resolve():
+            self.log(f"copy {source} -> {target}")
+            if not self.dry:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                _atomic_copy(source, target)
+                target.chmod(0o755)
+        for name in APP_FILES:
+            src = self.assets / name
+            if src.is_dir() and src.resolve() != (root / name).resolve():
+                self.log(f"copy {src.name}/ -> {root / name}")
+                if not self.dry:
+                    shutil.rmtree(root / name, ignore_errors=True)
+                    shutil.copytree(src, root / name)
+        return root
+
+    def render(self, path, skill_path=None):
+        text = path.read_text(encoding="utf-8")
+        if skill_path:
+            for ref in SKILL_REFS:
+                text = text.replace(ref, str(skill_path))
+        for ref in CLI_REFS:
+            text = text.replace(ref, self.cli_command())
+        root = str(self.install_root or self.assets)
+        return text.replace("__NOUL_DIR__", root).replace("${CLAUDE_PLUGIN_ROOT}", root)
+
+    def backup(self, path):
+        bak = path.with_name(path.name + ".bak")
+        if path.is_file() and not bak.exists():
+            self.log(f"backup {path} -> {bak.name}")
+            if not self.dry:
+                shutil.copy2(path, bak)
+
+    def write(self, dst, text, keep_backup=False):
+        if dst.is_file() and dst.read_text(encoding="utf-8", errors="replace") == text:
+            return self.log(f"unchanged {dst}")
+        if keep_backup:
+            self.backup(dst)
+        self.log(f"write {dst}")
+        if not self.dry:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            _atomic_write(dst, text)
+
+    def remove(self, p):
+        if p.exists():
+            self.log(f"remove {p}")
+            if not self.dry:
+                shutil.rmtree(p) if p.is_dir() else p.unlink()
+
+    def skill(self, root):
+        dst = root / "noul-search"
+        if self.uninstall:
+            return self.remove(dst)
+        self.write(dst / "SKILL.md", self.render(self.assets / "skills/noul-search/SKILL.md"))
+        # The skill is layered: SKILL.md routes to one reference per journey (search, review, writing, submission).
+        for ref in sorted((self.assets / "skills/noul-search/references").glob("*.md")):
+            self.write(dst / "references" / ref.name, self.render(ref))
+
+    def template(self, dst, folder, src):
+        """Install (or remove) one rendered template of `folder` (`agents`, `commands`) at `dst`."""
+        self.remove(dst) if self.uninstall else self.write(dst, self.render(self.assets / folder / src))
+
+    def patch_block(self, path, body, begin, end):
+        """Insert/replace/remove a marked block in a text file."""
+        if self.uninstall and not path.exists():
+            return
+        try:
+            original = path.read_text(encoding="utf-8") if path.exists() else ""
+        except UnicodeDecodeError as e:
+            return self.fail(f"{path} is not valid UTF-8 ({e}); left untouched.")
+        text = re.sub(re.escape(begin) + r".*?" + re.escape(end) + r"\n?", "", original, flags=re.S).rstrip("\n")
+        user_content = bool(text.strip())
+        if not self.uninstall:
+            text += f"\n\n{begin}\n{body.strip()}\n{end}\n"
+        elif user_content:
+            text += "\n"
+        if self.uninstall and not user_content:
+            return self.remove(path)
+        self.write(path, text.lstrip("\n"), keep_backup=True)
+
+    def json_mcp(self, path, entry=None, key="mcpServers"):
+        """Register (or remove) the `noul` server in a JSON config. `entry` holds the fields the client wants
+        besides `command` and `args`, which come from the run."""
+        if not path.exists():
+            if self.uninstall:
+                return
+            cfg = {}
+        else:
+            try:
+                raw = path.read_text(encoding="utf-8")
+                cfg = json.loads(raw) if raw.strip() else {}
+            except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                return self.fail(f"{path} is not valid JSON ({e}). It was left untouched; fix it and re-run.")
+        if not isinstance(cfg, dict) or not isinstance(cfg.get(key, {}), dict):
+            return self.fail(f"{path} does not contain a JSON object with an '{key}' object; left untouched.")
+        servers = cfg.setdefault(key, {})
+        if self.uninstall:
+            if "noul" not in servers:
+                return
+            servers.pop("noul")
+        else:
+            servers["noul"] = self.server_entry(**(entry or {}))
+        self.write(path, json.dumps(cfg, indent=2, ensure_ascii=False) + "\n", keep_backup=True)
+
+    def server_entry(self, type=None, **extra):
+        """The `noul` server as a JSON config entry: optional `type` first, then command and args, then `extra`."""
+        cmd, args = self.mcp_command()
+        return {**({"type": type} if type else {}), "command": cmd, "args": args, **extra}
 
 
-def copilot():
-    install_skill(HOME / ".copilot/skills")
-    install_agent(HOME / ".copilot/agents/noul-researcher.agent.md", "copilot-noul-researcher.agent.md")
-    cmd, args = mcp_command()
-    json_mcp(HOME / ".copilot/mcp-config.json", {"type": "local", "command": cmd, "args": args, "tools": ["*"]})
+# -----------------------------------------------------------------------------------------------------------------
+# Clients: what installing Noul means for each app
 
 
-def codex():
-    install_skill(HOME / ".codex/skills")
-    snippet = render(ASSETS / "agents/AGENTS.snippet.md", HOME / ".codex/skills/noul-search/SKILL.md")
-    patch_block(HOME / ".codex/AGENTS.md", snippet, *MARK)
-    cmd, args = mcp_command()
-    toml = f"[mcp_servers.noul]\ncommand = {_toml_str(cmd)}\nargs = [{', '.join(_toml_str(a) for a in args)}]"
-    patch_block(HOME / ".codex/config.toml", toml, *TOML_MARK)
+def _claude(run):
+    run.skill(HOME / ".claude/skills")
+    run.template(HOME / ".claude/agents/noul-researcher.md", "agents", "claude-noul-researcher.md")
+    run.template(HOME / ".claude/commands/noul-search-config.md", "commands", "noul-search-config.md")
+    run.json_mcp(HOME / ".claude.json", {"type": "stdio", "env": {}})
 
 
-def gemini():
-    ext = HOME / ".gemini/extensions/noul"
-    if UNINSTALL:
-        return remove(ext)
-    manifest = json.loads((ASSETS / "agents/gemini-extension.json").read_text(encoding="utf-8"))
-    cmd, args = mcp_command()
-    manifest["mcpServers"] = {"noul": {"command": cmd, "args": args}}
-    write(ext / "gemini-extension.json", json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
-    write(ext / "GEMINI.md", render(ASSETS / "agents/AGENTS.snippet.md", ext / "skills/noul-search/SKILL.md"))
-    install_skill(ext / "skills")
+def _claude_desktop(run):
+    run.json_mcp(_app_config_dir("Claude") / "claude_desktop_config.json")
 
 
-def antigravity():
-    install_skill(HOME / ".gemini/config/skills")
-    cmd, args = mcp_command()
-    json_mcp(HOME / ".gemini/antigravity/mcp_config.json", {"command": cmd, "args": args, "env": {}})
-
-
-def vscode():
+def _vscode(run):
     """VS Code user-level MCP servers (`servers` key in User/mcp.json, used by Copilot agent mode)."""
-    cmd, args = mcp_command()
-    json_mcp(_app_config_dir("Code") / "User/mcp.json", {"type": "stdio", "command": cmd, "args": args}, key="servers")
+    run.json_mcp(_app_config_dir("Code") / "User/mcp.json", {"type": "stdio"}, key="servers")
 
 
-def cursor():
-    cmd, args = mcp_command()
-    json_mcp(HOME / ".cursor/mcp.json", {"command": cmd, "args": args})
+def _cursor(run):
+    run.json_mcp(HOME / ".cursor/mcp.json")
 
 
-TARGETS = {
-    "claude": claude,
-    "claude-desktop": claude_desktop,
-    "vscode": vscode,
-    "cursor": cursor,
-    "copilot": copilot,
-    "codex": codex,
-    "gemini": gemini,
-    "antigravity": antigravity,
-}
+def _copilot(run):
+    run.skill(HOME / ".copilot/skills")
+    run.template(HOME / ".copilot/agents/noul-researcher.agent.md", "agents", "copilot-noul-researcher.agent.md")
+    run.json_mcp(HOME / ".copilot/mcp-config.json", {"type": "local", "tools": ["*"]})
 
-LABELS = {
-    "claude": "Claude Code",
-    "claude-desktop": "Claude Desktop",
-    "vscode": "VS Code (Copilot agent mode)",
-    "cursor": "Cursor",
-    "copilot": "GitHub Copilot CLI",
-    "codex": "OpenAI Codex CLI",
-    "gemini": "Gemini CLI",
-    "antigravity": "Antigravity",
-}
+
+def _codex(run):
+    run.skill(HOME / ".codex/skills")
+    snippet = run.render(run.assets / "agents/AGENTS.snippet.md", HOME / ".codex/skills/noul-search/SKILL.md")
+    run.patch_block(HOME / ".codex/AGENTS.md", snippet, *MARK)
+    cmd, args = run.mcp_command()
+    toml = f"[mcp_servers.noul]\ncommand = {_toml_str(cmd)}\nargs = [{', '.join(_toml_str(a) for a in args)}]"
+    run.patch_block(HOME / ".codex/config.toml", toml, *TOML_MARK)
+
+
+def _gemini(run):
+    ext = HOME / ".gemini/extensions/noul"
+    if run.uninstall:
+        return run.remove(ext)
+    manifest = json.loads((run.assets / "agents/gemini-extension.json").read_text(encoding="utf-8"))
+    manifest["mcpServers"] = {"noul": run.server_entry()}
+    run.write(ext / "gemini-extension.json", json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
+    run.write(
+        ext / "GEMINI.md", run.render(run.assets / "agents/AGENTS.snippet.md", ext / "skills/noul-search/SKILL.md")
+    )
+    run.skill(ext / "skills")
+
+
+def _antigravity(run):
+    run.skill(HOME / ".gemini/config/skills")
+    run.json_mcp(HOME / ".gemini/antigravity/mcp_config.json", {"env": {}})
+
+
+@dataclass(frozen=True)
+class Client:
+    """An app Noul installs into: how to (un)install there and how to tell that the app is present."""
+
+    name: str
+    label: str
+    install: Callable[[Install], None]
+    hints: Callable[[], list[Any]]  # paths (or `shutil.which` results) whose existence means the app is installed
+
+
+CLIENTS = (
+    Client("claude", "Claude Code", _claude, lambda: [HOME / ".claude", shutil.which("claude")]),
+    Client("claude-desktop", "Claude Desktop", _claude_desktop, lambda: [_app_config_dir("Claude")]),
+    Client("vscode", "VS Code (Copilot agent mode)", _vscode, lambda: [_app_config_dir("Code"), shutil.which("code")]),
+    Client("cursor", "Cursor", _cursor, lambda: [HOME / ".cursor", shutil.which("cursor")]),
+    Client("copilot", "GitHub Copilot CLI", _copilot, lambda: [HOME / ".copilot"]),
+    Client("codex", "OpenAI Codex CLI", _codex, lambda: [HOME / ".codex", shutil.which("codex")]),
+    Client("gemini", "Gemini CLI", _gemini, lambda: [HOME / ".gemini", shutil.which("gemini")]),
+    Client("antigravity", "Antigravity", _antigravity, lambda: [HOME / ".gemini/antigravity"]),
+)
+TARGETS = {client.name: client for client in CLIENTS}
 
 
 def detect_targets():
     """Targets whose app seems installed (its config folder or command exists)."""
-    found = []
-    probes = {
-        "claude": [HOME / ".claude", shutil.which("claude")],
-        "claude-desktop": [_app_config_dir("Claude")],
-        "vscode": [_app_config_dir("Code"), shutil.which("code")],
-        "cursor": [HOME / ".cursor", shutil.which("cursor")],
-        "copilot": [HOME / ".copilot"],
-        "codex": [HOME / ".codex", shutil.which("codex")],
-        "gemini": [HOME / ".gemini", shutil.which("gemini")],
-        "antigravity": [HOME / ".gemini/antigravity"],
-    }
-    for name, hints in probes.items():
-        if any(h and Path(h).exists() for h in hints):
-            found.append(name)
-    return found
+    return [c.name for c in CLIENTS if any(h and Path(h).exists() for h in c.hints())]
 
 
 def choose_targets(ask=input, attempts=3):
@@ -411,7 +404,7 @@ def choose_targets(ask=input, attempts=3):
     print("Where should Noul be installed?\n")
     for i, name in enumerate(names, 1):
         mark = "  (detected)" if name in detected else ""
-        print(f"  {i}. {LABELS[name]}{mark}")
+        print(f"  {i}. {TARGETS[name].label}{mark}")
     default = ",".join(str(names.index(n) + 1) for n in detected)
     hint = f"Enter for [{default}]" if default else "'q' to quit"
     for _ in range(attempts):
@@ -442,8 +435,7 @@ def choose_targets(ask=input, attempts=3):
     return []
 
 
-def main(argv=None):
-    global DRY, UNINSTALL, RUNNER, ASSETS, INSTALL_ROOT
+def _parse_args(argv):
     ap = argparse.ArgumentParser(prog="noul-install", description="Install Noul Search into coding & desktop agents.")
     ap.add_argument(
         "targets",
@@ -464,61 +456,66 @@ def main(argv=None):
     bad = [x for x in a.targets if x not in TARGETS]
     if bad:
         ap.error(f"unknown target(s): {', '.join(bad)}. Choose from: {', '.join(TARGETS)}")
+    return a
 
-    DRY, UNINSTALL = a.dry_run, a.uninstall
-    RUNNER = a.runner or _default_runner()
-    ASSETS = _asset_root()
-    ERRORS.clear()
-    if not (ASSETS / "skills/noul-search/SKILL.md").is_file():
+
+def _chosen_targets(a, run):
+    """Target names for this run: --all, the named ones, the interactive picker, else all. [] = cancelled."""
+    if a.all:
+        return list(TARGETS)
+    if a.targets:
+        return a.targets
+    if _interactive() and not run.uninstall:
+        return choose_targets()
+    return list(TARGETS)
+
+
+def main(argv=None):
+    a = _parse_args(argv)
+    run = Install(dry=a.dry_run, uninstall=a.uninstall, runner=a.runner or _default_runner(), assets=_asset_root())
+    if not (run.assets / "skills/noul-search/SKILL.md").is_file():
         print(
             f"ERROR: Noul skill/agent templates not found (looked in {REPO} and {sys.prefix}/share/{PKG}).",
             file=sys.stderr,
         )
         return 1
-    INSTALL_ROOT = None
-    if FROZEN and RUNNER == "python" and not UNINSTALL:
+    frozen_copy = FROZEN and run.runner == "python"
+    if frozen_copy and not run.uninstall:
         try:
-            INSTALL_ROOT = deploy_frozen()
+            run.install_root = run.deploy_frozen()
         except OSError as e:
             print(f"ERROR: could not copy Noul to {app_dir()}: {e}", file=sys.stderr)
             return 1
 
-    if not UNINSTALL:
-        cmd, args = mcp_command()
-        how = "executable" if FROZEN and RUNNER == "python" else RUNNER
+    if not run.uninstall:
+        cmd, args = run.mcp_command()
+        how = "executable" if frozen_copy else run.runner
         print(f"MCP server command ({how}): {' '.join(_q(x) for x in [cmd, *args])}")
-    if a.all:
-        targets = list(TARGETS)
-    elif a.targets:
-        targets = a.targets
-    elif _interactive() and not UNINSTALL:
-        targets = choose_targets()
-        if not targets:
-            print("Nothing installed.")
-            return 0
-    else:
-        targets = list(TARGETS)
+    targets = _chosen_targets(a, run)
+    if not targets:
+        print("Nothing installed.")
+        return 0
     for name in targets:
         print(f"== {name}")
         try:
-            TARGETS[name]()
+            TARGETS[name].install(run)
         except OSError as e:
-            fail(f"{name}: {e}")
-    if FROZEN and UNINSTALL and a.all and not ERRORS:
+            run.fail(f"{name}: {e}")
+    if FROZEN and run.uninstall and a.all and not run.errors:
         # Everything was unregistered: also remove the stable copy (not the file being run).
         for name in APP_FILES:
-            remove(app_dir() / name)
+            run.remove(app_dir() / name)
         if Path(sys.executable).resolve() != frozen_target().resolve():
-            remove(frozen_target())
+            run.remove(frozen_target())
 
-    if ERRORS:
-        print(f"\nFinished with {len(ERRORS)} error(s); the affected files were not modified.", file=sys.stderr)
+    if run.errors:
+        print(f"\nFinished with {len(run.errors)} error(s); the affected files were not modified.", file=sys.stderr)
         return 1
-    if not UNINSTALL and not DRY:
+    if not run.uninstall and not run.dry:
         print(
             "\nDone. Next: set a contact email so Unpaywall / polite API pools can be used (optional):\n"
             "  - Claude Code: /noul-search-config email:you@university.edu\n"
-            f"  - Any terminal: {cli_command()} config --email you@university.edu   (or export NOUL_EMAIL)"
+            f"  - Any terminal: {run.cli_command()} config --email you@university.edu   (or export NOUL_EMAIL)"
         )
     return 0
 

@@ -119,7 +119,6 @@ class LauncherTests(unittest.TestCase):
 
         with (
             mock.patch.object(install, "_console_script", return_value=None),
-            mock.patch.object(install, "RUNNER", "python"),
             mock.patch.object(install, "FROZEN", False),
         ):
             command, args = install.mcp_command()
