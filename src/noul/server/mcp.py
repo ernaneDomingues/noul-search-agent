@@ -343,6 +343,8 @@ def build_server(
             result = await anyio.to_thread.run_sync(contextvars.copy_context().run, run)
         except Exception as e:
             return _text_result(_common.error_text(e), is_error=True)
+        finally:
+            call.release()  # also when cancelled before the worker thread started
         return _text_result(result, output=_registry.REGISTRY[name].output)
 
     async def list_resources(ctx: Any, params: Any) -> types.ListResourcesResult:

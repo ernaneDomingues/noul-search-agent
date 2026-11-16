@@ -83,6 +83,45 @@ class DispatchTests(unittest.TestCase):
         self.assertTrue(common.error_text(ctx.exception).startswith("InvalidArguments: "))
         self.assertIsInstance(common.dispatch("evidence_meter", {"items": []}, policy), common.Call)
 
+    def test_release_is_idempotent(self):
+        from noul.server import common, limits
+
+        concurrency = limits.Concurrency(2)
+        policy = common.Policy(concurrency=concurrency)
+        first = common.dispatch("evidence_meter", {"items": []}, policy)
+        second = common.dispatch("evidence_meter", {"items": []}, policy)
+        first.release()
+        first.release()
+        self.assertEqual(concurrency._active, 1)
+        second.release()
+        self.assertEqual(concurrency._active, 0)
+
+    def test_a_call_cancelled_before_its_thread_starts_frees_its_slot(self):
+        import anyio
+
+        from noul.server import common, limits
+        from noul.server.mcp import build_server
+
+        concurrency = limits.Concurrency(1)
+        policy = common.Policy(profile="research", allow_write=False, concurrency=concurrency)
+        server = build_server(policy=policy)
+
+        async def blocked_thread(*args, **kwargs):
+            await anyio.sleep_forever()  # the worker thread never starts
+
+        async def calls():
+            async with _support.mcp_client(server) as c:
+                with mock.patch("anyio.to_thread.run_sync", blocked_thread):
+                    with anyio.move_on_after(0.5):
+                        await c.call_tool("evidence_meter", {"items": [{"stance": "supportive"}]})
+                    for _ in range(50):  # the server side sees the cancellation shortly after the client
+                        if concurrency._active == 0:
+                            break
+                        await anyio.sleep(0.02)
+
+        anyio.run(calls)
+        self.assertEqual(concurrency._active, 0)
+
     def test_public_calls_carry_the_public_caps(self):
         from noul.server import common
 

@@ -6,7 +6,8 @@ import copy
 import ipaddress
 import os
 import sys
-from dataclasses import dataclass
+import threading
+from dataclasses import dataclass, field
 from typing import Any
 
 from noul import __version__
@@ -277,20 +278,31 @@ class Refusal:
 
 @dataclass
 class Call:
-    """An admitted call: it holds a concurrency slot until `run()` returns, so run it exactly once."""
+    """An admitted call. It holds a concurrency slot until `release()`, which `run()` calls when the tool returns
+    or raises. A transport that awaits `run()` in a worker thread must also call `release()` in a `finally`:
+    a call cancelled before its thread starts never reaches `run()`. Releasing twice is harmless."""
 
     name: str
     args: Any
     caps: dict[str, int | None] | None
     concurrency: _limits.Concurrency | None
+    _released: bool = field(default=False, init=False, repr=False)
+    _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
     def run(self) -> Any:
         """Execute the tool (blocking: call it from a worker thread)."""
         try:
             return _registry.call(self.name, self.args, caps=self.caps)
         finally:
-            if self.concurrency is not None:
-                self.concurrency.release()
+            self.release()
+
+    def release(self) -> None:
+        with self._lock:
+            if self._released:
+                return
+            self._released = True
+        if self.concurrency is not None:
+            self.concurrency.release()
 
 
 def refusal_for(name: str, args: Any, policy: Policy) -> Refusal | None:

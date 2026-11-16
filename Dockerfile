@@ -12,7 +12,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     NOUL_HTTP_HOST=0.0.0.0 \
     PORT=8080
 
-# uv only exports the lockfile; it is not left in the image. Pinned by digest, like the actions in CI.
+# uv only exports the lockfile and is not left in the image; it is pinned by digest. The base image stays on its
+# tag so a rebuild picks up Debian and CPython security fixes.
 COPY --from=ghcr.io/astral-sh/uv:0.12.22@sha256:f513a91fc62fe7c17567eee97230dd198e43edb8a9fbecca843714a4358fe1bc \
     /uv /tmp/uv
 

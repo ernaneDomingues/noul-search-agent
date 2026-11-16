@@ -215,6 +215,8 @@ def build_app(
             result = await run_in_threadpool(call.run)
         except Exception as e:
             return JSONResponse({"error": _common.error_text(e)}, status_code=_common.error_status(e))
+        finally:
+            call.release()  # also when the client went away before the worker thread started
         payload = result if isinstance(result, dict) else {"result": result}
         if getattr(result, "warnings", None):
             payload["warnings"] = list(result.warnings)
