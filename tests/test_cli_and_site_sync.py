@@ -82,5 +82,81 @@ class SiteCliMappingTests(unittest.TestCase):
                 self.assertEqual(caught.exception.code, 0, f"`{command}` is not a CLI command")
 
 
+def _build_site():
+    spec = importlib.util.spec_from_file_location("build_site", _support.ROOT / "scripts" / "build_site.py")
+    build_site = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(build_site)
+    return build_site
+
+
+class GeneratedContentTests(unittest.TestCase):
+    def test_everything_generated_is_up_to_date(self):
+        build_site = _build_site()
+        docs = build_site.render_docs(build_site.build_tools_payload())
+        stale = [
+            path.relative_to(_support.ROOT).as_posix()
+            for path, (current, expected) in docs.items()
+            if current != expected
+        ]
+        self.assertEqual(stale, [], "run `python scripts/build_site.py`")
+
+    def test_manifests_share_one_description_and_the_package_version(self):
+        import json
+
+        import noul
+
+        build_site = _build_site()
+        description = build_site.DESCRIPTION.format(tool_count=len(registry.REGISTRY))
+        for path in build_site.MANIFESTS:
+            with self.subTest(manifest=path.name):
+                manifest = json.loads(path.read_text(encoding="utf-8"))
+                self.assertEqual((manifest["version"], manifest["description"]), (noul.__version__, description))
+
+    def test_the_project_workflow_is_the_servers_paragraph(self):
+        from noul.server import mcp
+
+        build_site = _build_site()
+        rendered = build_site._project_workflow(build_site.build_tools_payload())
+        self.assertEqual(rendered.replace("`", ""), mcp.PROJECT_WORKFLOW)
+        self.assertIn("`search_papers(project=slug)`", rendered)
+        self.assertIn(mcp.PROJECT_WORKFLOW, mcp.INSTRUCTIONS)
+        for name in ("agents/claude-noul-researcher.md", "skills/noul-search/references/search.md"):
+            self.assertIn(rendered, (_support.ROOT / name).read_text(encoding="utf-8"), name)
+
+
+class HandWrittenNumbersTests(unittest.TestCase):
+    """Counts and the version that prose repeats by hand must follow the registry and `noul.__version__`."""
+
+    def test_site_badge_shows_the_package_version(self):
+        import noul
+
+        html = (_support.ROOT / "site/index.html").read_text(encoding="utf-8")
+        self.assertIn(f'<span class="badge">v{noul.__version__}</span>', html)
+
+    def test_tool_counts_in_the_docs_match_the_registry(self):
+        from noul.server import common
+
+        total = len(registry.REGISTRY)
+        research = len(registry.catalog("research"))
+        public = len(common.visible_tools("research", allow_write=False, public=True))
+        expected = {
+            "README.md": [
+                f"{total} typed tools",
+                f"all {total})",
+                f"the {total} tool functions",
+                f"downloads: {research} tools)",
+                f"{public} tools from the `research` profile",
+            ],
+            "docs/deploy/cloud-run.md": [f"{public} tools from the `research` profile"],
+            "CLAUDE.md": [f"the {total} tool functions"],
+            "src/noul/api/__init__.py": [f"the {total} tool functions"],
+        }
+        for name, phrases in expected.items():
+            text = (_support.ROOT / name).read_text(encoding="utf-8")
+            for phrase in phrases:
+                with self.subTest(file=name, phrase=phrase):
+                    self.assertIn(phrase, text)
+
+
 if __name__ == "__main__":
     unittest.main()

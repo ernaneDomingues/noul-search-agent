@@ -2,9 +2,11 @@
 """Deterministic static site builder and validator for Phase 6 (#28).
 
 Reads the tool registry (`noul.registry`) and `noul.__version__`, generates `site/tools-reference.json`,
-synchronizes the interactive MCP Tools Catalog inside `site/index.html`, and rewrites the generated tool lists
-between `<!-- noul:tools:start -->` / `<!-- noul:tools:end -->` in the SKILL, agent templates and README.
-Run with `--check` in CI to verify that `site/` artifacts are up-to-date."""
+synchronizes the interactive MCP Tools Catalog inside `site/index.html`, and rewrites what is generated in the
+SKILL, agent templates and README: the tool lists between `<!-- noul:tools:start -->` / `<!-- noul:tools:end -->`
+and the research-project workflow between `<!-- noul:project-workflow:start/end -->`. It also sets the
+`description` and `version` of the plugin and extension manifests.
+Run with `--check` in CI to verify that everything generated is up-to-date."""
 
 import argparse
 import html
@@ -19,6 +21,7 @@ if str(ROOT / "src") not in sys.path:
 
 import noul  # noqa: E402
 from noul import registry  # noqa: E402
+from noul.server import mcp as noul_mcp  # noqa: E402
 
 SITE_DIR = ROOT / "site"
 INDEX_HTML = SITE_DIR / "index.html"
@@ -104,25 +107,59 @@ def _readme_table(payload: dict) -> str:
     return "\n".join(rows) + "\n"
 
 
-# file -> renderer of the text placed between DOC_START and DOC_END
-DOC_TARGETS = {
-    ROOT / "skills/noul-search/SKILL.md": _inline_list,
-    ROOT / "agents/AGENTS.snippet.md": _inline_list,
-    ROOT / "agents/claude-noul-researcher.md": _inline_list,
-    ROOT / "README.md": _readme_table,
-}
+WORKFLOW_START = "<!-- noul:project-workflow:start -->"
+WORKFLOW_END = "<!-- noul:project-workflow:end -->"
+
+
+def _project_workflow(payload: dict) -> str:
+    """The server's research-project paragraph as Markdown: tool names (and calls) in backticks."""
+    names = "|".join(sorted((t["name"] for t in payload["tools"]), key=len, reverse=True))
+    return re.sub(rf"\b(?:{names})\b(?:\([^)]*\))?", lambda m: f"`{m.group(0)}`", noul_mcp.PROJECT_WORKFLOW)
+
+
+# (file, start marker, end marker, renderer of the text placed between the markers)
+DOC_TARGETS = [
+    (ROOT / "skills/noul-search/SKILL.md", DOC_START, DOC_END, _inline_list),
+    (ROOT / "agents/AGENTS.snippet.md", DOC_START, DOC_END, _inline_list),
+    (ROOT / "agents/claude-noul-researcher.md", DOC_START, DOC_END, _inline_list),
+    (ROOT / "README.md", DOC_START, DOC_END, _readme_table),
+    (ROOT / "agents/claude-noul-researcher.md", WORKFLOW_START, WORKFLOW_END, _project_workflow),
+    (ROOT / "skills/noul-search/references/search.md", WORKFLOW_START, WORKFLOW_END, _project_workflow),
+]
+
+# One description for every manifest that advertises Noul to an agent client.
+DESCRIPTION = (
+    "Scientific research co-assistant for any discipline: {tool_count} MCP tools for literature search across six "
+    "open sources, an Evidence Meter weighted by study design, persistent research projects, full-text passages "
+    "with section and page, technical extraction, peer-review evidence, academic writing support, BibTeX clean-up, "
+    "rebuttal and pre-submission checks. Tools return evidence; your model gives the verdicts."
+)
+MANIFESTS = [ROOT / "plugin.json", ROOT / ".claude-plugin/plugin.json", ROOT / "agents/gemini-extension.json"]
+
+
+def _set_first_string(text: str, key: str, value: str, path: Path) -> str:
+    """Replace the value of the first `"key": "..."` (the top-level one in these manifests), keeping the layout."""
+    pattern = re.compile(rf'("{key}"\s*:\s*)"(?:[^"\\]|\\.)*"')
+    if not pattern.search(text):
+        raise SystemExit(f'error: no string "{key}" in {path.relative_to(ROOT)}')
+    return pattern.sub(lambda m: m.group(1) + json.dumps(value, ensure_ascii=False), text, count=1)
 
 
 def render_docs(payload: dict) -> dict:
-    """{path: (current_text, expected_text)} for every generated tool list."""
+    """{path: (current_text, expected_text)} for every file with generated content."""
     out = {}
-    pattern = re.compile(re.escape(DOC_START) + r".*?" + re.escape(DOC_END), re.S)
-    for path, render in DOC_TARGETS.items():
+    for path, start, end, render in DOC_TARGETS:
+        current, text = out.get(path) or (path.read_text(encoding="utf-8"),) * 2
+        if start not in text or end not in text:
+            raise SystemExit(f"error: markers {start} / {end} missing from {path.relative_to(ROOT)}")
+        block = start + render(payload) + end
+        pattern = re.compile(re.escape(start) + r".*?" + re.escape(end), re.S)
+        out[path] = (current, pattern.sub(lambda _, b=block: b, text, count=1))
+    description = DESCRIPTION.format(tool_count=payload["tool_count"])
+    for path in MANIFESTS:
         current = path.read_text(encoding="utf-8")
-        if DOC_START not in current or DOC_END not in current:
-            raise SystemExit(f"error: markers {DOC_START} / {DOC_END} missing from {path.relative_to(ROOT)}")
-        block = DOC_START + render(payload) + DOC_END
-        out[path] = (current, pattern.sub(lambda _, b=block: b, current, count=1))
+        text = _set_first_string(current, "version", payload["version"], path)
+        out[path] = (current, _set_first_string(text, "description", description, path))
     return out
 
 
@@ -368,9 +405,9 @@ def main(argv=None) -> int:
             return 1
         stale = [p.relative_to(ROOT).as_posix() for p, (cur, exp) in render_docs(payload).items() if cur != exp]
         if stale:
-            print(f"error: generated tool lists are stale in: {', '.join(stale)}", file=sys.stderr)
+            print(f"error: generated content is stale in: {', '.join(stale)}", file=sys.stderr)
             return 1
-        print(f"ok: site/ and generated tool lists are in sync ({payload['tool_count']} MCP tools documented).")
+        print(f"ok: site/ and generated docs and manifests are in sync ({payload['tool_count']} MCP tools documented).")
         return 0
 
     TOOLS_JSON.write_text(expected_json, encoding="utf-8")
