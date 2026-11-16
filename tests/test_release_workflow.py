@@ -1,4 +1,5 @@
-"""The release workflow: jobs downstream of optional (skippable) jobs must not inherit the implicit success()."""
+"""The release workflow: jobs downstream of optional (skippable) jobs must not inherit the implicit success().
+Every workflow pins its actions by commit SHA, and the container installs from the lockfile."""
 
 import re
 import unittest
@@ -41,3 +42,25 @@ class ReleaseWorkflowTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SupplyChainTests(unittest.TestCase):
+    def test_every_action_is_pinned_to_a_commit(self):
+        workflows = sorted((_support.ROOT / ".github/workflows").glob("*.yml"))
+        self.assertTrue(workflows)
+        for path in workflows:
+            for line in path.read_text(encoding="utf-8").splitlines():
+                ref = re.search(r"^\s*(?:-\s*)?uses:\s*(\S+)", line)
+                if not ref or ref.group(1).startswith("./"):
+                    continue
+                with self.subTest(workflow=path.name, action=ref.group(1)):
+                    self.assertRegex(ref.group(1), r"@[0-9a-f]{40}$", "pin the action by SHA (# vX.Y.Z comment)")
+                    self.assertRegex(line, r"# v\d", "name the pinned release in a trailing comment")
+
+    def test_the_container_installs_the_locked_dependencies(self):
+        dockerfile = (_support.ROOT / "Dockerfile").read_text(encoding="utf-8")
+        self.assertIn("uv.lock", dockerfile)
+        self.assertIn("export --frozen --no-dev", dockerfile)
+        self.assertIn("--require-hashes", dockerfile)
+        self.assertIn("pip install --no-cache-dir --no-deps .", dockerfile)
+        self.assertRegex(dockerfile, r"astral-sh/uv:[\d.]+@sha256:[0-9a-f]{64}")
