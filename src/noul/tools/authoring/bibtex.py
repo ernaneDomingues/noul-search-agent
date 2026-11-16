@@ -1,6 +1,7 @@
 """BibTeX: parsing, keys, clean-up and the upgrade of preprint entries to their published version (`sanitize_bibtex`)."""
 
 import re
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from noul import errors as _errors
@@ -252,33 +253,59 @@ MAX_INTEGRITY_CHECKS = 200
 
 MAX_CROSSREF_FAILURES_IN_A_ROW = 3  # an unreachable Crossref must not cost a timeout per entry
 
+_FIELD_ORDER = (
+    "title",
+    "author",
+    "year",
+    "booktitle",
+    "journal",
+    "volume",
+    "number",
+    "pages",
+    "publisher",
+    "doi",
+    "eprint",
+    "url",
+)
 
-def sanitize_bibtex(
-    bibtex_input: str,
-    update_preprints: bool = True,
-    output_path: str | None = None,
-) -> dict:
-    """Issue #25: Parse and sanitize a `.bib` file or BibTeX string:
-    - Upgrade arXiv/CoRR preprints (`@misc` / `arXiv`) to their peer-reviewed conference (`@inproceedings`)
-      or journal (`@article`) version with definitive DOI;
-    - Deduplicate identical works while preserving the cleanest citation key;
-    - Escape unescaped LaTeX characters (`&`, `%`, `_`) and protect uppercase acronyms (`{LLM}`, `{GPU}`, ...)."""
-    raw_bib, _, _ = _common._load_text_or_workspace_file(bibtex_input)
-    parsed = parse_bibtex_entries(raw_bib)
-    if not parsed:
-        raise _errors.HTTPError(400, "No valid BibTeX entries found in input.")
 
-    out_file: Path | None = None
-    if output_path is not None and str(output_path).strip():
-        out_file = _workspace.validate_path(str(output_path).strip(), must_exist=False)
-        if out_file.suffix.lower() != ".bib":
-            raise _errors.HTTPError(400, "output_path must be a .bib file.")
+@dataclass
+class _SanitizeRun:
+    """What one `sanitize_bibtex` call carries from entry to entry: taken keys, counters and warnings."""
 
-    # Group duplicates by (norm_doi | arxiv_id | norm_title)
+    update_preprints: bool
+    used_keys: set = field(default_factory=set)
+    warnings: list[str] = field(default_factory=list)
+    duplicates_removed: int = 0
+    preprints_upgraded: int = 0
+    dois_completed: int = 0
+    latex_escapes_fixed: int = 0
+    retracted_entries: int = 0
+    integrity_checks: int = 0
+    crossref_failures_in_a_row: int = 0
+    unchecked_dois: int = 0
+
+
+def _has_published_doi(fields: dict) -> bool:
+    """True for a DOI other than the one arXiv mints for its preprints."""
+    return bool(fields.get("doi") and not str(fields["doi"]).lower().startswith("10.48550/arxiv"))
+
+
+def _resolve_output_file(output_path: str | None) -> Path | None:
+    if output_path is None or not str(output_path).strip():
+        return None
+    out_file = _workspace.validate_path(str(output_path).strip(), must_exist=False)
+    if out_file.suffix.lower() != ".bib":
+        raise _errors.HTTPError(400, "output_path must be a .bib file.")
+    return out_file
+
+
+def _group_duplicates(entries: list[dict]) -> list[list[dict]]:
+    """Group the entries that share a published DOI, an arXiv id or a normalised title, in input order."""
     groups: list[list[dict]] = []
     group_index_by_sig: dict[str, int] = {}
 
-    for entry in parsed:
+    for entry in entries:
         f = entry["fields"]
         doi = _ids._norm_doi(f.get("doi"))
         if doi and doi.startswith("10.48550/arxiv"):
@@ -302,162 +329,183 @@ def sanitize_bibtex(
             groups[matched_idx].append(entry)
         for s in sigs:
             group_index_by_sig[s] = matched_idx
+    return groups
 
-    duplicates_removed = 0
-    preprints_upgraded = 0
-    retracted_entries = 0
-    integrity_checks = 0
-    crossref_failures_in_a_row = 0
-    unchecked_dois = 0
-    dois_completed = 0
-    latex_escapes_fixed = 0
-    updates: list[BibtexEntryUpdate] = []
+
+def _merge_duplicates(group: list[dict]) -> tuple[dict, dict]:
+    """The most complete entry of a group and its fields, with the empty ones filled from the duplicates."""
+    ranked = sorted(group, key=_entry_completeness_score, reverse=True)
+    primary = ranked[0]
+    fields = dict(primary["fields"])
+    for other in ranked[1:]:
+        for name, value in other["fields"].items():
+            if value and not fields.get(name):
+                fields[name] = value
+    return primary, fields
+
+
+def _apply_published_version(entry: dict, run: _SanitizeRun, notes: list[str]) -> str | None:
+    """Rewrite `entry` in place from its published version: a preprint becomes the venue's entry, a published
+    entry gains its missing DOI. Returns the action taken (`upgraded_preprint`, `doi_completed`) or None."""
+    fields = entry["fields"]
+    had_doi = _has_published_doi(fields)
+    is_preprint = arxiv_client.is_arxiv_preprint_entry(entry)
+    if not is_preprint and had_doi:
+        return None
+    resolved = arxiv_client.resolve_published_venue_for_preprint(entry)
+    if not resolved:
+        return None
+
+    if not is_preprint:
+        if not resolved.get("doi"):
+            return None
+        fields["doi"] = resolved["doi"]
+        run.dois_completed += 1
+        notes.append(f"Completed missing DOI: {resolved['doi']}.")
+        return "doi_completed"
+
+    run.preprints_upgraded += 1
+    etype = entry["entry_type"] = resolved["entry_type"]
+    venue_name = resolved["venue"]
+    if etype == "inproceedings":
+        fields["booktitle"] = venue_name
+        if arxiv_client._PREPRINT_VENUE_RE.search(str(fields.get("journal") or "")):
+            fields.pop("journal", None)
+    else:
+        fields["journal"] = venue_name
+    if resolved.get("year"):
+        fields["year"] = str(resolved["year"])
+    if resolved.get("doi"):
+        fields["doi"] = resolved["doi"]
+        if not had_doi:
+            run.dois_completed += 1
+    if resolved.get("arxiv_id") and not fields.get("eprint"):
+        fields["eprint"] = str(resolved["arxiv_id"])
+    notes.append(f"Upgraded arXiv preprint to {etype} in '{venue_name}'.")
+    return "upgraded_preprint"
+
+
+def _escape_entry_fields(fields: dict, run: _SanitizeRun, notes: list[str]) -> int:
+    """Escape LaTeX specials in the title and venue fields (and protect acronyms in the title); returns the fixes."""
+    fixes = 0
+    for field_name in ("title", "journal", "booktitle"):
+        if fields.get(field_name):
+            fields[field_name], count = _escape_latex_outside_math(
+                fields[field_name], protect_acronyms=(field_name == "title")
+            )
+            fixes += count
+    if fixes:
+        run.latex_escapes_fixed += fixes
+        notes.append(f"Escaped {fixes} unescaped LaTeX special character(s).")
+    return fixes
+
+
+def _integrity_facts(doi: str | None, run: _SanitizeRun) -> dict:
+    """Crossref's retraction facts for `doi`, within the run's budget; a DOI left unchecked is counted."""
+    if not doi:
+        return {}
+    if run.integrity_checks >= MAX_INTEGRITY_CHECKS or run.crossref_failures_in_a_row >= MAX_CROSSREF_FAILURES_IN_A_ROW:
+        run.unchecked_dois += 1
+        return {}
+    run.integrity_checks += 1
+    facts = _integrity.crossref_facts(doi)
+    if facts.get("check_failed"):
+        run.crossref_failures_in_a_row += 1
+        run.unchecked_dois += 1
+    else:
+        run.crossref_failures_in_a_row = 0
+    return facts
+
+
+def _report_integrity(facts: dict, key: str, run: _SanitizeRun, notes: list[str]) -> None:
+    # A retracted paper in the bibliography is reported, not removed: citing a retraction can be legitimate.
+    if facts.get("retraction"):
+        run.retracted_entries += 1
+        desc = _integrity.describe(facts)
+        notes.append(f"RETRACTED ({desc}): cite it only as a retracted paper, or remove it.")
+        run.warnings.append(f"Entry '{key}' is a retracted paper ({desc}).")
+    if facts.get("concern"):
+        notes.append("The publisher issued an expression of concern about this paper.")
+
+
+def _format_bibtex_block(etype: str, key: str, fields: dict) -> str:
+    ordered = [k for k in _FIELD_ORDER if fields.get(k)]
+    ordered += [k for k in fields if k not in _FIELD_ORDER and fields[k]]
+    lines = [f"@{etype}{{{key},"]
+    lines += [f"  {k} = {{{fields[k]}}}," for k in ordered]
+    lines.append("}")
+    return "\n".join(lines)
+
+
+def _sanitize_group(group: list[dict], run: _SanitizeRun) -> tuple[str, BibtexEntryUpdate]:
+    """Turn one group of duplicate entries into a single clean BibTeX block and the record of what changed."""
+    primary, fields = _merge_duplicates(group)
+    all_keys = [e["key"] for e in group]
+    run.duplicates_removed += len(group) - 1
+
+    notes: list[str] = []
+    action = "kept"
+    if len(group) > 1:
+        action = "deduplicated"
+        notes.append(f"Merged {len(group)} duplicate entries ({', '.join(all_keys)}).")
+    old_venue = fields.get("booktitle") or fields.get("journal") or primary["entry_type"]
+
+    entry = {"entry_type": primary["entry_type"], "key": primary["key"], "fields": fields}
+    change = _apply_published_version(entry, run, notes) if run.update_preprints else None
+    if change == "upgraded_preprint" or (change and action == "kept"):
+        action = change
+    etype = entry["entry_type"]
+
+    if fields.get("author"):
+        fields["author"] = _normalize_authors_field(fields["author"])
+    if _escape_entry_fields(fields, run, notes) and action == "kept":
+        action = "latex_sanitized"
+
+    canonical_key = _choose_canonical_bib_key(all_keys, fields, run.used_keys)
+    new_venue = fields.get("booktitle") or fields.get("journal") or etype
+    _report_integrity(_integrity_facts(fields.get("doi"), run), canonical_key, run, notes)
+
+    update = BibtexEntryUpdate(
+        original_key=primary["key"],
+        canonical_key=canonical_key,
+        title=fields.get("title") or "",
+        action=action,
+        old_venue_or_type=old_venue,
+        new_venue_or_type=new_venue,
+        doi=fields.get("doi"),
+        notes=notes,
+    )
+    return _format_bibtex_block(etype, canonical_key, fields), update
+
+
+def sanitize_bibtex(
+    bibtex_input: str,
+    update_preprints: bool = True,
+    output_path: str | None = None,
+) -> dict:
+    """Issue #25: Parse and sanitize a `.bib` file or BibTeX string:
+    - Upgrade arXiv/CoRR preprints (`@misc` / `arXiv`) to their peer-reviewed conference (`@inproceedings`)
+      or journal (`@article`) version with definitive DOI;
+    - Deduplicate identical works while preserving the cleanest citation key;
+    - Escape unescaped LaTeX characters (`&`, `%`, `_`) and protect uppercase acronyms (`{LLM}`, `{GPU}`, ...)."""
+    raw_bib, _, _ = _common._load_text_or_workspace_file(bibtex_input)
+    parsed = parse_bibtex_entries(raw_bib)
+    if not parsed:
+        raise _errors.HTTPError(400, "No valid BibTeX entries found in input.")
+    out_file = _resolve_output_file(output_path)
+
+    run = _SanitizeRun(update_preprints=update_preprints)
     sanitized_blocks: list[str] = []
-    used_keys: set = set()
-    warnings: list[str] = []
+    updates: list[BibtexEntryUpdate] = []
+    for group in _group_duplicates(parsed):
+        block, update = _sanitize_group(group, run)
+        sanitized_blocks.append(block)
+        updates.append(update)
 
-    for grp in groups:
-        grp_sorted = sorted(grp, key=_entry_completeness_score, reverse=True)
-        primary = grp_sorted[0]
-        merged_fields = dict(primary["fields"])
-        etype = primary["entry_type"]
-        all_keys = [e["key"] for e in grp]
-
-        for other in grp_sorted[1:]:
-            duplicates_removed += 1
-            for fk, fv in other["fields"].items():
-                if fv and not merged_fields.get(fk):
-                    merged_fields[fk] = fv
-
-        notes: list[str] = []
-        old_venue = merged_fields.get("booktitle") or merged_fields.get("journal") or etype
-        had_doi_before = bool(
-            merged_fields.get("doi") and not str(merged_fields["doi"]).lower().startswith("10.48550/arxiv")
-        )
-        action = "deduplicated" if len(grp) > 1 else "kept"
-        if len(grp) > 1:
-            notes.append(f"Merged {len(grp)} duplicate entries ({', '.join(all_keys)}).")
-
-        # Check preprint upgrade
-        candidate_entry = {"entry_type": etype, "key": primary["key"], "fields": merged_fields}
-        if update_preprints and arxiv_client.is_arxiv_preprint_entry(candidate_entry):
-            resolved = arxiv_client.resolve_published_venue_for_preprint(candidate_entry)
-            if resolved:
-                preprints_upgraded += 1
-                action = "upgraded_preprint"
-                etype = resolved["entry_type"]
-                venue_name = resolved["venue"]
-                if etype == "inproceedings":
-                    merged_fields["booktitle"] = venue_name
-                    if arxiv_client._PREPRINT_VENUE_RE.search(str(merged_fields.get("journal") or "")):
-                        merged_fields.pop("journal", None)
-                else:
-                    merged_fields["journal"] = venue_name
-                if resolved.get("year"):
-                    merged_fields["year"] = str(resolved["year"])
-                if resolved.get("doi"):
-                    merged_fields["doi"] = resolved["doi"]
-                    if not had_doi_before:
-                        dois_completed += 1
-                if resolved.get("arxiv_id") and not merged_fields.get("eprint"):
-                    merged_fields["eprint"] = str(resolved["arxiv_id"])
-                notes.append(f"Upgraded arXiv preprint to {etype} in '{venue_name}'.")
-        elif not had_doi_before and update_preprints:
-            # Try to complete missing DOI for already-published entry if available in cache/APIs
-            resolved = arxiv_client.resolve_published_venue_for_preprint(candidate_entry)
-            if resolved and resolved.get("doi"):
-                merged_fields["doi"] = resolved["doi"]
-                dois_completed += 1
-                if action == "kept":
-                    action = "doi_completed"
-                notes.append(f"Completed missing DOI: {resolved['doi']}.")
-
-        # Standardize authors
-        if merged_fields.get("author"):
-            merged_fields["author"] = _normalize_authors_field(merged_fields["author"])
-
-        # Escape LaTeX characters & protect acronyms
-        entry_fixes = 0
-        for field_name in ("title", "journal", "booktitle"):
-            if merged_fields.get(field_name):
-                fixed_val, cnt = _escape_latex_outside_math(
-                    merged_fields[field_name], protect_acronyms=(field_name == "title")
-                )
-                merged_fields[field_name] = fixed_val
-                entry_fixes += cnt
-        if entry_fixes > 0:
-            latex_escapes_fixed += entry_fixes
-            if action == "kept":
-                action = "latex_sanitized"
-            notes.append(f"Escaped {entry_fixes} unescaped LaTeX special character(s).")
-
-        canonical_key = _choose_canonical_bib_key(all_keys, merged_fields, used_keys)
-        new_venue = merged_fields.get("booktitle") or merged_fields.get("journal") or etype
-
-        # Integrity: a retracted paper in the bibliography is reported (kept: citing a retraction can be legitimate).
-        facts = {}
-        if merged_fields.get("doi"):
-            if integrity_checks < MAX_INTEGRITY_CHECKS and crossref_failures_in_a_row < MAX_CROSSREF_FAILURES_IN_A_ROW:
-                integrity_checks += 1
-                facts = _integrity.crossref_facts(merged_fields["doi"])
-                crossref_failures_in_a_row = crossref_failures_in_a_row + 1 if facts.get("check_failed") else 0
-                unchecked_dois += 1 if facts.get("check_failed") else 0
-            else:
-                unchecked_dois += 1
-        if facts.get("retraction"):
-            retracted_entries += 1
-            desc = _integrity.describe(facts)
-            notes.append(f"RETRACTED ({desc}): cite it only as a retracted paper, or remove it.")
-            warnings.append(f"Entry '{canonical_key}' is a retracted paper ({desc}).")
-        if facts.get("concern"):
-            notes.append("The publisher issued an expression of concern about this paper.")
-
-        # Format clean BibTeX block
-        ordered_keys = [
-            k
-            for k in (
-                "title",
-                "author",
-                "year",
-                "booktitle",
-                "journal",
-                "volume",
-                "number",
-                "pages",
-                "publisher",
-                "doi",
-                "eprint",
-                "url",
-            )
-            if merged_fields.get(k)
-        ]
-        for k in merged_fields:
-            if k not in ordered_keys and merged_fields[k]:
-                ordered_keys.append(k)
-
-        bib_lines = [f"@{etype}{{{canonical_key},"]
-        for k in ordered_keys:
-            bib_lines.append(f"  {k} = {{{merged_fields[k]}}},")
-        bib_lines.append("}")
-        sanitized_blocks.append("\n".join(bib_lines))
-
-        updates.append(
-            BibtexEntryUpdate(
-                original_key=primary["key"],
-                canonical_key=canonical_key,
-                title=merged_fields.get("title") or "",
-                action=action,
-                old_venue_or_type=old_venue,
-                new_venue_or_type=new_venue,
-                doi=merged_fields.get("doi"),
-                notes=notes,
-            )
-        )
-
-    if unchecked_dois:
-        warnings.append(
-            f"Retraction status unknown for {unchecked_dois} entries with a DOI (at most {MAX_INTEGRITY_CHECKS} checks "
-            "per run, and Crossref must answer): the absence of a flag does not clear them."
+    if run.unchecked_dois:
+        run.warnings.append(
+            f"Retraction status unknown for {run.unchecked_dois} entries with a DOI (at most {MAX_INTEGRITY_CHECKS} "
+            "checks per run, and Crossref must answer): the absence of a flag does not clear them."
         )
     sanitized_text = "\n\n".join(sanitized_blocks) + ("\n" if sanitized_blocks else "")
     if out_file is not None:
@@ -467,13 +515,13 @@ def sanitize_bibtex(
     report = BibtexSanitizeReport(
         entries_total=len(parsed),
         entries_out=len(sanitized_blocks),
-        duplicates_removed=duplicates_removed,
-        preprints_upgraded=preprints_upgraded,
-        dois_completed=dois_completed,
-        latex_escapes_fixed=latex_escapes_fixed,
-        retracted_entries=retracted_entries,
+        duplicates_removed=run.duplicates_removed,
+        preprints_upgraded=run.preprints_upgraded,
+        dois_completed=run.dois_completed,
+        latex_escapes_fixed=run.latex_escapes_fixed,
+        retracted_entries=run.retracted_entries,
         updates=updates,
         sanitized_bibtex=sanitized_text.strip(),
-        warnings=warnings,
+        warnings=run.warnings,
     )
     return report.model_dump()

@@ -416,21 +416,16 @@ def _corpus_domain(papers, query):
         return "general_stem"
 
 
-def suggest_boolean_queries(query="", paper_ids=None):
-    """Dynamic search expansion (#07): mine acronyms and emerging technical terms from the given papers (or cached
-    papers matching `query`) and return 3 boolean queries: precision deepening (AND), synonym/method expansion
-    (OR + AND) and noise exclusion (NOT)."""
-    from noul.tools.comparative_tools import STOPWORDS, key_terms
-
-    query = str(query or "").strip()
+def _expansion_ids(paper_ids):
     if paper_ids is not None and (
         not isinstance(paper_ids, (list, tuple)) or any(not isinstance(x, str) for x in paper_ids)
     ):
         raise _errors.HTTPError(400, "paper_ids must be a list of paper IDs/DOIs")
-    ids = list(dict.fromkeys(x.strip() for x in paper_ids or [] if x.strip()))[:MAX_EXPAND_PAPERS]
-    if not query and not ids:
-        raise _errors.HTTPError(400, "Provide `query` and/or `paper_ids`")
+    return list(dict.fromkeys(x.strip() for x in paper_ids or [] if x.strip()))[:MAX_EXPAND_PAPERS]
 
+
+def _expansion_corpus(query, ids):
+    """The papers to mine: the given ids, else the cached papers matching `query`. Returns (papers, warnings)."""
     warnings, papers = [], []
     for pid in ids:
         try:
@@ -444,22 +439,26 @@ def suggest_boolean_queries(query="", paper_ids=None):
                 "No cached papers match the query; terms come from the query and domain defaults. "
                 "Run search_papers first for corpus-driven suggestions."
             )
+    return papers, warnings
 
-    qwords = _query_words(query)
-    texts = [
-        re.sub(r"(?:https?://|www\.)\S+|\S+@\S+", " ", f"{p.get('title') or ''}. {p.get('abstract') or ''}")
-        for p in papers
-    ]
+
+def _ranked_acronyms(texts, qwords):
+    """Acronyms absent from the query, the ones found in most texts first."""
     acr_df, acr_n = Counter(), Counter()
-    for text in texts + ([query] if not papers else []):
+    for text in texts:
         found = _acronyms(text)
         acr_n.update(found)
         acr_df.update(set(found))
-    acronyms = [
+    return [
         a for a, _ in sorted(acr_n.items(), key=lambda x: (-acr_df[x[0]], -x[1], x[0])) if _norm_word(a) not in qwords
     ]
-    acr_lower = {a.lower() for a in acronyms}
 
+
+def _emerging_terms(texts, qwords, acronyms):
+    """Up to 10 key terms of the corpus that are neither in the query, nor acronyms, numbers or generic words."""
+    from noul.tools.comparative_tools import STOPWORDS, key_terms
+
+    acr_lower = {a.lower() for a in acronyms}
     term_df, term_n = Counter(), Counter()
     for text in texts:
         terms = key_terms(text)
@@ -482,13 +481,12 @@ def suggest_boolean_queries(query="", paper_ids=None):
         emerging.append(t)
         if len(emerging) >= 10:
             break
+    return emerging
 
-    domain = _corpus_domain(papers, query)
-    precision_defaults, method_defaults, noise = _DOMAIN_DEFAULTS.get(domain, _DOMAIN_DEFAULTS["general_stem"])
-    corpus_text = " ".join(texts).lower()
-    if domain == "biomedical" and _HUMAN_CLINICAL.search(query + " " + corpus_text):
-        noise = ["mice", "rats", "in vitro", "animal model"]
 
+def _core_expression(query, emerging, acronyms):
+    """The parenthesised core every suggestion builds on: the query itself or, without one, the two strongest
+    mined terms (then removed from the pools). Returns (core_expr, emerging, acronyms)."""
     if query:
         core_expr = query if _BOOLEAN.search(query) else " AND ".join(query.split())
     else:
@@ -501,27 +499,27 @@ def suggest_boolean_queries(query="", paper_ids=None):
         emerging = [e for e in emerging if e not in seeds]
         acronyms = [a for a in acronyms if a not in seeds]
         core_expr = " OR ".join(_quote(t) for t in seeds)
-    core_expr = f"({core_expr})"
+    return f"({core_expr})", emerging, acronyms
 
-    precision = list(dict.fromkeys(acronyms[:1] + emerging[:2]))[:3]
-    if len(precision) < 2:
-        precision = list(dict.fromkeys(precision + precision_defaults))[:3]
+
+def _method_terms(corpus_text, qwords, emerging, precision, synonym, method_defaults):
+    """Two adjacent methods: known method terms found in the corpus, then emerging terms, then domain defaults."""
     lexicon = [
         m
         for m in _METHOD_TERMS
         if re.search(r"\b" + re.escape(m) + r"\b", corpus_text)
         and not any(_norm_word(w) in qwords for w in re.split(r"[\s-]+", m))
     ]
-    synonym = next((a for a in acronyms if a not in precision), None) or (acronyms[0] if acronyms else None)
     methods = []
     for m in dict.fromkeys(lexicon + [e for e in emerging if e not in precision] + method_defaults):
         if not any(m in x or x in m for x in methods + ([synonym.lower()] if synonym else [])):
             methods.append(m)
-    methods = methods[:2]
-    noise = [n for n in noise if not any(_norm_word(w) in qwords for w in n.split())] or ["retracted", "erratum"]
+    return methods[:2]
 
+
+def _boolean_suggestions(core_expr, precision, synonym, methods, noise, domain):
     expanded = f"({core_expr} OR {_quote(synonym)})" if synonym else core_expr
-    suggestions = [
+    return [
         BooleanQuerySuggestion(
             index=1,
             strategy="precision_deepening",
@@ -551,6 +549,41 @@ def suggest_boolean_queries(query="", paper_ids=None):
             target_terms=noise,
         ),
     ]
+
+
+def suggest_boolean_queries(query="", paper_ids=None):
+    """Dynamic search expansion (#07): mine acronyms and emerging technical terms from the given papers (or cached
+    papers matching `query`) and return 3 boolean queries: precision deepening (AND), synonym/method expansion
+    (OR + AND) and noise exclusion (NOT)."""
+    query = str(query or "").strip()
+    ids = _expansion_ids(paper_ids)
+    if not query and not ids:
+        raise _errors.HTTPError(400, "Provide `query` and/or `paper_ids`")
+    papers, warnings = _expansion_corpus(query, ids)
+
+    qwords = _query_words(query)
+    texts = [
+        re.sub(r"(?:https?://|www\.)\S+|\S+@\S+", " ", f"{p.get('title') or ''}. {p.get('abstract') or ''}")
+        for p in papers
+    ]
+    acronyms = _ranked_acronyms(texts + ([query] if not papers else []), qwords)
+    emerging = _emerging_terms(texts, qwords, acronyms)
+
+    domain = _corpus_domain(papers, query)
+    precision_defaults, method_defaults, noise = _DOMAIN_DEFAULTS.get(domain, _DOMAIN_DEFAULTS["general_stem"])
+    corpus_text = " ".join(texts).lower()
+    if domain == "biomedical" and _HUMAN_CLINICAL.search(query + " " + corpus_text):
+        noise = ["mice", "rats", "in vitro", "animal model"]
+
+    core_expr, emerging, acronyms = _core_expression(query, emerging, acronyms)
+    precision = list(dict.fromkeys(acronyms[:1] + emerging[:2]))[:3]
+    if len(precision) < 2:
+        precision = list(dict.fromkeys(precision + precision_defaults))[:3]
+    synonym = next((a for a in acronyms if a not in precision), None) or (acronyms[0] if acronyms else None)
+    methods = _method_terms(corpus_text, qwords, emerging, precision, synonym, method_defaults)
+    noise = [n for n in noise if not any(_norm_word(w) in qwords for w in n.split())] or ["retracted", "erratum"]
+
+    suggestions = _boolean_suggestions(core_expr, precision, synonym, methods, noise, domain)
     out = {
         "original_query": query,
         "domain": domain,
