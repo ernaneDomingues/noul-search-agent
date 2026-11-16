@@ -171,13 +171,15 @@ class ProjectExportTests(Base):
         self.assertEqual(len(api.project_get(slug)["papers"][0]["authors"]), 4)  # the project view stays short
 
     def test_old_record_with_four_authors_is_completed_or_flagged(self):
-        from noul import api
+        from noul.api import library
 
         record = {"id": "doi:10.1000_old", "doi": "10.1000/old", "title": "Old", "authors": list("abcd")}
-        with mock.patch.object(api, "_resolve", return_value={**record, "authors": list("abcdef")}):
-            self.assertEqual((len(api._project_paper(record)[0]["authors"]), api._project_paper(record)[1]), (6, False))
-        with mock.patch.object(api, "_resolve", side_effect=OSError("down")):
-            self.assertTrue(api._project_paper(record)[1])
+        with mock.patch("noul.api.common._resolve", return_value={**record, "authors": list("abcdef")}):
+            self.assertEqual(
+                (len(library._project_paper(record)[0]["authors"]), library._project_paper(record)[1]), (6, False)
+            )
+        with mock.patch("noul.api.common._resolve", side_effect=OSError("down")):
+            self.assertTrue(library._project_paper(record)[1])
 
     def test_export_notes_stay_out_of_the_file_and_reach_the_client(self):
         from noul import registry
@@ -364,7 +366,7 @@ class PushTests(Base):
         from noul.errors import HTTPError
 
         self.use(Zotero())
-        with mock.patch("noul.api._resolve", side_effect=HTTPError(503, "down")):
+        with mock.patch("noul.api.common._resolve", side_effect=HTTPError(503, "down")):
             out = self.push(ids=["10.1000/gone"])
         self.assertEqual(out["failed"][0]["reason"], "The sources did not answer.")
 
@@ -421,7 +423,7 @@ class PushTests(Base):
             zotero.push([PAPER] * 201)
         records = [{**PAPER, "id": f"p{i}"} for i in range(201)]
         with (
-            mock.patch("noul.api._papers_to_send", return_value=(records, [], [])),
+            mock.patch("noul.api.library._papers_to_send", return_value=(records, [], [])),
             mock.patch.object(integrity, "enrich") as enrich,
             self.assertRaises(HTTPError),
         ):

@@ -42,12 +42,12 @@ Sparse-7B      12.4ms         3,900        5.12
 
 
 def setUpModule():
-    global t, cli, tt, _errors
+    global t, cli, _tables, _errors
     _support.isolate_environment()
     from noul import api as t
     from noul import cli
     from noul import errors as _errors
-    from noul.tools import technical_tools as tt
+    from noul.tools.technical import tables as _tables
 
 
 class BenchmarkTablesTests(unittest.TestCase):
@@ -108,12 +108,12 @@ class BenchmarkTablesTests(unittest.TestCase):
         self.assertEqual(out["normalized_summary"]["table_count"], 4)
 
     def test_number_and_metric_normalization(self):
-        self.assertEqual(tt.parse_number("78.4%"), 78.4)
-        self.assertEqual(tt.parse_number("84.5 ± 0.3"), 84.5)
-        self.assertEqual(tt.parse_number("12.4ms"), 12.4)
-        self.assertEqual(tt.parse_number("42"), 42)
-        self.assertIsNone(tt.parse_number("-"))
-        self.assertEqual(tt.parse_number("n-gram"), "n-gram")
+        self.assertEqual(_tables.parse_number("78.4%"), 78.4)
+        self.assertEqual(_tables.parse_number("84.5 ± 0.3"), 84.5)
+        self.assertEqual(_tables.parse_number("12.4ms"), 12.4)
+        self.assertEqual(_tables.parse_number("42"), 42)
+        self.assertIsNone(_tables.parse_number("-"))
+        self.assertEqual(_tables.parse_number("n-gram"), "n-gram")
         for raw, canon in (
             ("gsm-8k", "GSM8K"),
             ("human-eval", "HumanEval"),
@@ -125,7 +125,7 @@ class BenchmarkTablesTests(unittest.TestCase):
             ("MMLU (5-shot)", "MMLU"),
             ("Latency (ms)", "Latency_ms"),
         ):
-            self.assertEqual(tt.normalize_metric_name(raw), canon, raw)
+            self.assertEqual(_tables.normalize_metric_name(raw), canon, raw)
 
     def test_abstract_fallback_and_validation(self):
         pid = _support.seed_fulltext_paper(

@@ -12,10 +12,11 @@ from noul.providers import artifact_radar as ar
 
 
 def setUpModule():
-    global t, cli, _net_cache, _providers_s2
+    global t, cli, _api_common, _net_cache, _providers_s2
     _support.isolate_environment()
     from noul import api as t
     from noul import cli
+    from noul.api import common as _api_common
     from noul.net import cache as _net_cache
     from noul.providers import s2 as _providers_s2
 
@@ -185,7 +186,7 @@ class PipelineToolCliTests(unittest.TestCase):
         p = _providers_s2._parse_s2_paper({"paperId": "s1", "title": "X", "abstract": "Data: https://osf.io/xyz12"})
         self.assertTrue(p["has_dataset"])
         self.assertFalse(p["artifacts"]["dataset_verified"])
-        self.assertTrue(t._slim(p)["has_dataset"])
+        self.assertTrue(_api_common._slim(p)["has_dataset"])
 
     def test_tool_verifies_and_updates_cache(self):
         opener, calls = fake_open({})

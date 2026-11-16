@@ -10,9 +10,10 @@ import _support
 
 
 def setUpModule():
-    global api, cli, registry, store
+    global cli, dossiers, registry, store
     _support.isolate_environment()
-    from noul import api, cli, registry
+    from noul import cli, registry
+    from noul.api import dossiers
     from noul.library import store
 
 
@@ -39,9 +40,11 @@ class SlugTests(unittest.TestCase):
     def test_a_dossier_and_its_project_share_one_slug(self):
         for title in ("Café com leite e saúde", "Sleep & memory: a review", "  "):
             with self.subTest(title=title):
-                self.assertEqual(api._slugify(title), store.slugify(title or "research", fallback="research-session"))
-        self.assertEqual(api._slugify("Café com leite"), "cafe-com-leite")
-        self.assertEqual(api._slugify("???"), "research-session")
+                self.assertEqual(
+                    dossiers._slugify(title), store.slugify(title or "research", fallback="research-session")
+                )
+        self.assertEqual(dossiers._slugify("Café com leite"), "cafe-com-leite")
+        self.assertEqual(dossiers._slugify("???"), "research-session")
 
     def test_a_dossier_saved_under_the_old_slug_is_updated_in_place(self):
         from pathlib import Path
