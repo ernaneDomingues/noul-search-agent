@@ -12,14 +12,24 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     NOUL_HTTP_HOST=0.0.0.0 \
     PORT=8080
 
+# uv only exports the lockfile and is not left in the image; it is pinned by digest. The base image stays on its
+# tag so a rebuild picks up Debian and CPython security fixes.
+COPY --from=ghcr.io/astral-sh/uv:0.12.22@sha256:f513a91fc62fe7c17567eee97230dd198e43edb8a9fbecca843714a4358fe1bc \
+    /uv /tmp/uv
+
 WORKDIR /src
-COPY pyproject.toml README.md LICENSE ./
+COPY pyproject.toml uv.lock README.md LICENSE ./
 COPY src ./src
 # Templates installed as data-files by the wheel (used by noul-install).
 COPY skills ./skills
 COPY agents ./agents
 COPY commands ./commands
-RUN pip install --no-cache-dir . \
+# Runtime dependencies at the versions and hashes of uv.lock (the image then matches the tested environment),
+# then the project itself without resolving anything again.
+RUN /tmp/uv export --frozen --no-dev --no-emit-project --no-header -o /tmp/requirements.txt \
+    && pip install --no-cache-dir --require-hashes -r /tmp/requirements.txt \
+    && pip install --no-cache-dir --no-deps . \
+    && rm /tmp/uv /tmp/requirements.txt \
     && useradd --create-home --uid 10001 noul \
     && mkdir -p /tmp/noul-cache /tmp/noul-workspace \
     && chown noul:noul /tmp/noul-cache /tmp/noul-workspace \

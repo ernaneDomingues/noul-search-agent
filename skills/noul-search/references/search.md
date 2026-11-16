@@ -41,7 +41,7 @@ finding related or cited papers, downloading PDFs and keeping a research project
      flagged papers you set aside (with the meter's `excluded`/`warnings`).
    - **Papers**: `[n] Authors (year). Title. Venue. DOI (id: <paper_id>) — evidence level [OA if open_access]`.
 9. **Persist & Offer Follow-ups**:
-   - For a review that spans several steps or sessions, keep a research project: `project_list` to resume one, else `project_create`; record each paper considered with `project_add_papers` and include or exclude it with the reason (`project_set_status`), so the next session can pick up where this one stopped.
+   - <!-- noul:project-workflow:start -->For a review that spans several steps or sessions, keep a research project: `project_list` to resume one, else `project_create`; search with `search_papers(project=slug)` so each search is logged and its results become candidates (`project_add_papers` for papers found another way), and include or exclude each with a reason (`project_set_status`); `save_research_dossier` exports it. `project_archive` hides a finished project; `project_delete` only when the user asks for it.<!-- noul:project-workflow:end -->
    - Save the synthesis with `save_research_dossier` so the user has a permanent Markdown dossier (`./research/<slug>/README.md` inside the workspace) to converse over.
    - Remind the user they can ask follow-up questions across the papers (`query_fulltexts`), request **related/cited papers** (`related_papers`), **download Open Access PDFs** (`download_papers`), or **export citations** (`export_papers` as BibTeX/RIS/CSV/CSL-JSON).
 
