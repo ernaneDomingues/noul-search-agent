@@ -18,6 +18,15 @@ from noul.server import limits as _limits
 
 DEFAULT_PORT = 8765
 MAX_BODY_BYTES = 1024 * 1024
+# The research-project workflow, also generated into the agent template and the skill (scripts/build_site.py).
+PROJECT_WORKFLOW = (
+    "For a review that spans several steps or sessions, keep a research project: project_list to resume one, else "
+    "project_create; search with search_papers(project=slug) so each search is logged and its results become "
+    "candidates (project_add_papers for papers found another way), and include or exclude each with a reason "
+    "(project_set_status); save_research_dossier exports it. project_archive hides a finished project; "
+    "project_delete only when the user asks for it."
+)
+
 DOSSIER_PREFIX = "noul://dossier/"
 PROJECT_PREFIX = "noul://project/"
 
@@ -309,6 +318,9 @@ def refusal_for(name: str, args: Any, policy: Policy) -> Refusal | None:
     """Why `policy` forbids this call (unknown or hidden tool, writes, file reads), or None when it may run."""
     if name not in _registry.TOOLS:
         return Refusal("NotFound", f"unknown tool '{name}'", 404)
+    if policy.public and name in PUBLIC_HIDDEN_TOOLS:
+        why = "the public connector does not expose the server's research projects and dossiers"
+        return Refusal("NotAvailable", f"tool '{name}' is not available here: {why}.", 404)
     if name not in {t["name"] for t in visible_tools(policy.profile, allow_write=True, public=policy.public)}:
         why = f"it is not in the '{policy.profile}' tool profile (NOUL_TOOL_PROFILE / --profile)"
         return Refusal("NotAvailable", f"tool '{name}' is not available here: {why}.", 404)

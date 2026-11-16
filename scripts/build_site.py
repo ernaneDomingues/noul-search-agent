@@ -21,7 +21,7 @@ if str(ROOT / "src") not in sys.path:
 
 import noul  # noqa: E402
 from noul import registry  # noqa: E402
-from noul.server import mcp as noul_mcp  # noqa: E402
+from noul.server import common as noul_server  # noqa: E402
 
 SITE_DIR = ROOT / "site"
 INDEX_HTML = SITE_DIR / "index.html"
@@ -114,7 +114,7 @@ WORKFLOW_END = "<!-- noul:project-workflow:end -->"
 def _project_workflow(payload: dict) -> str:
     """The server's research-project paragraph as Markdown: tool names (and calls) in backticks."""
     names = "|".join(sorted((t["name"] for t in payload["tools"]), key=len, reverse=True))
-    return re.sub(rf"\b(?:{names})\b(?:\([^)]*\))?", lambda m: f"`{m.group(0)}`", noul_mcp.PROJECT_WORKFLOW)
+    return re.sub(rf"\b(?:{names})\b(?:\([^)]*\))?", lambda m: f"`{m.group(0)}`", noul_server.PROJECT_WORKFLOW)
 
 
 # (file, start marker, end marker, renderer of the text placed between the markers)

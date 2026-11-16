@@ -42,6 +42,18 @@ class RefusalTests(unittest.TestCase):
         self.assertIsNone(self.refusal("download_papers", {"ids": ["x"]}))
         self.assertIsNone(self.refusal("sanitize_bibtex", {"bibtex_input": "@misc{a,title={T}}"}, allow_write=False))
 
+    def test_the_public_connector_says_why_it_hides_server_data(self):
+        refusal = self.refusal("project_list", {}, profile="research", public=True)
+        self.assertIn("public connector does not expose", refusal.text)
+
+    def test_build_server_takes_a_policy_or_the_separate_arguments(self):
+        from noul.server import common
+        from noul.server.mcp import build_server
+
+        with self.assertRaises(TypeError):
+            build_server(profile="research", policy=common.Policy())
+        build_server(policy=common.Policy(profile="research"))
+
     def test_a_public_policy_is_read_only_whatever_was_asked(self):
         from noul.server import common
 

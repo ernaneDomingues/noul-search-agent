@@ -113,13 +113,13 @@ class GeneratedContentTests(unittest.TestCase):
                 self.assertEqual((manifest["version"], manifest["description"]), (noul.__version__, description))
 
     def test_the_project_workflow_is_the_servers_paragraph(self):
-        from noul.server import mcp
+        from noul.server import common, mcp
 
         build_site = _build_site()
         rendered = build_site._project_workflow(build_site.build_tools_payload())
-        self.assertEqual(rendered.replace("`", ""), mcp.PROJECT_WORKFLOW)
+        self.assertEqual(rendered.replace("`", ""), common.PROJECT_WORKFLOW)
         self.assertIn("`search_papers(project=slug)`", rendered)
-        self.assertIn(mcp.PROJECT_WORKFLOW, mcp.INSTRUCTIONS)
+        self.assertIn(common.PROJECT_WORKFLOW, mcp.INSTRUCTIONS)
         for name in ("agents/claude-noul-researcher.md", "skills/noul-search/references/search.md"):
             self.assertIn(rendered, (_support.ROOT / name).read_text(encoding="utf-8"), name)
 
