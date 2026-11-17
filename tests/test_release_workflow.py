@@ -57,6 +57,12 @@ class SupplyChainTests(unittest.TestCase):
                     self.assertRegex(ref.group(1), r"@[0-9a-f]{40}$", "pin the action by SHA (# vX.Y.Z comment)")
                     self.assertRegex(line, r"# v\d", "name the pinned release in a trailing comment")
 
+    def test_dependabot_keeps_the_pins_current(self):
+        config = (_support.ROOT / ".github/dependabot.yml").read_text(encoding="utf-8")
+        for ecosystem in ("github-actions", "docker"):
+            with self.subTest(ecosystem=ecosystem):
+                self.assertRegex(config, rf"package-ecosystem: {ecosystem}\n\s+directory: /\n\s+schedule:")
+
     def test_the_container_installs_the_locked_dependencies(self):
         dockerfile = (_support.ROOT / "Dockerfile").read_text(encoding="utf-8")
         self.assertIn("uv.lock", dockerfile)
