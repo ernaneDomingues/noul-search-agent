@@ -93,6 +93,7 @@ class LauncherTests(unittest.TestCase):
     """noul._bin launchers: what `noul-install` registers when no console script exists (source checkouts)."""
 
     def test_launchers_ignore_a_planted_package_in_the_project_folder(self):
+        import noul
         from noul import install
 
         with tempfile.TemporaryDirectory() as project:
@@ -111,7 +112,7 @@ class LauncherTests(unittest.TestCase):
                         env={k: v for k, v in os.environ.items() if k != "PYTHONPATH"},
                     )
                     self.assertEqual(result.returncode, 0, result.stderr)
-                    self.assertIn(f"{name} 2.1.0", result.stdout)
+                    self.assertIn(f"{name} {noul.__version__}", result.stdout)
                     self.assertNotIn("planted", result.stdout + result.stderr)
 
     def test_installer_falls_back_to_the_absolute_launchers(self):
