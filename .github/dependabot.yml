@@ -16,6 +16,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # A new CPython line (3.12 -> 3.15) is a deliberate change: CI tests 3.10-3.14 and the image follows it by hand.
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
     groups:
       images:
         patterns: ["*"]
