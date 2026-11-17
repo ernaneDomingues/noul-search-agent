@@ -147,6 +147,15 @@ class DispatchTests(unittest.TestCase):
         self.assertEqual(common.error_status(RuntimeError("boom")), 500)
         self.assertEqual(common.error_text(RuntimeError("boom")), "RuntimeError: boom")
 
+    def test_the_public_connector_does_not_echo_unexpected_errors(self):
+        from noul.errors import HTTPError
+        from noul.server import common
+
+        leak = OSError("[Errno 28] No space left on device: '/srv/noul/cache.db'")
+        self.assertEqual(common.error_text(leak, public=True), "OSError: internal error")
+        self.assertIn("/srv/noul", common.error_text(leak))  # a local server keeps the detail for its owner
+        self.assertEqual(common.error_text(HTTPError(502, "upstream down"), public=True), "HTTPError: upstream down")
+
 
 class TransportParityTests(unittest.TestCase):
     """MCP and REST report the same refusal text; REST adds the status and Retry-After."""

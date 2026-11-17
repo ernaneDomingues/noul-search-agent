@@ -12,6 +12,7 @@ from typing import Any
 
 from noul import __version__
 from noul import api as _api
+from noul import errors as _errors
 from noul import log as _log
 from noul import registry as _registry
 from noul.server import limits as _limits
@@ -368,13 +369,18 @@ def dispatch(name: str, args: Any, policy: Policy) -> Call | Refusal:
     return Call(name, args, public_caps(name) if policy.public else None, policy.concurrency)
 
 
-def error_text(exc: Exception) -> str:
-    """Error text for the host model: argument/lookup problems are not network failures (do not retry them)."""
+def error_text(exc: Exception, public: bool = False) -> str:
+    """Error text for the host model: argument/lookup problems are not network failures (do not retry them).
+
+    On the public connector an error that is not an HTTPError (a bug, a broken disk) is reported by its type
+    only: its message could show the server's paths to anyone."""
     code = getattr(exc, "code", None)
     if code == 400:
         return f"InvalidArguments: {exc}"
     if code == 404:
         return f"NotFound: {exc}"
+    if public and not isinstance(exc, _errors.HTTPError):
+        return f"{type(exc).__name__}: internal error"
     return f"{type(exc).__name__}: {exc}"
 
 

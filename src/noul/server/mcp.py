@@ -376,7 +376,7 @@ def build_server(
         try:
             result = await anyio.to_thread.run_sync(contextvars.copy_context().run, run)
         except Exception as e:  # noqa: BLE001 - transport boundary: every tool error becomes an error result
-            return _text_result(_common.error_text(e), is_error=True)
+            return _text_result(_common.error_text(e, policy.public), is_error=True)
         finally:
             call.release()  # also when cancelled before the worker thread started
         return _text_result(result, output=_registry.REGISTRY[name].output)
