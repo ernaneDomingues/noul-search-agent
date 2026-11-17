@@ -100,4 +100,4 @@ branch = true
 [tool.coverage.report]
 skip_empty = true
 # Line+branch coverage gate. Never lower this number.
-fail_under = 86
+fail_under = 88
