@@ -287,7 +287,7 @@ class Install:
         if not path.exists():
             if self.uninstall:
                 return
-            cfg = {}
+            cfg: dict[Any, Any] = {}
         else:
             try:
                 raw = path.read_text(encoding="utf-8")

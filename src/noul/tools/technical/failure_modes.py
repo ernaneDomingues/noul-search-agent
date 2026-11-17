@@ -1,6 +1,7 @@
 """Failure modes: limitations, critical assumptions and baselines that beat the proposed method (`detect_failure_modes`)."""
 
 import re
+from typing import Any
 
 from noul.evidence import contract as _contract
 from noul.evidence import untrusted as _untrusted
@@ -161,7 +162,7 @@ def _severity_for(sentence):
 
 
 def _extract_operational_limits(text):
-    limits = {}
+    limits: dict[str, Any] = {}
     ctx_patterns = (
         re.compile(
             r"(?:context\s+(?:window|length)|sequence\s+length|max(?:imum)?\s+(?:context|sequence|input)"

@@ -1,6 +1,7 @@
 """Finding papers: search, scope clarification, one paper's record, domain, open artifacts and references."""
 
 import sqlite3
+from typing import Any
 
 from noul import errors as _errors
 from noul import registry as _registry
@@ -54,7 +55,7 @@ def search_papers(
         if len(str(query)) > _store.MAX_QUERY:
             raise _errors.HTTPError(400, f"A search logged in a project takes at most {_store.MAX_QUERY} characters")
         _common._project_call(_store.get_project, project, include_papers=False)  # 404 before the network search
-    f = {"open_access": bool(open_access)}
+    f: dict[str, Any] = {"open_access": bool(open_access)}
     if year_min:
         f["year_min"] = int(year_min)
     if min_citations:
@@ -85,7 +86,7 @@ def search_papers(
     if wanted_domain:
         out["domain"] = wanted_domain
     if project:
-        filters = {k: v for k, v in f.items() if v not in (None, False, [])}
+        filters: dict[str, Any] = {k: v for k, v in f.items() if v not in (None, False, [])}
         filters.update({k: v for k, v in (("sources", sources), ("domain", wanted_domain)) if v})
         filters.update(offset=start, limit=lim)
         if exclude_ids:

@@ -85,7 +85,7 @@ def _validate_public_url(url):
             )
         except socket.gaierror as e:
             raise _errors.HTTPError(400, f"Cannot resolve host {host}: {e}") from e
-        addrs = [ipaddress.ip_address(info[4][0].split("%", 1)[0]) for info in infos]
+        addrs = [ipaddress.ip_address(str(info[4][0]).split("%", 1)[0]) for info in infos]
     if not addrs:
         raise _errors.HTTPError(400, f"Cannot resolve host {host}")
     for ip in addrs:

@@ -1,6 +1,7 @@
 """Prompts and decoding: verbatim prompt templates, their variables, decoding and training hyperparameters (`extract_prompts_and_decoding`)."""
 
 import re
+from typing import Any
 
 from noul.evidence import untrusted as _untrusted
 from noul.providers import pdf_parser
@@ -164,6 +165,7 @@ def _labeled_block(text, m):
 
 
 def _find_prompts(text):
+    spans: list[Any]
     found, spans = [], []
 
     def free(s, e):
@@ -342,6 +344,7 @@ def extract_hyperparameters(text, pages=None):
             if value is not None and not any(k == key and abs(s - m.start()) < 40 for s, k, _, _ in hits):
                 hits.append((m.start(), key, value, m.group(0)))
     hits.sort()
+    params: dict[Any, Any]
     params, evidence = {}, []
     for start, key, value, quote in hits:
         current = params.get(key)

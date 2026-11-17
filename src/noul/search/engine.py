@@ -80,7 +80,7 @@ def _merge_papers(lists):
                     cur[field] = p[field]
             if p.get("versions"):
                 cur["versions"] = {**p["versions"], **(cur.get("versions") or {})}
-            if _classify.EV_W.get(p.get("evidence"), 0) > _classify.EV_W.get(cur.get("evidence"), 0):
+            if _classify.EV_W.get(p.get("evidence") or "", 0) > _classify.EV_W.get(cur.get("evidence") or "", 0):
                 cur["evidence"] = p["evidence"]
             by_key[dedup_key] = _annotate.annotate_paper(cur)
     return list(by_key.values())

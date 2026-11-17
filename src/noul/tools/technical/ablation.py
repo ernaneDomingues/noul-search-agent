@@ -1,6 +1,7 @@
 """Ablation tables: the contribution of each removed component, with alerts on marginal or implausible gains (`analyze_ablation_tables`)."""
 
 import re
+from typing import Any
 
 from noul.providers import pdf_parser
 from noul.tools.technical import common as _common
@@ -47,6 +48,7 @@ def _abl_role(label):
 
 def _list_ablations(text):
     """`Full model: 75.3` / `w/o KL loss: 71.2` lines grouped into consecutive blocks."""
+    cur: list[Any]
     blocks, cur, last_end = [], [], -1
     for m in _ABL_LINE.finditer(text):
         label = m.group("label").strip()
@@ -66,12 +68,12 @@ def _list_ablations(text):
         last_end = m.end()
     if cur:
         blocks.append(cur)
-    out = []
+    out: list[Any] = []
     for block in blocks:
         roles = [_abl_role(lbl) for _, lbl, _, _ in block]
         if len(block) < 2 or "variant" not in roles or not ({"full", "baseline"} & set(roles)):
             continue
-        metrics = {}
+        metrics: dict[Any, Any] = {}
         for _, lbl, val, metric in block:
             metrics.setdefault(lbl, {})[metric] = val
         out.append(
@@ -142,7 +144,7 @@ def _ablation_entries(table):
 
 def _ablation_alerts(entries, reference, table_label):
     alerts = []
-    marginal = {}
+    marginal: dict[Any, Any] = {}
     for e in entries:
         if e["is_marginal"]:
             marginal.setdefault(e["component"], []).append(f"{e['metric']} Δ% = {e['delta_percent']:+.2f}%")
@@ -151,7 +153,7 @@ def _ablation_alerts(entries, reference, table_label):
             f"[{table_label}] Marginal component: '{comp}' changes the result by less than 1% "
             f"({'; '.join(info)}); the contribution may be within experimental noise."
         )
-    by_metric = {}
+    by_metric: dict[Any, Any] = {}
     for e in entries:
         by_metric.setdefault(e["metric"], []).append(e)
     base = reference["baseline"]

@@ -84,11 +84,7 @@ files = ["src/noul"]
 mypy_path = "src"
 ignore_missing_imports = true
 warn_unused_ignores = true
-# Gradual adoption: untyped defs are allowed; strict modules are opted in below as they are refactored.
-check_untyped_defs = false
-
-[[tool.mypy.overrides]]
-module = ["noul.schemas.*"]
+# The bodies of unannotated functions are type-checked too; signatures stay optional (gradual typing).
 check_untyped_defs = true
 
 [tool.pytest.ini_options]

@@ -3,6 +3,7 @@
 import re
 import urllib.parse
 import xml.etree.ElementTree as ET
+from typing import Any
 
 from noul import config as _config
 from noul import ids as _ids
@@ -43,11 +44,8 @@ def _parse_pubmed_xml(xml_txt):
     root = ET.fromstring(xml_txt)
     for art in root.findall(".//PubmedArticle"):
         pmid = art.findtext(".//MedlineCitation/PMID")
-        title = (
-            _ids._clean_text("".join(art.find(".//ArticleTitle").itertext()))
-            if art.find(".//ArticleTitle") is not None
-            else ""
-        )
+        title_el = art.find(".//ArticleTitle")
+        title = _ids._clean_text("".join(title_el.itertext())) if title_el is not None else ""
         if not title:
             continue
         abs_parts = []
@@ -82,6 +80,8 @@ def _parse_pubmed_xml(xml_txt):
                 pmc_id = aid.text.strip()
         pub_types = [pt.text for pt in art.findall(".//PublicationTypeList/PublicationType") if pt.text]
         mesh_terms = _ids._unique([d.text for d in art.findall(".//MeshHeadingList/MeshHeading/DescriptorName")])[:15]
+        retraction = _integrity.from_pub_types(pub_types, "pubmed")
+        extra: dict[str, Any] = {"retraction": retraction} if retraction else {}
         out.append(
             _assemble.assemble_paper(
                 "pubmed",
@@ -96,7 +96,7 @@ def _parse_pubmed_xml(xml_txt):
                 ids={"doi": doi, "pmid": pmid},
                 pmc_id=pmc_id,
                 mesh_terms=mesh_terms,
-                **({"retraction": r} if (r := _integrity.from_pub_types(pub_types, "pubmed")) else {}),
+                **extra,
             )
         )
     return out

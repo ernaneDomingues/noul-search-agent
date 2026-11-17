@@ -3,6 +3,7 @@
 Pure stdlib and side-effect free, so it is safe to run on every parsed search result."""
 
 import re
+from typing import Any
 
 from noul.schemas.domain import ScientificDomain
 
@@ -658,7 +659,7 @@ def explain_domain(paper=None, categories=None, title="", abstract="", journal="
     cats = _as_list(categories) + _as_list(p.get("categories"))
     if primary and str(primary).lower() != "general":
         cats = [str(primary)] + cats
-    votes = {}
+    votes: dict[Any, Any] = {}
     for i, cat in enumerate(cats):
         dom = map_arxiv_category(cat)
         if dom is not None:
@@ -670,7 +671,7 @@ def explain_domain(paper=None, categories=None, title="", abstract="", journal="
     fields = _as_list(p.get("fields_of_study")) + (
         [str(primary)] if primary and str(primary).lower() != "general" else []
     )
-    field_votes = {}
+    field_votes: dict[Any, Any] = {}
     for name in fields:
         dom = map_field_of_study(name)
         if dom is not None:

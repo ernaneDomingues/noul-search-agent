@@ -2,6 +2,7 @@
 
 import re
 from collections import Counter
+from typing import Any
 
 from noul import errors as _errors
 from noul.net import cache as _cache
@@ -444,6 +445,8 @@ def _expansion_corpus(query, ids):
 
 def _ranked_acronyms(texts, qwords):
     """Acronyms absent from the query, the ones found in most texts first."""
+    acr_df: Counter[str]
+    acr_n: Counter[str]
     acr_df, acr_n = Counter(), Counter()
     for text in texts:
         found = _acronyms(text)
@@ -459,6 +462,8 @@ def _emerging_terms(texts, qwords, acronyms):
     from noul.tools.comparative_tools import STOPWORDS, key_terms
 
     acr_lower = {a.lower() for a in acronyms}
+    term_df: Counter[str]
+    term_n: Counter[str]
     term_df, term_n = Counter(), Counter()
     for text in texts:
         terms = key_terms(text)
@@ -474,7 +479,7 @@ def _emerging_terms(texts, qwords, acronyms):
         and all(w not in STOPWORDS and w not in _GENERIC_WORDS for w in t.split())
     ]
     candidates.sort(key=lambda t: (-term_df[t], -(" " in t), -term_n[t], t))
-    emerging = []
+    emerging: list[Any] = []
     for t in candidates:
         if any(t in e.split() for e in emerging if " " in e):
             continue
@@ -490,7 +495,7 @@ def _core_expression(query, emerging, acronyms):
     if query:
         core_expr = query if _BOOLEAN.search(query) else " AND ".join(query.split())
     else:
-        seeds = []
+        seeds: list[Any] = []
         for t in emerging or acronyms:
             if not any(t in x or x in t for x in seeds):
                 seeds.append(t)
@@ -510,7 +515,7 @@ def _method_terms(corpus_text, qwords, emerging, precision, synonym, method_defa
         if re.search(r"\b" + re.escape(m) + r"\b", corpus_text)
         and not any(_norm_word(w) in qwords for w in re.split(r"[\s-]+", m))
     ]
-    methods = []
+    methods: list[Any] = []
     for m in dict.fromkeys(lexicon + [e for e in emerging if e not in precision] + method_defaults):
         if not any(m in x or x in m for x in methods + ([synonym.lower()] if synonym else [])):
             methods.append(m)

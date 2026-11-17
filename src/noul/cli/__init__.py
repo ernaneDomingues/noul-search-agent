@@ -66,7 +66,7 @@ def _double_click_install():
     return code
 
 
-def build_parser():
+def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         prog="noul", description="Noul Search: scientific literature search for humans and agents."
     )

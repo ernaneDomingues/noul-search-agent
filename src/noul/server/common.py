@@ -156,7 +156,7 @@ def _hoist_defs(schema, components, prefix):
 def openapi_spec(host=f"http://localhost:{DEFAULT_PORT}", exclude=(), profile=None, allow_write=True, public=False):
     """OpenAPI 3.1 document for the REST tool endpoints (`POST /tools/<name>`), e.g. for ChatGPT Actions."""
     paths = {}
-    components = {}
+    components: dict[Any, Any] = {}
     for item in visible_tools(profile, allow_write, public):
         name = item["name"]
         if name in exclude:

@@ -3,6 +3,7 @@
 import urllib.error
 import urllib.parse
 import urllib.request
+from typing import Any
 
 from noul import ids as _ids
 from noul.net import cache as _cache
@@ -99,8 +100,8 @@ def related_papers(id, relation="all", study_types=None, year_min=None, limit=15
     p = _ensure_openalex_work(_engine.resolve_paper(id))
     relation = (relation or "all").lower()
     similar = []
-    references = []
-    citing = []
+    references: list[Any] = []
+    citing: list[Any] = []
 
     if relation in ("similar", "all"):
         # 1. Try Semantic Scholar Recommendations API

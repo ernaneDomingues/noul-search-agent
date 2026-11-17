@@ -3,6 +3,7 @@
 import json
 import re
 import time
+from typing import Any
 
 from noul import errors as _errors
 from noul import registry as _registry
@@ -179,7 +180,7 @@ def get_research_dossier(slug, output_dir=None):
         raise _errors.HTTPError(404, f"Research dossier '{slug}' not found")
     sub, readme, papers_path, _ = _common._dossier_paths(match["path"])
     md_text = readme.read_text(encoding="utf-8") if readme.exists() else ""
-    papers = []
+    papers: list[Any] = []
     if papers_path.exists():
         try:
             data = json.loads(papers_path.read_text(encoding="utf-8"))

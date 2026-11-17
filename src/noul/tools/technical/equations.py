@@ -1,6 +1,7 @@
 """Equations and algorithms: LaTeX and plain-text maths turned into typed Python stubs (`extract_paper_math`)."""
 
 import re
+from typing import Any
 
 from noul import errors as _errors
 from noul.providers import pdf_parser
@@ -484,6 +485,7 @@ def _has_operator(rhs):
 
 def parse_math(text):
     """Equations (LaTeX environments, $$..$$, \\[..\\], inline $a = b$, plain-text) and algorithms, in order."""
+    spans: list[Any]
     found, spans = [], []
 
     def free(s, e):
@@ -547,6 +549,7 @@ def extract_paper_math(paper_id, mode="latex"):
     corpus = pdf_parser.get_paper_corpus(_common._paper_id(paper_id))
     from noul.schemas.technical import MathItem
 
+    items: list[Any]
     items, eq_n, algo_n, seen, untranslated = [], 0, 0, set(), 0
     for _, kind, label, body, plain in parse_math(corpus["text"]):
         key = re.sub(r"\s+", "", body)
