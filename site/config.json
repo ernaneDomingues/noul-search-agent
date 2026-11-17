@@ -1,5 +1,5 @@
 {
-  "connector_url": "",
+  "connector_url": "https://noul-search-agent-88855752516.us-central1.run.app/mcp",
   "release_base": "https://github.com/ernaneDomingues/noul-search-agent/releases/latest/download",
   "repository": "https://github.com/ernaneDomingues/noul-search-agent"
 }
