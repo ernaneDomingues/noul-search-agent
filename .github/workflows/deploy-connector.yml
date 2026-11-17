@@ -97,12 +97,12 @@ jobs:
       - name: Smoke test the deployed connector
         if: steps.config.outputs.enabled == 'true'
         run: |
-          code=$(curl -s -o /dev/null -w '%{http_code}' "$URL/healthz")
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$URL/health")
           if [ "$code" = "403" ]; then
             echo "::warning::The service is private. Grant public access once: docs/deploy/cloud-run.md, step 8."
             exit 0
           fi
-          curl -fsS "$URL/healthz"
+          curl -fsS "$URL/health"
           curl -fsS -o body.txt \
             -H 'Accept: application/json, text/event-stream' -H 'Content-Type: application/json' \
             -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \

@@ -160,7 +160,7 @@ Write down the MCP URL: it goes into the site's install page (`connector_url` in
 To check:
 
 ```bash
-curl -s "$URL/healthz"                                                              # {"status":"ok",...}
+curl -s "$URL/health"     # {"status":"ok",...}; Cloud Run reserves /healthz (paths ending in "z")
 curl -s "$URL/tools" | python3 -c 'import sys,json; print(len(json.load(sys.stdin)["tools"]))'   # 12
 curl -s -o /dev/null -w '%{http_code}\n' "$URL/mcp"                                 # 405 (POST only)
 ```
