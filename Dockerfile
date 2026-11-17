@@ -3,7 +3,7 @@
 # behind Cloud Run also NOUL_TRUSTED_PROXY=1) - see docs/deploy/cloud-run.md.
 # Private server: set NOUL_HTTP_TOKEN (Bearer auth) and NOUL_CORS_ORIGINS; write tools stay disabled unless
 # NOUL_HTTP_ALLOW_WRITE=1 *and* a token are set. /healthz is unauthenticated.
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
