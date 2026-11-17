@@ -82,6 +82,14 @@ class HardwareEstimatorTests(unittest.TestCase):
         ds = t.estimate_hardware_specs("doi:10.1000/ds")
         self.assertEqual((ds["architecture_type"], ds["active_parameters_billion"]), ("moe", 37.0))
 
+    def test_a_zero_head_count_in_the_text_does_not_crash(self):
+        from noul.tools import hardware_tools
+
+        layers, kv_heads, head_dim, source = hardware_tools._kv_config(
+            "hidden size of 4096, 0 attention heads and 8 KV heads", 7
+        )
+        self.assertEqual((kv_heads, head_dim, source), (8, 512, "paper text"))
+
     def test_defaults_and_special_architectures(self):
         _support.seed_fulltext_paper(
             "doi:10.1000/bert",

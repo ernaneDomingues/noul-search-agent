@@ -1,6 +1,7 @@
 """Reading and keeping papers: full text, passage search, citation graph, downloads, exports and Zotero."""
 
 from noul import errors as _errors
+from noul import log as _log
 from noul import registry as _registry
 from noul import workspace as _workspace
 from noul.api import common as _common
@@ -92,7 +93,7 @@ def query_fulltexts(ids, question, max_chunks_per_paper=4):
                 row["content_source"] = "abstract_only"
             row["excerpts"] = [e.model_dump(mode="json") for e in excerpts]
             results.append(row)
-        except Exception as e:
+        except _errors.UPSTREAM_ERRORS as e:
             results.append({"id": raw_id, "error": str(e)})
     return {
         "question": question,
@@ -172,7 +173,7 @@ def download_papers(ids, output_dir=None):
     for raw_id in ids[:25]:
         try:
             results.append(_downloads.download_paper_pdf(raw_id, output_dir=str(dest)))
-        except Exception as e:
+        except (*_errors.UPSTREAM_ERRORS, OSError) as e:
             results.append({"id": raw_id, "status": "error", "error": str(e)})
     downloaded_count = sum(1 for r in results if r.get("status") == "downloaded")
     return {
@@ -224,7 +225,8 @@ def _project_paper(record):
         return record, False
     try:
         return {**record, **_common._resolve(record.get("doi") or record["id"]), "id": record["id"]}, False
-    except Exception:
+    except _errors.UPSTREAM_ERRORS as e:
+        _log.logger.debug("project paper could not be resolved: %s", type(e).__name__)
         return record, True
 
 
@@ -252,7 +254,7 @@ def _papers_to_send(ids, project, status):
     for i in ids:
         try:
             papers.append(_common._resolve(i))
-        except Exception as exc:
+        except _errors.UPSTREAM_ERRORS as exc:
             found_nothing = getattr(exc, "code", None) == 404
             missing.append((i, _NOT_FOUND if found_nothing else "The sources did not answer."))
     return papers, missing, []

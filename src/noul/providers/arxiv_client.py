@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 
 from noul import errors as _errors
 from noul import ids as _ids
+from noul import log as _log
 from noul.net import cache as _cache
 from noul.net import http as _nhttp
 from noul.providers import crossref as _crossref
@@ -438,10 +439,9 @@ def _detect_new_baselines_or_datasets(text_old: str, text_new: str) -> list:
     found = []
 
     for ent in _KNOWN_ENTITIES:
-        if re.search(rf"(?<![A-Za-z0-9]){re.escape(ent)}(?![A-Za-z0-9])", text_new or "", re.I):
-            if not re.search(rf"(?<![A-Za-z0-9]){re.escape(ent)}(?![A-Za-z0-9])", low_old, re.I):
-                if ent not in found:
-                    found.append(ent)
+        pattern = rf"(?<![A-Za-z0-9]){re.escape(ent)}(?![A-Za-z0-9])"
+        if re.search(pattern, text_new or "", re.I) and not re.search(pattern, low_old, re.I) and ent not in found:
+            found.append(ent)
 
     for m in _HYPHEN_ENTITY_RE.finditer(text_new or ""):
         tok = m.group(0)
@@ -646,9 +646,13 @@ def is_arxiv_preprint_entry(entry: dict) -> bool:
 
     # If it already has a formal non-preprint conference or journal venue, it's not a bare preprint
     formal_venue = booktitle or journal
-    if formal_venue and not _PREPRINT_VENUE_RE.search(formal_venue) and etype in ("inproceedings", "article"):
-        if not doi.startswith("10.48550/arxiv"):
-            return False
+    if (
+        formal_venue
+        and not _PREPRINT_VENUE_RE.search(formal_venue)
+        and etype in ("inproceedings", "article")
+        and not doi.startswith("10.48550/arxiv")
+    ):
+        return False
 
     if etype in ("misc", "unpublished", "techreport") and (
         eprint or archive == "arxiv" or "arxiv" in journal.lower() or "arxiv" in howpub.lower()
@@ -658,9 +662,7 @@ def is_arxiv_preprint_entry(entry: dict) -> bool:
         return True
     if doi.startswith("10.48550/arxiv"):
         return True
-    if eprint and not formal_venue:
-        return True
-    return False
+    return bool(eprint and not formal_venue)
 
 
 def is_conference_venue(venue: str) -> bool:
@@ -672,9 +674,7 @@ def _is_formal_published_record(rec: dict) -> bool:
     if not isinstance(rec, dict):
         return False
     venue = str(rec.get("journal") or rec.get("venue") or rec.get("booktitle") or "").strip()
-    if not venue or _PREPRINT_VENUE_RE.search(venue):
-        return False
-    return True
+    return bool(venue) and not _PREPRINT_VENUE_RE.search(venue)
 
 
 def resolve_published_venue_for_preprint(entry: dict, failures: list[str] | None = None) -> dict | None:
@@ -708,8 +708,8 @@ def resolve_published_venue_for_preprint(entry: dict, failures: list[str] | None
                 and (norm_t == rec_norm_t or difflib.SequenceMatcher(None, norm_t, rec_norm_t).ratio() >= 0.90)
             ):
                 candidates.append(rec)
-    except Exception:
-        pass
+    except _errors.UPSTREAM_ERRORS as e:
+        _log.logger.debug("cached arXiv publication record unreadable: %s", type(e).__name__)
 
     # 2. If not found in cache, query external APIs (all guarded by try/except for offline determinism)
     if not candidates and arxiv_id:
@@ -718,7 +718,7 @@ def resolve_published_venue_for_preprint(entry: dict, failures: list[str] | None
             p_s2 = _s2._parse_s2_paper(_nhttp._http_json(url))
             if p_s2 and _is_formal_published_record(p_s2):
                 candidates.append(p_s2)
-        except Exception as e:
+        except _errors.UPSTREAM_ERRORS as e:
             if failures is not None and getattr(e, "code", None) != 404:  # 404: S2 has no such preprint
                 failures.append("s2")
 
@@ -731,7 +731,8 @@ def resolve_published_venue_for_preprint(entry: dict, failures: list[str] | None
         ):
             try:
                 results = search_fn(clean_q) or []
-            except Exception:
+            except _errors.UPSTREAM_ERRORS as e:
+                _log.logger.debug("arXiv title search failed: %s", type(e).__name__)
                 results = []
                 if failures is not None:
                     failures.append("title-search")

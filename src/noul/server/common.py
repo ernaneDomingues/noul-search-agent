@@ -12,6 +12,7 @@ from typing import Any
 
 from noul import __version__
 from noul import api as _api
+from noul import errors as _errors
 from noul import log as _log
 from noul import registry as _registry
 from noul.server import limits as _limits
@@ -36,7 +37,7 @@ def resources_list():
     out = []
     try:
         projects = _api.project_list().get("projects") or []
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - resources/list must answer even if the project store is broken
         print(f"noul: could not list research projects: {type(e).__name__}", file=sys.stderr)
         projects = []
     for p in projects:
@@ -52,7 +53,7 @@ def resources_list():
         )
     try:
         dossiers = _api.list_research_dossiers().get("dossiers") or []
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - resources/list must answer even if a dossier is broken
         print(f"noul: could not list research dossiers: {e}", file=sys.stderr)
         dossiers = []
     out += [
@@ -156,7 +157,7 @@ def _hoist_defs(schema, components, prefix):
 def openapi_spec(host=f"http://localhost:{DEFAULT_PORT}", exclude=(), profile=None, allow_write=True, public=False):
     """OpenAPI 3.1 document for the REST tool endpoints (`POST /tools/<name>`), e.g. for ChatGPT Actions."""
     paths = {}
-    components = {}
+    components: dict[Any, Any] = {}
     for item in visible_tools(profile, allow_write, public):
         name = item["name"]
         if name in exclude:
@@ -368,13 +369,18 @@ def dispatch(name: str, args: Any, policy: Policy) -> Call | Refusal:
     return Call(name, args, public_caps(name) if policy.public else None, policy.concurrency)
 
 
-def error_text(exc: Exception) -> str:
-    """Error text for the host model: argument/lookup problems are not network failures (do not retry them)."""
+def error_text(exc: Exception, public: bool = False) -> str:
+    """Error text for the host model: argument/lookup problems are not network failures (do not retry them).
+
+    On the public connector an error that is not an HTTPError (a bug, a broken disk) is reported by its type
+    only: its message could show the server's paths to anyone."""
     code = getattr(exc, "code", None)
     if code == 400:
         return f"InvalidArguments: {exc}"
     if code == 404:
         return f"NotFound: {exc}"
+    if public and not isinstance(exc, _errors.HTTPError):
+        return f"{type(exc).__name__}: internal error"
     return f"{type(exc).__name__}: {exc}"
 
 

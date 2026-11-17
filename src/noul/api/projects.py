@@ -1,6 +1,7 @@
 """Research projects: a question, the papers considered for it with a status, notes and logged searches."""
 
 import time
+from typing import Any
 
 from noul import errors as _errors
 from noul import registry as _registry
@@ -137,6 +138,8 @@ def _neutralized_project(out):
 )
 def project_add_papers(project, ids, status="candidate", reason=None):
     _common._project_call(_store.get_project, project, include_papers=False)  # 404 before up to 100 network lookups
+    not_found: list[Any]
+    unavailable: list[Any]
     papers, not_found, unavailable, id_map = [], [], [], {}
     for raw in _paper_ids(ids)[: _store.MAX_IDS]:
         try:

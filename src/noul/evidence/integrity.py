@@ -17,6 +17,7 @@ import unicodedata
 import urllib.parse
 from typing import Any
 
+from noul import errors as _errors
 from noul import ids as _ids
 from noul.net import cache as _cache
 from noul.net import http as _nhttp
@@ -113,7 +114,9 @@ def crossref_facts(doi: str) -> dict[str, Any]:
     url = "https://api.crossref.org/works/" + urllib.parse.quote(norm, safe="") + _nhttp._mailto_qs()
     try:
         facts = parse_crossref((_nhttp._http_json(url) or {}).get("message") or {})
-    except Exception as e:  # 404 (not a Crossref DOI) or network trouble: no facts, but never break the caller
+    except (
+        _errors.UPSTREAM_ERRORS
+    ) as e:  # 404 (not a Crossref DOI) or network trouble: no facts, but never break the caller
         if getattr(e, "code", None) != 404:
             return {"check_failed": True}
         facts = {}
@@ -165,7 +168,7 @@ def _arxiv_published_as(paper: dict[str, Any], arxiv_id: str) -> str | None:
     failures: list[str] = []
     try:
         found = arxiv_client.resolve_published_venue_for_preprint(entry, failures=failures)
-    except Exception:
+    except _errors.UPSTREAM_ERRORS:
         return None  # transient: not cached
     pub_doi = _safe_doi(found.get("doi")) if found and _same_work(paper, found) else None
     published = pub_doi if pub_doi and not pub_doi.lower().startswith(ARXIV_DOI_PREFIX) else None

@@ -128,8 +128,8 @@ def _kv_config(text, size_b):
         kv_heads = heads
     if found.get("head_dim"):
         head_dim = found["head_dim"]
-    elif found.get("hidden") and (found.get("heads") or heads):
-        head_dim = max(1, found["hidden"] // found.get("heads", heads))
+    elif found.get("hidden") and (divisor := found.get("heads") or heads):
+        head_dim = max(1, found["hidden"] // divisor)
     return layers, kv_heads, head_dim, ("paper text" if found else "size-based Llama-style defaults")
 
 
@@ -206,7 +206,7 @@ def estimate_hardware_specs(paper_id, total_params_b=None, active_params_b=None,
         spans.append((m.start(), m.end()))
         if moe_total is None:
             experts, base = int(m.group(1)), float(m.group(2))
-            k = int(_TOP_K.search(text).group(1)) if _TOP_K.search(text) else 2
+            k = int(top_k.group(1)) if (top_k := _TOP_K.search(text)) else 2
             k = min(k, experts)
             shared = base * (1 - MOE_EXPERT_FRACTION)
             moe_total = round(shared + experts * base * MOE_EXPERT_FRACTION, 1)

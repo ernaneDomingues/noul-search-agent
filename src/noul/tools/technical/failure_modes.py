@@ -1,7 +1,10 @@
 """Failure modes: limitations, critical assumptions and baselines that beat the proposed method (`detect_failure_modes`)."""
 
 import re
+from typing import Any
 
+from noul import errors as _errors
+from noul import log as _log
 from noul.evidence import contract as _contract
 from noul.evidence import untrusted as _untrusted
 from noul.providers import pdf_parser
@@ -161,7 +164,7 @@ def _severity_for(sentence):
 
 
 def _extract_operational_limits(text):
-    limits = {}
+    limits: dict[str, Any] = {}
     ctx_patterns = (
         re.compile(
             r"(?:context\s+(?:window|length)|sequence\s+length|max(?:imum)?\s+(?:context|sequence|input)"
@@ -208,9 +211,8 @@ def _extract_operational_limits(text):
 
     langs = []
     for lang in ("English", "Chinese", "Spanish", "Portuguese", "French", "German", "Japanese", "Arabic"):
-        if re.search(rf"\b{lang}(?:[-\s]only)?\b", text or "", re.I):
-            if lang not in langs:
-                langs.append(lang)
+        if re.search(rf"\b{lang}(?:[-\s]only)?\b", text or "", re.I) and lang not in langs:
+            langs.append(lang)
     if langs:
         limits["supported_languages"] = langs
     return limits
@@ -225,8 +227,8 @@ def _table_baseline_superiority(paper_id, corpus, inspect_fulltext=True):
             ext = _tables.extract_benchmark_tables(paper_id)
             if ext and ext.get("tables"):
                 tables = ext["tables"]
-        except Exception:
-            pass
+        except _errors.UPSTREAM_ERRORS as e:
+            _log.logger.debug("benchmark tables unavailable for the baseline check: %s", type(e).__name__)
     title_words = {
         w.lower()
         for w in re.findall(r"[A-Za-z][A-Za-z0-9\-]{2,}", corpus.get("title") or "")
@@ -301,7 +303,8 @@ def detect_failure_modes(paper_id: str, inspect_fulltext: bool = True) -> dict:
             from noul.providers import domain_classifier
 
             domain = domain_classifier.resolve_domain(paper=p).value
-        except Exception:
+        except Exception as e:  # noqa: BLE001 - a classifier failure must not fail the tool
+            _log.logger.debug("domain classification failed: %s", type(e).__name__)
             domain = "general_stem"
 
     text = corpus["text"]

@@ -88,7 +88,11 @@ def tmp_path(name):
 
 
 def no_network(*args, **kwargs):
-    raise AssertionError(f"unexpected network access: {args[:1]}")
+    """Stand-in for the HTTP helpers in offline tests: the network is unreachable. It raises what `noul.net.http`
+    raises for a network failure (an HTTPError), so the code under test takes its offline path."""
+    from noul.errors import HTTPError
+
+    raise HTTPError(503, f"network blocked in tests: {args[:1]}")
 
 
 # Phase 2 corpus: two LLM quantization papers, a human RCT and a preclinical mouse study.

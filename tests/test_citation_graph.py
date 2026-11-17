@@ -104,9 +104,11 @@ class GraphTests(unittest.TestCase):
         self.assertEqual(trials["citing"], [])
 
     def test_a_failing_source_leaves_that_list_empty(self):
+        from noul.errors import HTTPError
+
         def failing(url, *args, **kwargs):
             if "semanticscholar.org" in url or "cites%3A" in url:
-                raise OSError("boom")
+                raise HTTPError(502, "Network error (ConnectError)")  # what noul.net.http raises for a dead host
             return fake_http_json(url, *args, **kwargs)
 
         self.http.side_effect = failing

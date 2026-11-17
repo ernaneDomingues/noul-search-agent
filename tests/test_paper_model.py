@@ -94,9 +94,11 @@ class ResolvePaperTests(unittest.TestCase):
         self.assertEqual(self.lookup(errors.HTTPError(502, "bad gateway")).code, 503)
 
     def test_tools_report_the_difference(self):
-        with mock.patch(_support.core_target("_http_json"), side_effect=errors.HTTPError(429, "limited")):
-            with self.assertRaises(errors.HTTPError) as caught:
-                registry.call("get_paper", {"id": "10.1000/also-never-cached"})
+        with (
+            mock.patch(_support.core_target("_http_json"), side_effect=errors.HTTPError(429, "limited")),
+            self.assertRaises(errors.HTTPError) as caught,
+        ):
+            registry.call("get_paper", {"id": "10.1000/also-never-cached"})
         self.assertEqual(caught.exception.code, 429)
 
 

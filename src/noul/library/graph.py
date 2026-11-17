@@ -3,8 +3,11 @@
 import urllib.error
 import urllib.parse
 import urllib.request
+from typing import Any
 
+from noul import errors as _errors
 from noul import ids as _ids
+from noul import log as _log
 from noul.net import cache as _cache
 from noul.net import http as _nhttp
 from noul.providers import endpoints as _endpoints
@@ -36,8 +39,8 @@ def _ensure_openalex_work(p):
                 p["referenced_works"] = parsed.get("referenced_works") or []
                 p["related_works"] = parsed.get("related_works") or []
                 _cache.put_paper(p["id"], p)
-        except Exception:
-            pass
+        except _errors.UPSTREAM_ERRORS as e:
+            _log.logger.debug("OpenAlex work lookup failed: %s", type(e).__name__)
     return p
 
 
@@ -59,7 +62,8 @@ def _fetch_openalex_batch(oa_ids, limit=15):
                 _cache.put_paper(p["id"], p)
                 out.append(p)
         return out
-    except Exception:
+    except _errors.UPSTREAM_ERRORS as e:
+        _log.logger.debug("OpenAlex batch lookup failed: %s", type(e).__name__)
         return []
 
 
@@ -83,8 +87,8 @@ def citation_graph(id):
                 if cp:
                     _cache.put_paper(cp["id"], cp)
                     citing.append(cp)
-        except Exception:
-            pass
+        except _errors.UPSTREAM_ERRORS as e:
+            _log.logger.debug("OpenAlex citing-works lookup failed: %s", type(e).__name__)
     return {
         "id": p["id"],
         "title": p.get("title"),
@@ -99,8 +103,8 @@ def related_papers(id, relation="all", study_types=None, year_min=None, limit=15
     p = _ensure_openalex_work(_engine.resolve_paper(id))
     relation = (relation or "all").lower()
     similar = []
-    references = []
-    citing = []
+    references: list[Any] = []
+    citing: list[Any] = []
 
     if relation in ("similar", "all"):
         # 1. Try Semantic Scholar Recommendations API
@@ -125,8 +129,8 @@ def related_papers(id, relation="all", study_types=None, year_min=None, limit=15
                     if sp:
                         _cache.put_paper(sp["id"], sp)
                         similar.append(sp)
-            except Exception:
-                pass
+            except _errors.UPSTREAM_ERRORS as e:
+                _log.logger.debug("Semantic Scholar recommendations failed: %s", type(e).__name__)
 
         # 2. Supplement with OpenAlex related_works
         if len(similar) < limit and p.get("related_works"):

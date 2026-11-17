@@ -1,6 +1,7 @@
 """Benchmark tables: Markdown, LaTeX and plain-text tables parsed into rows of normalised metrics (`extract_benchmark_tables`)."""
 
 import re
+from typing import Any
 
 from noul.providers import pdf_parser
 from noul.schemas.technical import BenchmarkTable
@@ -126,6 +127,7 @@ def normalize_metric_name(name):
 
 
 def _dedupe(names):
+    seen: dict[Any, Any]
     seen, out = {}, []
     for n in names:
         seen[n] = seen.get(n, 0) + 1
@@ -146,6 +148,7 @@ _MD_SEP = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(?:\|\s*:?-{2,}:?\s*)*\|?\s*$")
 
 
 def _markdown_tables(text):
+    block: list[Any]
     out, block, start = [], [], None
     pos = 0
     for line in text.splitlines(keepends=True):
@@ -225,6 +228,7 @@ def _plain_tables(text, captions, taken):
         for line in text[pos : pos + 4000].split("\n"):
             lines.append((pos, line))
             pos += len(line) + 1
+        rows: list[Any]
         header, rows, start, end, blanks, pre, group = None, [], None, None, 0, 0, None
         for off, line in lines:
             if not line.strip():
@@ -345,6 +349,8 @@ def _build_table(table_id, caption, headers, raw_rows):
         and sum(normalize_metric_name(x) in METRIC_SYNONYMS.values() for x in labels) * 2 > len(labels)
         and not any(h in METRIC_SYNONYMS.values() for h in norm_headers[1:])
     )
+    metrics: dict[Any, Any]
+    seen: dict[Any, Any]
     rows, metrics, seen = [], {}, {}
     for cells, label in zip(raw_rows, labels, strict=False):
         cells = list(cells[: len(norm_headers)]) + [None] * (len(norm_headers) - len(cells))
@@ -376,6 +382,7 @@ def parse_benchmark_tables(text, pages=None, captions=None):
     taken = [(t["start"], t["end"]) for t in found]
     found += _plain_tables(text, captions, taken)
     found.sort(key=lambda t: t["start"])
+    used: set[Any]
     used, out, ids, prev_end = set(), [], set(), 0
     for ordinal, tb in enumerate(found, 1):
         cap = _assign_caption(tb, captions, used, prev_end)
@@ -420,7 +427,7 @@ def parse_benchmark_tables(text, pages=None, captions=None):
 
 
 def _summary(tables):
-    by_metric = {}
+    by_metric: dict[Any, Any] = {}
     for tb in tables:
         for model, metrics in tb["normalized_metrics"].items():
             for metric, value in metrics.items():

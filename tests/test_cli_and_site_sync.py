@@ -76,9 +76,12 @@ class SiteCliMappingTests(unittest.TestCase):
                     if not word.islower() or word[0] in "<'\"-":
                         break
                     words.append(word)
-                with self.assertRaises(SystemExit) as caught, contextlib.redirect_stdout(io.StringIO()):
-                    with contextlib.redirect_stderr(io.StringIO()):
-                        cli.main([*words, "--help"])
+                with (
+                    self.assertRaises(SystemExit) as caught,
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()),
+                ):
+                    cli.main([*words, "--help"])
                 self.assertEqual(caught.exception.code, 0, f"`{command}` is not a CLI command")
 
 

@@ -5,6 +5,7 @@ Importing this module has no side effects."""
 
 import re
 
+from noul import errors as _errors
 from noul.library import fulltext as _ft
 from noul.net import cache as _cache
 from noul.search import engine as _engine
@@ -155,9 +156,14 @@ def flow_text(text, sections=None, captions=None, spans=()):
         keep.update(i for i in range(start, min(end, len(text))) if text[i] == "\n")
     chars = list(text)
     for i, ch in enumerate(chars):
-        if ch == "\n" and i not in keep and 0 < i < len(chars) - 1:
-            if chars[i - 1] not in "\n\f" and chars[i + 1] not in "\n\f":
-                chars[i] = " "
+        if (
+            ch == "\n"
+            and i not in keep
+            and 0 < i < len(chars) - 1
+            and chars[i - 1] not in "\n\f"
+            and chars[i + 1] not in "\n\f"
+        ):
+            chars[i] = " "
     return "".join(chars)
 
 
@@ -218,7 +224,7 @@ def get_paper_corpus(paper_id):
         try:
             if _ft.fulltext(pid).get("available"):
                 text = (_cache.cache_get("ft:" + pid) or {}).get("text") or ""
-        except Exception as e:
+        except _errors.UPSTREAM_ERRORS as e:
             warnings.append(f"Full text fetch failed ({type(e).__name__}).")
     source = "fulltext"
     if not text:

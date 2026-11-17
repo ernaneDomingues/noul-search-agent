@@ -172,13 +172,14 @@ class ProjectExportTests(Base):
 
     def test_old_record_with_four_authors_is_completed_or_flagged(self):
         from noul.api import library
+        from noul.errors import HTTPError
 
         record = {"id": "doi:10.1000_old", "doi": "10.1000/old", "title": "Old", "authors": list("abcd")}
         with mock.patch("noul.api.common._resolve", return_value={**record, "authors": list("abcdef")}):
             self.assertEqual(
                 (len(library._project_paper(record)[0]["authors"]), library._project_paper(record)[1]), (6, False)
             )
-        with mock.patch("noul.api.common._resolve", side_effect=OSError("down")):
+        with mock.patch("noul.api.common._resolve", side_effect=HTTPError(502, "Network error (ConnectError)")):
             self.assertTrue(library._project_paper(record)[1])
 
     def test_export_notes_stay_out_of_the_file_and_reach_the_client(self):
@@ -508,9 +509,11 @@ class SecretTests(Base):
         from noul.errors import HTTPError
 
         fake = self.use(Zotero())
-        with mock.patch.dict(os.environ, {"NOUL_ZOTERO_API_KEY": "", "NOUL_ZOTERO_USER_ID": ""}):
-            with self.assertRaises(HTTPError) as caught:
-                registry.call("zotero_push", {"ids": [PAPER["id"]]})
+        with (
+            mock.patch.dict(os.environ, {"NOUL_ZOTERO_API_KEY": "", "NOUL_ZOTERO_USER_ID": ""}),
+            self.assertRaises(HTTPError) as caught,
+        ):
+            registry.call("zotero_push", {"ids": [PAPER["id"]]})
         self.assertIn("not configured", str(caught.exception))
         self.assertEqual(fake.requests, [])
 

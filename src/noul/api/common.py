@@ -130,7 +130,8 @@ def _paper_domain(p):
         return p["domain"]
     try:
         return _domain_classifier.resolve_domain(paper=p).value
-    except Exception:
+    except Exception as e:  # noqa: BLE001 - a classifier failure must not fail the tool
+        _log.logger.debug("domain classification failed: %s", type(e).__name__)
         return None
 
 

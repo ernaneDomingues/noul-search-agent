@@ -66,7 +66,7 @@ def _double_click_install():
     return code
 
 
-def build_parser():
+def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         prog="noul", description="Noul Search: scientific literature search for humans and agents."
     )
@@ -105,7 +105,7 @@ def main(argv=None):
     try:
         out = command.run(a)
         text = command.pretty(out, a) if a.pretty and command.pretty is not None else None
-    except Exception as ex:
+    except Exception as ex:  # noqa: BLE001 - command boundary: any error is printed as JSON with exit code 1
         print(json.dumps({"error": str(ex)}), file=sys.stderr)
         return 1
     if text is not None:

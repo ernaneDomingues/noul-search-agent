@@ -41,6 +41,10 @@ def _json(status: int, payload: Any, headers: dict[str, str] | None = None) -> l
     ]
 
 
+_CLIENT_GONE = object()  # what Guard._buffered_body returns when the client disconnected mid-body
+_TOO_LARGE = object()  # ... and when the body exceeded MAX_BODY_BYTES
+
+
 class Guard:
     """ASGI middleware applying Host / Origin / Bearer / body-size checks to every HTTP route."""
 
@@ -62,6 +66,41 @@ class Guard:
         self.trusted_proxy_hops = trusted_proxy_hops
         self.public = public
 
+    def _cors_headers(self, origin: str) -> dict[str, str]:
+        """CORS response headers for `origin`: any origin on the open public connector, else only the allowed ones."""
+        if self.public and origin:
+            # Open, credential-less server: any origin may call it (browser inspectors, web clients).
+            return {"Access-Control-Allow-Origin": "*", "Access-Control-Expose-Headers": "Mcp-Session-Id"}
+        if origin in self.cors_origins:
+            return {
+                "Access-Control-Allow-Origin": origin,
+                "Vary": "Origin",
+                "Access-Control-Expose-Headers": "Mcp-Session-Id",
+            }
+        return {}
+
+    @staticmethod
+    async def _buffered_body(receive: Any) -> Any:
+        """A body without Content-Length (chunked), read up to the cap before the app runs: a `receive` that replays
+        it, or `_CLIENT_GONE` / `_TOO_LARGE`."""
+        chunks, size = [], 0
+        while True:
+            message = await receive()
+            if message["type"] != "http.request":
+                return _CLIENT_GONE
+            chunks.append(message.get("body", b""))
+            size += len(chunks[-1])
+            if size > _common.MAX_BODY_BYTES:
+                return _TOO_LARGE
+            if not message.get("more_body"):
+                break
+        buffered: list[Any] = [{"type": "http.request", "body": b"".join(chunks), "more_body": False}]
+
+        async def replay() -> Any:
+            return buffered.pop() if buffered else await receive()
+
+        return replay
+
     async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
         if scope["type"] == "lifespan":
             await self.app(scope, receive, send)
@@ -77,17 +116,7 @@ class Guard:
             headers["x-forwarded-for"] = ",".join(xff)
         path = scope.get("path", "")
         origin = (headers.get("origin") or "").rstrip("/")
-        if self.public and origin:
-            # Open, credential-less server: any origin may call it (browser inspectors, web clients).
-            cors = {"Access-Control-Allow-Origin": "*", "Access-Control-Expose-Headers": "Mcp-Session-Id"}
-        elif origin in self.cors_origins:
-            cors = {
-                "Access-Control-Allow-Origin": origin,
-                "Vary": "Origin",
-                "Access-Control-Expose-Headers": "Mcp-Session-Id",
-            }
-        else:
-            cors = {}
+        cors = self._cors_headers(origin)
 
         async def reply(status: int, payload: Any, extra: dict[str, str] | None = None) -> None:
             for message in _json(status, payload, {**cors, **(extra or {})}):
@@ -124,28 +153,13 @@ class Guard:
         if length and (not length.isdigit() or int(length) > _common.MAX_BODY_BYTES):
             return await reply(413, {"error": f"Request body exceeds {_common.MAX_BODY_BYTES} bytes"})
 
-        method = scope.get("method", "GET")
-        if not length and method in ("POST", "PUT", "PATCH", "DELETE"):
-            # No Content-Length (chunked): read up to the cap before the app runs, then replay it.
-            chunks, size = [], 0
-            while True:
-                message = await receive()
-                if message["type"] != "http.request":
-                    return  # client went away
-                chunks.append(message.get("body", b""))
-                size += len(chunks[-1])
-                if size > _common.MAX_BODY_BYTES:
-                    return await reply(413, {"error": f"Request body exceeds {_common.MAX_BODY_BYTES} bytes"})
-                if not message.get("more_body"):
-                    break
-            buffered: list[Any] = [{"type": "http.request", "body": b"".join(chunks), "more_body": False}]
-
-            async def replay() -> Any:
-                return buffered.pop() if buffered else await receive()
-
-            app_receive: Any = replay
-        else:
-            app_receive = receive
+        app_receive: Any = receive
+        if not length and scope.get("method", "GET") in ("POST", "PUT", "PATCH", "DELETE"):
+            app_receive = await self._buffered_body(receive)
+            if app_receive is _CLIENT_GONE:
+                return
+            if app_receive is _TOO_LARGE:
+                return await reply(413, {"error": f"Request body exceeds {_common.MAX_BODY_BYTES} bytes"})
 
         async def send_with_cors(message: Any) -> None:
             if message["type"] == "http.response.start" and cors:
@@ -213,8 +227,8 @@ def build_app(
             return JSONResponse({"error": call.text}, status_code=call.status, headers=retry)
         try:
             result = await run_in_threadpool(call.run)
-        except Exception as e:
-            return JSONResponse({"error": _common.error_text(e)}, status_code=_common.error_status(e))
+        except Exception as e:  # noqa: BLE001 - transport boundary: every tool error becomes an error response
+            return JSONResponse({"error": _common.error_text(e, policy.public)}, status_code=_common.error_status(e))
         finally:
             call.release()  # also when the client went away before the worker thread started
         payload = result if isinstance(result, dict) else {"result": result}

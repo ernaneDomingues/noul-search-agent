@@ -5,6 +5,6 @@ from pathlib import Path
 
 sys.path.insert(1, str(Path(__file__).resolve().parents[2]))  # the folder that contains the `noul` package
 
-from noul.server.mcp import main  # noqa: E402
+from noul.server.mcp import main
 
 sys.exit(main())

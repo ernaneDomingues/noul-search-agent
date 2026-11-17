@@ -1,8 +1,10 @@
 """Finding papers: search, scope clarification, one paper's record, domain, open artifacts and references."""
 
 import sqlite3
+from typing import Any
 
 from noul import errors as _errors
+from noul import log as _log
 from noul import registry as _registry
 from noul.api import common as _common
 from noul.evidence import integrity as _integrity
@@ -54,7 +56,7 @@ def search_papers(
         if len(str(query)) > _store.MAX_QUERY:
             raise _errors.HTTPError(400, f"A search logged in a project takes at most {_store.MAX_QUERY} characters")
         _common._project_call(_store.get_project, project, include_papers=False)  # 404 before the network search
-    f = {"open_access": bool(open_access)}
+    f: dict[str, Any] = {"open_access": bool(open_access)}
     if year_min:
         f["year_min"] = int(year_min)
     if min_citations:
@@ -85,7 +87,7 @@ def search_papers(
     if wanted_domain:
         out["domain"] = wanted_domain
     if project:
-        filters = {k: v for k, v in f.items() if v not in (None, False, [])}
+        filters: dict[str, Any] = {k: v for k, v in f.items() if v not in (None, False, [])}
         filters.update({k: v for k, v in (("sources", sources), ("domain", wanted_domain)) if v})
         filters.update(offset=start, limit=lim)
         if exclude_ids:
@@ -114,8 +116,8 @@ def search_papers(
             scope = _search_tools.clarify_search_scope(query, domain=wanted_domain)
             if scope["needs_clarification"]:
                 out["clarification_suggested"] = {k: scope[k] for k in ("reason", "domain", "questions", "next_step")}
-        except Exception:
-            pass
+        except Exception as e:  # noqa: BLE001 - the scope hint is optional; it must not fail the search
+            _log.logger.debug("clarification hint failed: %s", type(e).__name__)
     return out
 
 
@@ -226,7 +228,7 @@ def scan_paper_artifacts(id, verify_http=True, inspect_fulltext=False):
                 text = (_cache.cache_get("ft:" + pid) or {}).get("text") or ""
             else:
                 warnings.append("Full text not available; scanned title/abstract only.")
-        except Exception as e:
+        except _errors.UPSTREAM_ERRORS as e:
             warnings.append(f"Full text unavailable ({type(e).__name__}); scanned title/abstract only.")
     res = radar.scan_artifacts_from_paper(
         p, fulltext=text, verify_http=bool(verify_http), max_urls=radar.MAX_VERIFY_URLS

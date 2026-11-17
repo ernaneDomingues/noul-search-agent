@@ -1,6 +1,7 @@
 """Claim grounding: each claim is matched to the passages of the paper that state it, with extrapolation alerts (`verify_paper_claims`)."""
 
 import re
+from typing import Any
 
 from noul import errors as _errors
 from noul.evidence import contract as _contract
@@ -149,7 +150,7 @@ def _auto_claims(corpus, passages):
     )
     abstract = [re.sub(r"\s+", " ", m.group(0)).strip() for m in _SENTENCE.finditer(corpus["abstract"] or "")]
     body = [p["quote"] for p in passages if not p["label"].startswith("Table ")]
-    claims = []
+    claims: list[Any] = []
     for group in (abstract, body):
         in_body = group is body
         for s in group:

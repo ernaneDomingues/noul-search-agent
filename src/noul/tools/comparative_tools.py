@@ -5,8 +5,10 @@ The host agent's LLM remains responsible for nuanced interpretation; these tools
 
 import re
 from collections import Counter
+from typing import Any
 
 from noul import errors as _errors
+from noul import log as _log
 from noul import workspace as _workspace
 from noul.evidence import classify as _classify
 from noul.library import export as _exporting
@@ -200,7 +202,8 @@ def _domain(p):
         from noul.providers import domain_classifier
 
         return domain_classifier.resolve_domain(paper=p).value
-    except Exception:
+    except Exception as e:  # noqa: BLE001 - a classifier failure must not fail the tool
+        _log.logger.debug("domain classification failed: %s", type(e).__name__)
         return "general_stem"
 
 
@@ -212,8 +215,8 @@ def _artifacts(p):
 
             p = dict(p)
             artifact_radar.scan_artifacts_from_paper(p, verify_http=False)
-        except Exception:
-            pass
+        except Exception as e:  # noqa: BLE001 - an artifact-scan failure must not fail the tool
+            _log.logger.debug("artifact scan failed: %s", type(e).__name__)
     art = p.get("artifacts") or {}
     return {
         "has_code": bool(p.get("has_code")),
@@ -320,7 +323,7 @@ def _resolve_all(ids, inspect_fulltext=False):
     for pid in ids:
         try:
             p = _engine.resolve_paper(pid)
-        except Exception as e:
+        except _errors.UPSTREAM_ERRORS as e:
             warnings.append(f"Could not resolve '{pid}': {e}")
             continue
         text = ""
@@ -330,7 +333,7 @@ def _resolve_all(ids, inspect_fulltext=False):
                     text = (_cache.cache_get("ft:" + p["id"]) or {}).get("text") or ""
                 else:
                     warnings.append(f"Full text not available for '{p['id']}'; used title/abstract only.")
-            except Exception as e:
+            except _errors.UPSTREAM_ERRORS as e:
                 warnings.append(
                     f"Full text unavailable for '{p['id']}' ({type(e).__name__}); used title/abstract only."
                 )
@@ -386,7 +389,7 @@ def _real_benchmarks(dim):
 
 def _shared(items_by_tag):
     """{tag: [values]} -> {value: [tags]} for values present in >= 2 papers."""
-    owners = {}
+    owners: dict[Any, Any] = {}
     for tag, values in items_by_tag.items():
         for v in dict.fromkeys(values):
             owners.setdefault(v, []).append(tag)
@@ -481,7 +484,7 @@ def _summaries(rows):
 def _disambiguate(rows):
     """Same first author + year -> [Smith et al., 2023a] / [Smith et al., 2023b] (in-place on extras["tag"])."""
     counts = Counter(ex["tag"] for _, ex in rows)
-    seen = Counter()
+    seen: Counter[str] = Counter()
     for _, ex in rows:
         tag = ex["tag"]
         if counts[tag] > 1:
@@ -575,6 +578,8 @@ def _join_tags(tags):
 def _concept_clusters(rows, max_clusters=3):
     """Terms shared by >= 2 papers, one cluster per distinct set of papers -> [(term, [row indexes], [co-terms])],
     ordered by support, then term frequency (bigrams win ties)."""
+    owners: dict[Any, Any]
+    freq: Counter[str]
     owners, freq = {}, Counter()
     for i, (d, ex) in enumerate(rows):
         terms = key_terms(f"{d.paper_title}. {ex['paper'].get('abstract') or ''}")
@@ -583,7 +588,7 @@ def _concept_clusters(rows, max_clusters=3):
             owners.setdefault(term, set()).add(i)
     shared = [(t, tuple(sorted(ix))) for t, ix in owners.items() if len(ix) >= 2]
     shared.sort(key=lambda x: (-len(x[1]), -freq[x[0]], -(" " in x[0]), x[0]))
-    by_set = {}
+    by_set: dict[Any, Any] = {}
     for term, ix in shared:
         by_set.setdefault(ix, []).append(term)
     clusters = []
@@ -665,7 +670,7 @@ def _tensions(rows, clusters):
                 f"({levels[-1][0].evidence_level}): evidence comes from different levels of the pyramid."
             )
 
-    by_domain = {}
+    by_domain: dict[Any, Any] = {}
     for d, ex in rows:
         by_domain.setdefault(d.domain, []).append((d, ex))
     for domain, group in by_domain.items():
@@ -739,7 +744,7 @@ def _future_work(rows):
 def _derive_topic(rows, clusters):
     if clusters:
         return " / ".join(t for t, _, _ in clusters)
-    terms = Counter()
+    terms: Counter[str] = Counter()
     for d, _ in rows:
         terms.update(set(key_terms(d.paper_title)))
     top = [t for t, _ in terms.most_common(3)]
@@ -755,7 +760,7 @@ def get_thematic_insights(paper_ids, topic=None):
     records, warnings = _resolve_all(ids)
     rows = _disambiguate([analyze_paper(p) for p, _ in records])
     clusters = _concept_clusters(rows)
-    citations = {}
+    citations: dict[Any, Any] = {}
     for d, ex in rows:
         citations.setdefault(ex["tag"], []).append(d.paper_id)
     result = ThematicInsightsResult(
@@ -1023,7 +1028,8 @@ def _failure_modes_by_paper(rows):
     for d, _ in rows:
         try:
             failures_by_id[d.paper_id] = _failure_modes.detect_failure_modes(d.paper_id, inspect_fulltext=True)
-        except Exception:
+        except _errors.UPSTREAM_ERRORS as e:
+            _log.logger.debug("failure-mode detection failed: %s", type(e).__name__)
             failures_by_id[d.paper_id] = _no_failure_modes()
     return failures_by_id
 
@@ -1148,7 +1154,7 @@ def _build_hypothesis(idx, pair, rows, failures_by_id, topic_label):
     extracted_metrics = [
         k
         for d in (d_a, d_b)
-        for k in d.primary_metrics.keys()
+        for k in d.primary_metrics
         if k not in ("headline_finding", "percentages", "p_values", "confidence_intervals")
     ]
     default_metrics = _DEFAULT_METRICS_BY_DOMAIN.get(dom, _DEFAULT_METRICS_BY_DOMAIN["general_stem"])

@@ -82,7 +82,7 @@ def main(argv=None):
             f"ok: {init['serverInfo']['name']} {init['serverInfo']['version']}, {len(tools)} tools, protocol {init['protocolVersion']}"
         )
         return 0
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - report any failure of the server under test
         print(f"smoke test failed: {exc}", file=sys.stderr)
         print("".join(stderr)[-4000:], file=sys.stderr)
         return 1

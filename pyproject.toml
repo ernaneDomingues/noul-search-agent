@@ -65,12 +65,18 @@ extend-exclude = ["site"]
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "B", "UP"]
+select = ["E", "F", "W", "I", "B", "UP", "RUF100", "SIM", "C90", "BLE"]
 # E501: the formatter owns line length; long regex/prompt literals are allowed.
-ignore = ["E501"]
+# SIM105: `contextlib.suppress` only hides a broad `except`; such handlers are reviewed case by case instead.
+# SIM905: `"word word ...".split()` keeps long vocabulary lists (stopwords, classifier terms) readable.
+ignore = ["E501", "SIM105", "SIM905"]
+
+[tool.ruff.lint.mccabe]
+# Ceiling on cyclomatic complexity: only goes down (target 20; 5 functions are above it today).
+max-complexity = 25
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["E402"]
+"tests/*" = ["E402", "BLE001"]  # a test may catch anything to report it
 
 [tool.mypy]
 python_version = "3.10"
@@ -78,11 +84,7 @@ files = ["src/noul"]
 mypy_path = "src"
 ignore_missing_imports = true
 warn_unused_ignores = true
-# Gradual adoption: untyped defs are allowed; strict modules are opted in below as they are refactored.
-check_untyped_defs = false
-
-[[tool.mypy.overrides]]
-module = ["noul.schemas.*"]
+# The bodies of unannotated functions are type-checked too; signatures stay optional (gradual typing).
 check_untyped_defs = true
 
 [tool.pytest.ini_options]
@@ -98,4 +100,4 @@ branch = true
 [tool.coverage.report]
 skip_empty = true
 # Line+branch coverage gate. Never lower this number.
-fail_under = 86
+fail_under = 88

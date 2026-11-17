@@ -4,6 +4,7 @@ and turn the answers into an enriched query plus search filters. Pure stdlib, no
 import datetime
 import re
 import unicodedata
+from typing import Any
 
 from noul.providers.domain_classifier import resolve_domain
 from noul.schemas.domain import ScientificDomain as D
@@ -216,7 +217,7 @@ def _year(offset):
 
 # Per domain: [(question_id, topic, question, [(label, effects)])]. Effects: terms / year_min / study_types /
 # sources / sort. Callables are evaluated lazily so that relative years follow the current date.
-QUESTION_BANK = {
+QUESTION_BANK: dict[D, list[tuple[str, str, str, list[tuple[str, Any]]]]] = {
     D.COMPUTER_SCIENCE: [
         (
             "q1",
@@ -420,6 +421,7 @@ def build_refined_query(query, answers=None, domain=None):
     """Combine the original query with the chosen options -> refined_query + recommended_filters."""
     dom = _domain_for(query, domain)
     answers = dict(answers or {})
+    study_types: list[Any]
     terms, study_types, applied, ignored = [], [], [], []
     filters = {
         "year_min": None,

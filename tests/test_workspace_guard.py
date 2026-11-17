@@ -111,9 +111,8 @@ class ToolTests(Base):
             self.assertEqual(caught.exception.code, 403)
             self.assertFalse((self.workspace / folder).exists())
         home = config._config_file().parent
-        with mock.patch.dict(os.environ, {"NOUL_WORKSPACE": str(home)}):
-            with self.assertRaises(HTTPError) as caught:
-                registry.call("save_research_dossier", {**args, "output_dir": "config.json"})
+        with mock.patch.dict(os.environ, {"NOUL_WORKSPACE": str(home)}), self.assertRaises(HTTPError) as caught:
+            registry.call("save_research_dossier", {**args, "output_dir": "config.json"})
         self.assertEqual(caught.exception.code, 403)
         self.assertFalse(config._config_file().is_dir())
 

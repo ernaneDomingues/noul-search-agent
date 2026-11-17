@@ -3,6 +3,7 @@
 import re
 
 from noul import errors as _errors
+from noul import log as _log
 from noul.evidence import integrity as _integrity
 from noul.evidence import untrusted as _untrusted
 from noul.net import cache as _cache
@@ -82,8 +83,8 @@ def _search_cached_papers_for_claim(query: str, limit: int = 2) -> list[dict]:
             overlap = sum(2 if t in (p.get("title") or "").lower() else 1 for t in q_terms if t in hay)
             cites = int(p.get("citations") or 0)
             candidates.append((overlap, cites, p))
-    except Exception:
-        pass
+    except (TypeError, ValueError, AttributeError) as e:
+        _log.logger.debug("cached-paper scan for citations failed: %s", type(e).__name__)
     candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
     return [c[2] for c in candidates[:limit]]
 
@@ -94,7 +95,8 @@ def _retrieve_papers_for_claim(query: str, max_per_claim: int = 2) -> list[dict]
     try:
         res = t.search_papers(query, limit=max_per_claim, sort="citations")
         papers = list((res or {}).get("papers") or [])
-    except Exception:
+    except _errors.UPSTREAM_ERRORS as e:
+        _log.logger.debug("citation search failed: %s", type(e).__name__)
         papers = []
     if len(papers) < max_per_claim:
         cached = _search_cached_papers_for_claim(query, limit=max_per_claim)
@@ -215,10 +217,7 @@ def recommend_citations(
         if marker_m:
             new_sent = _EXPLICIT_CITE_MARKER_RE.sub(cite_tag.replace("\\", "\\\\"), sent)
         else:
-            if sent.endswith((".", "!", "?")):
-                new_sent = f"{sent[:-1]} {cite_tag}{sent[-1]}"
-            else:
-                new_sent = f"{sent} {cite_tag}"
+            new_sent = f"{sent[:-1]} {cite_tag}{sent[-1]}" if sent.endswith((".", "!", "?")) else f"{sent} {cite_tag}"
 
         replacements.append((sent, new_sent))
         recommendations.append(

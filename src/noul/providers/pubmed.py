@@ -3,8 +3,10 @@
 import re
 import urllib.parse
 import xml.etree.ElementTree as ET
+from typing import Any
 
 from noul import config as _config
+from noul import errors as _errors
 from noul import ids as _ids
 from noul.evidence import integrity as _integrity
 from noul.net import http as _nhttp
@@ -40,14 +42,14 @@ def _search_pubmed(query, limit=20, year_min=None):
 
 def _parse_pubmed_xml(xml_txt):
     out = []
-    root = ET.fromstring(xml_txt)
+    try:
+        root = ET.fromstring(xml_txt)
+    except ET.ParseError as e:  # an empty body or an HTML error page with status 200
+        raise _errors.HTTPError(502, f"Invalid XML from PubMed E-utilities: {e}") from e
     for art in root.findall(".//PubmedArticle"):
         pmid = art.findtext(".//MedlineCitation/PMID")
-        title = (
-            _ids._clean_text("".join(art.find(".//ArticleTitle").itertext()))
-            if art.find(".//ArticleTitle") is not None
-            else ""
-        )
+        title_el = art.find(".//ArticleTitle")
+        title = _ids._clean_text("".join(title_el.itertext())) if title_el is not None else ""
         if not title:
             continue
         abs_parts = []
@@ -82,6 +84,8 @@ def _parse_pubmed_xml(xml_txt):
                 pmc_id = aid.text.strip()
         pub_types = [pt.text for pt in art.findall(".//PublicationTypeList/PublicationType") if pt.text]
         mesh_terms = _ids._unique([d.text for d in art.findall(".//MeshHeadingList/MeshHeading/DescriptorName")])[:15]
+        retraction = _integrity.from_pub_types(pub_types, "pubmed")
+        extra: dict[str, Any] = {"retraction": retraction} if retraction else {}
         out.append(
             _assemble.assemble_paper(
                 "pubmed",
@@ -96,7 +100,7 @@ def _parse_pubmed_xml(xml_txt):
                 ids={"doi": doi, "pmid": pmid},
                 pmc_id=pmc_id,
                 mesh_terms=mesh_terms,
-                **({"retraction": r} if (r := _integrity.from_pub_types(pub_types, "pubmed")) else {}),
+                **extra,
             )
         )
     return out

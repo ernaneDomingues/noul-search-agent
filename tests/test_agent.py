@@ -381,10 +381,9 @@ class AgentTestSuite(unittest.TestCase):
         self.assertEqual(_net_cache.cache_get("close-test", max_age=0), {"committed": True})
         with self.assertRaises(sqlite3.ProgrammingError):
             conn.execute("SELECT 1")
-        with self.assertRaisesRegex(RuntimeError, "rollback"):
-            with _net_cache._conn() as failed:
-                failed.execute("DELETE FROM kv WHERE k = 'close-test'")
-                raise RuntimeError("rollback")
+        with self.assertRaisesRegex(RuntimeError, "rollback"), _net_cache._conn() as failed:
+            failed.execute("DELETE FROM kv WHERE k = 'close-test'")
+            raise RuntimeError("rollback")
         with self.assertRaises(sqlite3.ProgrammingError):
             failed.execute("SELECT 1")
         self.assertEqual(_net_cache.cache_get("close-test", max_age=0), {"committed": True})
@@ -603,6 +602,15 @@ class AgentTestSuite(unittest.TestCase):
             with mock.patch(_support.core_target("cache_get"), return_value=index):
                 self.assertEqual(t.list_research_dossiers()["dossiers"], [])
                 assert_http_error(404, t.get_research_dossier, "outside")
+
+    def test_a_hand_edited_papers_json_does_not_break_the_dossier(self):
+        folder = Path(ENV["NOUL_WORKSPACE"]) / "research" / "hand-edited"
+        folder.mkdir(parents=True)
+        self.addCleanup(lambda: __import__("shutil").rmtree(folder, True))
+        (folder / "README.md").write_text("# Hand edited\n", encoding="utf-8")
+        (folder / "papers.json").write_text(json.dumps({"topic": "t", "papers": ["doi:10.1000/x", None]}), "utf-8")
+        dossier = t.get_research_dossier("hand-edited")
+        self.assertEqual(dossier["markdown"], "# Hand edited\n")
 
     def test_workspace_symlinks_stay_confined(self):
         with (
