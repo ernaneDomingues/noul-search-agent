@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 
 from noul import errors as _errors
+from noul import log as _log
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 ZOTERO_KEY_RE = re.compile(r"^[A-Za-z0-9]{10,128}$")
@@ -58,7 +59,8 @@ def _load_config_file() -> dict:
     try:
         cfg = json.loads(cfg_file.read_text(encoding="utf-8"))
         return cfg if isinstance(cfg, dict) else {}
-    except Exception:
+    except (OSError, ValueError) as e:
+        _log.logger.debug("config file unreadable: %s", type(e).__name__)
         return {}
 
 

@@ -212,7 +212,7 @@ class ParsingTests(unittest.TestCase):
 
         entry = {"fields": {"title": "Some unique preprint title", "eprint": "1512.03388"}}
         failures = []
-        with mock.patch(_support.core_target("_http_json"), side_effect=OSError("down")):
+        with mock.patch(_support.core_target("_http_json"), side_effect=HTTPError(502, "Network error (ConnectError)")):
             self.assertIsNone(arxiv_client.resolve_published_venue_for_preprint(entry, failures=failures))
         self.assertIn("s2", failures)
         failures = []

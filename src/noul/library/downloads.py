@@ -55,7 +55,7 @@ def download_paper_pdf(id, output_dir="./papers"):
                     "source": source,
                     "pdf_url": pdf_url,
                 }
-        except Exception as e:
+        except _errors.UPSTREAM_ERRORS as e:
             err_msg = str(e)
         else:
             err_msg = "URL did not return a direct PDF binary"

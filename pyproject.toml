@@ -65,7 +65,7 @@ extend-exclude = ["site"]
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "B", "UP", "RUF100", "SIM", "C90"]
+select = ["E", "F", "W", "I", "B", "UP", "RUF100", "SIM", "C90", "BLE"]
 # E501: the formatter owns line length; long regex/prompt literals are allowed.
 # SIM105: `contextlib.suppress` only hides a broad `except`; such handlers are reviewed case by case instead.
 # SIM905: `"word word ...".split()` keeps long vocabulary lists (stopwords, classifier terms) readable.
@@ -76,7 +76,7 @@ ignore = ["E501", "SIM105", "SIM905"]
 max-complexity = 25
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["E402"]
+"tests/*" = ["E402", "BLE001"]  # a test may catch anything to report it
 
 [tool.mypy]
 python_version = "3.10"

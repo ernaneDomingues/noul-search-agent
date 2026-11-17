@@ -6,6 +6,7 @@ import time
 from typing import Any
 
 from noul import errors as _errors
+from noul import log as _log
 from noul import registry as _registry
 from noul import workspace as _workspace
 from noul.api import common as _common
@@ -59,7 +60,8 @@ def save_research_dossier(topic, synthesis_markdown, paper_ids=None, output_dir=
     for pid in paper_ids or []:
         try:
             papers.append(_common._resolve(pid))
-        except Exception:
+        except _errors.UPSTREAM_ERRORS as e:
+            _log.logger.debug("dossier paper could not be resolved: %s", type(e).__name__)
             left_out.append(str(pid))
 
     header = (
@@ -151,7 +153,8 @@ def list_research_dossiers(output_dir=None):
                 if papers_path.exists():
                     try:
                         meta = json.loads(papers_path.read_text(encoding="utf-8"))
-                    except Exception:
+                    except (OSError, ValueError) as e:
+                        _log.logger.debug("dossier papers.json unreadable: %s", type(e).__name__)
                         meta = {}
                 items[slug] = {
                     "slug": slug,
@@ -188,8 +191,8 @@ def get_research_dossier(slug, output_dir=None):
             for p in papers:
                 if p.get("id"):
                     _cache.put_paper(p["id"], p)
-        except Exception:
-            pass
+        except (OSError, ValueError) as e:
+            _log.logger.debug("dossier papers.json unreadable: %s", type(e).__name__)
     return {
         "slug": match["slug"],
         "topic": match["topic"],

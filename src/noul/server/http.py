@@ -227,7 +227,7 @@ def build_app(
             return JSONResponse({"error": call.text}, status_code=call.status, headers=retry)
         try:
             result = await run_in_threadpool(call.run)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - transport boundary: every tool error becomes an error response
             return JSONResponse({"error": _common.error_text(e)}, status_code=_common.error_status(e))
         finally:
             call.release()  # also when the client went away before the worker thread started

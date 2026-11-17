@@ -247,9 +247,14 @@ class ProjectToolTests(unittest.TestCase):
         self.assertFalse(again["created"])
         slug = created["slug"]
 
-        added = registry.call(
-            "project_add_papers", {"project": slug, "ids": [self.a, self.b, "doi:10.1000/missing"], "reason": "search"}
-        )
+        from noul.errors import HTTPError
+
+        # The sources answer, and know no such paper (a network outage would make it `unavailable` instead).
+        with mock.patch(_support.core_target("_http_json"), side_effect=HTTPError(404, "HTTP Error 404: Not Found")):
+            added = registry.call(
+                "project_add_papers",
+                {"project": slug, "ids": [self.a, self.b, "doi:10.1000/missing"], "reason": "search"},
+            )
         self.assertEqual(added["added"], [self.a, self.b])
         self.assertEqual(added["not_found"], ["doi:10.1000/missing"])
         self.assertEqual(added["project"]["counts"]["candidate"], 2)

@@ -5,6 +5,7 @@ from collections import Counter
 from typing import Any
 
 from noul import errors as _errors
+from noul import log as _log
 from noul.net import cache as _cache
 from noul.providers import openalex_client, semantic_scholar
 from noul.schemas.analysis import BooleanQuerySuggestion
@@ -97,7 +98,7 @@ def get_paper_references(paper_id, limit=10, direction="both", sort_by="influent
         try:
             for d in wanted:
                 edges[d] = semantic_scholar.fetch_edges(ident, "references" if d == "backward" else "citations")
-        except Exception as e:
+        except _errors.UPSTREAM_ERRORS as e:
             if hasattr(e, "close"):
                 e.close()
             code = getattr(e, "code", None)
@@ -114,7 +115,7 @@ def get_paper_references(paper_id, limit=10, direction="both", sort_by="influent
         try:
             graph = openalex_client.fetch_citation_graph(anchor["id"])
             edges = {d: graph[d] for d in wanted}
-        except Exception as e:
+        except _errors.UPSTREAM_ERRORS as e:
             warnings.append(f"OpenAlex citation graph failed ({type(e).__name__}: {e}).")
             edges = {d: [] for d in wanted}
 
@@ -413,7 +414,8 @@ def _corpus_domain(papers, query):
         from noul.providers import domain_classifier
 
         return domain_classifier.resolve_domain(title=query).value
-    except Exception:
+    except Exception as e:  # noqa: BLE001 - a classifier failure must not fail the tool
+        _log.logger.debug("domain classification failed: %s", type(e).__name__)
         return "general_stem"
 
 
@@ -431,7 +433,7 @@ def _expansion_corpus(query, ids):
     for pid in ids:
         try:
             papers.append(_engine.resolve_paper(pid))
-        except Exception as e:
+        except _errors.UPSTREAM_ERRORS as e:
             warnings.append(f"Could not resolve '{pid}': {e}")
     if not ids:
         papers = _cached_corpus(query)

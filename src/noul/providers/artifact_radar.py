@@ -4,12 +4,16 @@ Extraction is regex-based and offline; the optional HTTP check goes through the 
 (`noul.net.http._validate_public_url`, also re-applied on every redirect) with short timeouts."""
 
 import concurrent.futures
+import http.client
 import re
 import urllib.error
 import urllib.parse
 import urllib.request
 
+import pydantic
+
 from noul import errors as _errors
+from noul import log as _log
 from noul.net import http as _nhttp
 from noul.schemas.paper import ArtifactStatus
 
@@ -178,7 +182,7 @@ def verify_url(url, timeout=VERIFY_TIMEOUT):
             status = _request_status(url, "GET", timeout)
     except _errors.HTTPError as e:  # blocked redirect target
         return {"url": url, "verified": False, "status_code": None, "error": f"blocked: {e.message}"}
-    except Exception as e:
+    except (OSError, ValueError, http.client.HTTPException) as e:
         return {"url": url, "verified": False, "status_code": None, "error": f"{type(e).__name__}: {e}"}
     return {"url": url, "verified": 200 <= status < 400, "status_code": status}
 
@@ -238,7 +242,8 @@ def scan_artifacts_from_paper(paper, fulltext="", verify_http=True, timeout=VERI
         artifacts = ArtifactStatus(**status).model_dump(mode="json")
         for key in ("code_url", "weights_url", "dataset_url"):
             artifacts[key] = status[key]  # keep the canonical string (pydantic may normalise it)
-    except Exception:
+    except (pydantic.ValidationError, TypeError) as e:
+        _log.logger.debug("artifact status did not validate: %s", type(e).__name__)
         artifacts = dict(status)
     fields = {
         "has_code": has_code,

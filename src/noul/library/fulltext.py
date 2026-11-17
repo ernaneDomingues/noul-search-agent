@@ -7,7 +7,9 @@ import urllib.parse
 import urllib.request
 
 from noul import config as _config
+from noul import errors as _errors
 from noul import ids as _ids
+from noul import log as _log
 from noul.net import cache as _cache
 from noul.net import http as _nhttp
 from noul.providers import endpoints as _endpoints
@@ -51,8 +53,8 @@ def resolve_pdf_url(paper):
             pdf = best_oa.get("pdf_url") or oa_info.get("oa_url")
             if pdf:
                 return pdf, "openalex"
-        except Exception:
-            pass
+        except _errors.UPSTREAM_ERRORS as e:
+            _log.logger.debug("OpenAlex PDF lookup failed: %s", type(e).__name__)
 
         # 2. Try Unpaywall if email is configured
         email = _config._email()
@@ -66,8 +68,8 @@ def resolve_pdf_url(paper):
                 pdf = best.get("url_for_pdf") or best.get("url")
                 if pdf:
                     return pdf, "unpaywall"
-            except Exception:
-                pass
+            except _errors.UPSTREAM_ERRORS as e:
+                _log.logger.debug("Unpaywall PDF lookup failed: %s", type(e).__name__)
 
         # 3. Try EuropePMC by DOI
         try:
@@ -82,8 +84,8 @@ def resolve_pdf_url(paper):
                 pmcid = res_list[0].get("pmcid")
                 if pmcid:
                     return _europepmc._europepmc_pdf_url(pmcid), "europepmc"
-        except Exception:
-            pass
+        except _errors.UPSTREAM_ERRORS as e:
+            _log.logger.debug("Europe PMC PDF lookup failed: %s", type(e).__name__)
 
     return None, None
 
@@ -94,7 +96,8 @@ def _extract_pdf_text(pdf_bytes):
 
         reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
         return normalize_pdf_text([page.extract_text() or "" for page in reader.pages[:35]])
-    except Exception:
+    except Exception as e:  # noqa: BLE001 - untrusted PDFs: pypdf raises arbitrary exceptions
+        _log.logger.debug("PDF text extraction failed: %s", type(e).__name__)
         return ""
 
 
@@ -270,8 +273,8 @@ def fulltext(id):
                         {"text": html_text[:120000], "url": pdf_url, "source": source, "format": PDF_TEXT_FORMAT},
                     )
                     return {"id": pid, "title": p.get("title"), "available": True, "source": source, "url": pdf_url}
-        except Exception:
-            pass
+        except _errors.UPSTREAM_ERRORS as e:
+            _log.logger.debug("full-text download failed: %s", type(e).__name__)
 
     # Fallback: check EuropePMC fullTextXML if PMC ID is available
     if p.get("pmc_id"):
@@ -291,8 +294,8 @@ def fulltext(id):
                     "source": "europepmc_xml",
                     "url": xml_url,
                 }
-        except Exception:
-            pass
+        except _errors.UPSTREAM_ERRORS as e:
+            _log.logger.debug("Europe PMC full-text XML failed: %s", type(e).__name__)
 
     if stale and stale.get("text"):  # the new download failed: the older extraction is better than nothing
         return {

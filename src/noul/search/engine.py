@@ -115,7 +115,7 @@ def _report_progress(futs, total):
             completed = done[0]
         try:
             callback(source, completed, total)
-        except Exception:
+        except Exception:  # noqa: BLE001 - progress is best-effort: a broken callback must never break a search
             pass  # progress is best-effort: it must never break a search
 
     for fut, source in futs.items():
@@ -182,7 +182,7 @@ def search(query, filters=None, sources=None):
             try:
                 raw_papers.extend(fut.result())
                 active_sources.append(src)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - one source failing in any way is one warning, not a failed search
                 warnings.append(f"{src}: {type(e).__name__}: {e}")
         else:
             fut.cancel()
@@ -236,7 +236,7 @@ def _resolve_arxiv(ax):
     for attempt in attempts:
         try:
             paper = attempt()
-        except Exception as e:  # one failure per source is expected
+        except _errors.UPSTREAM_ERRORS as e:  # one failure per source is expected
             _log.logger.info("arXiv %s: source failed (%s), trying the next one", ax, type(e).__name__)
             continue
         if paper:
@@ -289,7 +289,7 @@ def resolve_paper(identifier):
         # "The source is rate limited or down" is not "the paper does not exist": keep the two apart.
         if e.code == 429 or e.code >= 500:
             unavailable = e.code
-    except Exception as e:
+    except _errors.UPSTREAM_ERRORS as e:
         _log.logger.info("paper lookup failed (%s)", type(e).__name__)
 
     if fetched:

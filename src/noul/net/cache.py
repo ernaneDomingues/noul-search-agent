@@ -39,7 +39,7 @@ def cache_get(key, max_age=86400 * 14):
             if max_age and (time.time() - ts) > max_age:
                 return None
             return json.loads(val)
-    except Exception as exc:
+    except (sqlite3.Error, OSError, ValueError, TypeError) as exc:
         # A cache that cannot be read is a miss, never an error for the caller; the type alone is logged.
         _log.logger.debug("cache read failed: %s", type(exc).__name__)
         return None
@@ -68,7 +68,7 @@ def cache_set(key, val):
                     "LIMIT max(0, (SELECT COUNT(*) FROM kv) - ?))",
                     (limit,),
                 )
-    except Exception as exc:
+    except (sqlite3.Error, OSError, ValueError, TypeError) as exc:
         # Said once at WARNING (an unwritable cache makes every call slower), then only at DEBUG.
         global _write_failure_reported
         level = logging.DEBUG if _write_failure_reported else logging.WARNING
@@ -100,7 +100,7 @@ def scan(*prefixes, limit=None, newest_first=True):
     try:
         with _conn() as c:
             rows = c.execute(sql, params).fetchall()
-    except Exception as exc:
+    except (sqlite3.Error, OSError) as exc:
         _log.logger.debug("cache scan failed: %s", type(exc).__name__)
         return []
     out = []

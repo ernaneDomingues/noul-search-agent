@@ -46,7 +46,7 @@ def _asset_root():
     for getter in (lambda: sysconfig.get_path("data"), lambda: __import__("site").getuserbase()):
         try:
             candidates.append(Path(getter()) / "share" / PKG)
-        except Exception:
+        except Exception:  # noqa: BLE001 - probing interpreter layouts (frozen, venv, user site): any failure means 'not here'
             pass
     for root in candidates:
         if (root / "skills/noul-search/SKILL.md").is_file():

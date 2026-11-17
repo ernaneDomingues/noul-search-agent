@@ -36,7 +36,7 @@ def resources_list():
     out = []
     try:
         projects = _api.project_list().get("projects") or []
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - resources/list must answer even if the project store is broken
         print(f"noul: could not list research projects: {type(e).__name__}", file=sys.stderr)
         projects = []
     for p in projects:
@@ -52,7 +52,7 @@ def resources_list():
         )
     try:
         dossiers = _api.list_research_dossiers().get("dossiers") or []
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - resources/list must answer even if a dossier is broken
         print(f"noul: could not list research dossiers: {e}", file=sys.stderr)
         dossiers = []
     out += [

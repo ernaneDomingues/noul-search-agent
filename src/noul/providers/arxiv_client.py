@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 
 from noul import errors as _errors
 from noul import ids as _ids
+from noul import log as _log
 from noul.net import cache as _cache
 from noul.net import http as _nhttp
 from noul.providers import crossref as _crossref
@@ -707,8 +708,8 @@ def resolve_published_venue_for_preprint(entry: dict, failures: list[str] | None
                 and (norm_t == rec_norm_t or difflib.SequenceMatcher(None, norm_t, rec_norm_t).ratio() >= 0.90)
             ):
                 candidates.append(rec)
-    except Exception:
-        pass
+    except _errors.UPSTREAM_ERRORS as e:
+        _log.logger.debug("cached arXiv publication record unreadable: %s", type(e).__name__)
 
     # 2. If not found in cache, query external APIs (all guarded by try/except for offline determinism)
     if not candidates and arxiv_id:
@@ -717,7 +718,7 @@ def resolve_published_venue_for_preprint(entry: dict, failures: list[str] | None
             p_s2 = _s2._parse_s2_paper(_nhttp._http_json(url))
             if p_s2 and _is_formal_published_record(p_s2):
                 candidates.append(p_s2)
-        except Exception as e:
+        except _errors.UPSTREAM_ERRORS as e:
             if failures is not None and getattr(e, "code", None) != 404:  # 404: S2 has no such preprint
                 failures.append("s2")
 
@@ -730,7 +731,8 @@ def resolve_published_venue_for_preprint(entry: dict, failures: list[str] | None
         ):
             try:
                 results = search_fn(clean_q) or []
-            except Exception:
+            except _errors.UPSTREAM_ERRORS as e:
+                _log.logger.debug("arXiv title search failed: %s", type(e).__name__)
                 results = []
                 if failures is not None:
                     failures.append("title-search")

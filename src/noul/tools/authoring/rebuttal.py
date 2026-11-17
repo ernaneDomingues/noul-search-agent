@@ -3,6 +3,7 @@
 import re
 
 from noul import errors as _errors
+from noul import log as _log
 from noul.evidence import contract as _contract
 from noul.evidence import untrusted as _untrusted
 from noul.schemas.authoring import (
@@ -151,14 +152,14 @@ def parse_and_draft_rebuttal(
             p = _engine.resolve_paper(str(paper_id).strip())
             if p.get("abstract"):
                 context.append(_untrusted.excerpt(p["abstract"], paper_id=p.get("id"), section="Abstract"))
-        except Exception:
-            pass
+        except _errors.UPSTREAM_ERRORS as e:
+            _log.logger.debug("rebuttal paper lookup failed: %s", type(e).__name__)
     if draft_input and str(draft_input).strip():
         try:
             d_txt, d_label, _ = _common._load_text_or_workspace_file(str(draft_input).strip())
             context.append(_untrusted.excerpt(d_txt, origin="draft", section=d_label, limit=1200))
-        except Exception:
-            pass
+        except (*_errors.UPSTREAM_ERRORS, OSError) as e:
+            _log.logger.debug("rebuttal draft could not be read: %s", type(e).__name__)
 
     segmented = _segment_reviewer_blocks(reviews_text)
     reviewers_detected = [rev for rev, _ in segmented]

@@ -4,10 +4,10 @@ import contextlib
 import io
 import json
 import unittest
-import urllib.error
 from unittest import mock
 
 import _support
+from noul.errors import HTTPError
 
 
 def setUpModule():
@@ -131,7 +131,7 @@ class ReferencesTests(unittest.TestCase):
 
     def test_openalex_fallback_on_429(self):
         def boom(url, headers=None, timeout=15):
-            raise urllib.error.HTTPError(url, 429, "Too Many Requests", {}, None)
+            raise HTTPError(429, "HTTP Error 429: Too Many Requests")
 
         graph = {
             "id": ANCHOR["id"],

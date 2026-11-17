@@ -8,6 +8,7 @@ from collections import Counter
 from typing import Any
 
 from noul import errors as _errors
+from noul import log as _log
 from noul import workspace as _workspace
 from noul.evidence import classify as _classify
 from noul.library import export as _exporting
@@ -201,7 +202,8 @@ def _domain(p):
         from noul.providers import domain_classifier
 
         return domain_classifier.resolve_domain(paper=p).value
-    except Exception:
+    except Exception as e:  # noqa: BLE001 - a classifier failure must not fail the tool
+        _log.logger.debug("domain classification failed: %s", type(e).__name__)
         return "general_stem"
 
 
@@ -213,8 +215,8 @@ def _artifacts(p):
 
             p = dict(p)
             artifact_radar.scan_artifacts_from_paper(p, verify_http=False)
-        except Exception:
-            pass
+        except Exception as e:  # noqa: BLE001 - an artifact-scan failure must not fail the tool
+            _log.logger.debug("artifact scan failed: %s", type(e).__name__)
     art = p.get("artifacts") or {}
     return {
         "has_code": bool(p.get("has_code")),
@@ -321,7 +323,7 @@ def _resolve_all(ids, inspect_fulltext=False):
     for pid in ids:
         try:
             p = _engine.resolve_paper(pid)
-        except Exception as e:
+        except _errors.UPSTREAM_ERRORS as e:
             warnings.append(f"Could not resolve '{pid}': {e}")
             continue
         text = ""
@@ -331,7 +333,7 @@ def _resolve_all(ids, inspect_fulltext=False):
                     text = (_cache.cache_get("ft:" + p["id"]) or {}).get("text") or ""
                 else:
                     warnings.append(f"Full text not available for '{p['id']}'; used title/abstract only.")
-            except Exception as e:
+            except _errors.UPSTREAM_ERRORS as e:
                 warnings.append(
                     f"Full text unavailable for '{p['id']}' ({type(e).__name__}); used title/abstract only."
                 )
@@ -1026,7 +1028,8 @@ def _failure_modes_by_paper(rows):
     for d, _ in rows:
         try:
             failures_by_id[d.paper_id] = _failure_modes.detect_failure_modes(d.paper_id, inspect_fulltext=True)
-        except Exception:
+        except _errors.UPSTREAM_ERRORS as e:
+            _log.logger.debug("failure-mode detection failed: %s", type(e).__name__)
             failures_by_id[d.paper_id] = _no_failure_modes()
     return failures_by_id
 

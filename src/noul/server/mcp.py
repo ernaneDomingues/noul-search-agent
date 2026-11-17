@@ -17,6 +17,7 @@ from typing import Any
 import anyio
 import anyio.lowlevel
 import mcp.types as types
+import pydantic
 from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
 from mcp.shared.exceptions import MCPError
@@ -168,7 +169,7 @@ def _text_result(payload: Any, is_error: bool = False, output: Any = None) -> ty
         if output is not None:
             try:
                 output.model_validate(structured)
-            except Exception as e:
+            except pydantic.ValidationError as e:
                 # A tool that advertises an outputSchema must send conforming structuredContent; an error result
                 # is the only conforming way out (clients skip the schema check for is_error).
                 _log.logger.warning("structured result does not match %s (%s)", output.__name__, type(e).__name__)
@@ -237,7 +238,7 @@ class _EmailPrompt:
         if ctx.session.can_send_request:
             try:
                 self.save(await ctx.session.elicit_form(EMAIL_MESSAGE, EMAIL_SCHEMA, ctx.request_id))
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - the client may fail an elicitation in any way; the tool call goes on
                 _log.logger.info("e-mail elicitation failed: %s", type(e).__name__)
             return None
         self.pending = True
@@ -256,13 +257,13 @@ class _EmailPrompt:
         if getattr(result, "action", None) != "accept":
             try:  # remember the refusal across sessions; `configure_noul(clear=true)` resets it
                 _config.set_config(email_prompt_declined=True)
-            except Exception as e:
+            except (_errors.HTTPError, OSError, ValueError) as e:
                 _log.logger.info("could not store the declined e-mail prompt: %s", type(e).__name__)
             return
         email = str((result.content or {}).get("email") or "").strip()
         try:
             _config.set_config(email=email)
-        except Exception as e:  # invalid address: keep going without it
+        except (_errors.HTTPError, OSError, ValueError) as e:  # invalid address: keep going without it
             _log.logger.info("elicited e-mail rejected: %s", type(e).__name__)
 
 
@@ -374,7 +375,7 @@ def build_server(
 
         try:
             result = await anyio.to_thread.run_sync(contextvars.copy_context().run, run)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - transport boundary: every tool error becomes an error result
             return _text_result(_common.error_text(e), is_error=True)
         finally:
             call.release()  # also when cancelled before the worker thread started
