@@ -1,7 +1,7 @@
 """Hardened HTTP server: Streamable HTTP MCP at /mcp plus REST/OpenAPI routes, on Starlette + uvicorn.
 
 Every route has the same protections: Host validation when bound to loopback (DNS rebinding), CORS only for
-NOUL_CORS_ORIGINS (any other Origin is rejected), optional Bearer token (NOUL_HTTP_TOKEN; /healthz is open),
+NOUL_CORS_ORIGINS (any other Origin is rejected), optional Bearer token (NOUL_HTTP_TOKEN; /health and /healthz are open),
 a 1 MB request-body cap, and write tools hidden/blocked unless NOUL_HTTP_ALLOW_WRITE=1 *and* a token is set."""
 
 from __future__ import annotations
@@ -40,6 +40,10 @@ def _json(status: int, payload: Any, headers: dict[str, str] | None = None) -> l
         {"type": "http.response.body", "body": body},
     ]
 
+
+# Health checks are open (no token, no rate limit). Cloud Run's front end reserves paths ending in "z", so
+# /healthz never reaches the container there: /health is the one that works everywhere.
+HEALTH_PATHS = frozenset({"/health", "/healthz"})
 
 _CLIENT_GONE = object()  # what Guard._buffered_body returns when the client disconnected mid-body
 _TOO_LARGE = object()  # ... and when the body exceeded MAX_BODY_BYTES
@@ -134,7 +138,7 @@ class Guard:
         if self.public and path == "/mcp" and scope.get("method") in ("GET", "DELETE"):
             # Stateless JSON transport: no server-to-client SSE stream and no sessions to delete.
             return await reply(405, {"error": "Method not allowed: POST JSON-RPC messages to /mcp"}, {"Allow": "POST"})
-        if self.rate_limiter is not None and path != "/healthz" and not path.startswith("/.well-known/"):
+        if self.rate_limiter is not None and path not in HEALTH_PATHS and not path.startswith("/.well-known/"):
             # Per-client flood guard only: hosted clients (Claude.ai, ChatGPT) share their vendor's egress IPs, so
             # the real cost control is the per-instance tool-call limit and concurrency cap.
             wait = self.rate_limiter.check(
@@ -143,7 +147,7 @@ class Guard:
             if wait > 0:
                 retry = str(max(1, int(wait + 0.999)))
                 return await reply(429, {"error": "Too many requests; slow down."}, {"Retry-After": retry})
-        if self.token and path != "/healthz":
+        if self.token and path not in HEALTH_PATHS:
             scheme, _, supplied = headers.get("authorization", "").partition(" ")
             if scheme.lower() != "bearer" or not hmac.compare_digest(
                 supplied.strip().encode("utf-8"), self.token.encode("utf-8")
@@ -237,6 +241,7 @@ def build_app(
         return Response(json.dumps(payload, ensure_ascii=False, default=str), media_type="application/json")
 
     routes = [
+        Route("/health", healthz, methods=["GET"]),
         Route("/healthz", healthz, methods=["GET"]),
         Route("/openapi.json", openapi, methods=["GET"]),
         Route("/tools", list_tools, methods=["GET"]),

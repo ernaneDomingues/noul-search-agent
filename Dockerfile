@@ -2,7 +2,7 @@
 # Public read-only connector: NOUL_PUBLIC=1 (no token, writes off, rate/concurrency limits, request caps;
 # behind Cloud Run also NOUL_TRUSTED_PROXY=1) - see docs/deploy/cloud-run.md.
 # Private server: set NOUL_HTTP_TOKEN (Bearer auth) and NOUL_CORS_ORIGINS; write tools stay disabled unless
-# NOUL_HTTP_ALLOW_WRITE=1 *and* a token are set. /healthz is unauthenticated.
+# NOUL_HTTP_ALLOW_WRITE=1 *and* a token are set. /health is unauthenticated.
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -39,5 +39,5 @@ USER noul
 WORKDIR /tmp/noul-workspace
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s \
-    CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/healthz' % os.environ.get('PORT', '8080'), timeout=3)"
+    CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/health' % os.environ.get('PORT', '8080'), timeout=3)"
 CMD ["noul-mcp", "--http"]

@@ -139,7 +139,7 @@ noul meter '[{"id":"doi:10.1093/nutrit/nuac064","stance":"supportive"},{"id":"pm
 ### 6. HTTP / OpenAPI mode
 ```bash
 noul-mcp --http 8765          # or: uv run noul-mcp --http 8765
-# MCP: http://127.0.0.1:8765/mcp · OpenAPI: /openapi.json · health: /healthz
+# MCP: http://127.0.0.1:8765/mcp · OpenAPI: /openapi.json · health: /health
 ```
 Security: the server listens on `127.0.0.1` by default and validates the `Host` header (against DNS rebinding). CORS is limited to `NOUL_CORS_ORIGINS`. When `NOUL_HTTP_TOKEN` is set, requests need `Authorization: Bearer` with that token (except `/healthz`); without it, the loopback server is unauthenticated. Tools that write to disk or to an external account (`download_papers`, `save_research_dossier`, `export_obsidian_notes`, `configure_noul`, `zotero_push` and the `project_*` tools that change a project: see the *Writes to disk* column below) are hidden and blocked over HTTP unless `NOUL_HTTP_ALLOW_WRITE=1` **and** a token are set. Other variables: `NOUL_HTTP_HOST`, `PORT`, `NOUL_HTTP_LOG=1`.
 

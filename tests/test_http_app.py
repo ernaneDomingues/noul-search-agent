@@ -47,6 +47,7 @@ class HttpAppTests(unittest.TestCase):
     def test_healthz_is_open_and_everything_else_needs_the_token(self):
         with client() as c:
             self.assertEqual(c.get("/healthz").json()["status"], "ok")
+            self.assertEqual(c.get("/health").json()["status"], "ok")  # what Cloud Run lets through
             for method, path in (("get", "/openapi.json"), ("get", "/tools"), ("post", "/tools/evidence_meter")):
                 with self.subTest(path=path):
                     r = getattr(c, method)(path)
