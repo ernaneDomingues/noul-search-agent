@@ -508,9 +508,11 @@ class SecretTests(Base):
         from noul.errors import HTTPError
 
         fake = self.use(Zotero())
-        with mock.patch.dict(os.environ, {"NOUL_ZOTERO_API_KEY": "", "NOUL_ZOTERO_USER_ID": ""}):
-            with self.assertRaises(HTTPError) as caught:
-                registry.call("zotero_push", {"ids": [PAPER["id"]]})
+        with (
+            mock.patch.dict(os.environ, {"NOUL_ZOTERO_API_KEY": "", "NOUL_ZOTERO_USER_ID": ""}),
+            self.assertRaises(HTTPError) as caught,
+        ):
+            registry.call("zotero_push", {"ids": [PAPER["id"]]})
         self.assertIn("not configured", str(caught.exception))
         self.assertEqual(fake.requests, [])
 

@@ -155,9 +155,14 @@ def flow_text(text, sections=None, captions=None, spans=()):
         keep.update(i for i in range(start, min(end, len(text))) if text[i] == "\n")
     chars = list(text)
     for i, ch in enumerate(chars):
-        if ch == "\n" and i not in keep and 0 < i < len(chars) - 1:
-            if chars[i - 1] not in "\n\f" and chars[i + 1] not in "\n\f":
-                chars[i] = " "
+        if (
+            ch == "\n"
+            and i not in keep
+            and 0 < i < len(chars) - 1
+            and chars[i - 1] not in "\n\f"
+            and chars[i + 1] not in "\n\f"
+        ):
+            chars[i] = " "
     return "".join(chars)
 
 

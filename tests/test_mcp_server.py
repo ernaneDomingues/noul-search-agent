@@ -313,10 +313,12 @@ class ElicitationTests(unittest.TestCase):
 
                 async def go(mode=mode):
                     server = build_server(elicit_email=True)
-                    async with _support.mcp_client(server, elicitation_callback=slow, mode=mode) as c:
-                        async with anyio.create_task_group() as tg:
-                            for _ in range(3):
-                                tg.start_soon(c.call_tool, "get_fulltext", {"id": "doi:10.1000/none"})
+                    async with (
+                        _support.mcp_client(server, elicitation_callback=slow, mode=mode) as c,
+                        anyio.create_task_group() as tg,
+                    ):
+                        for _ in range(3):
+                            tg.start_soon(c.call_tool, "get_fulltext", {"id": "doi:10.1000/none"})
 
                 anyio.run(go)
                 self.assertEqual(len(asked), 1)

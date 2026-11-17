@@ -99,9 +99,8 @@ class HttpAppTests(unittest.TestCase):
     def test_websocket_scopes_are_refused(self):
         from starlette.websockets import WebSocketDisconnect
 
-        with client() as c, self.assertRaises(WebSocketDisconnect):
-            with c.websocket_connect("/mcp", headers=AUTH):
-                pass
+        with client() as c, self.assertRaises(WebSocketDisconnect), c.websocket_connect("/mcp", headers=AUTH):
+            pass
 
     def test_clients_cannot_inject_an_unrequested_email_answer(self):
         from noul import config

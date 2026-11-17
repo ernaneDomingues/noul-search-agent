@@ -6,7 +6,7 @@ import order below is the order of `tools/list`: keep it. Public names are re-ex
 patch a function, patch it in the submodule that defines it."""
 
 # isort: skip_file
-# ruff: noqa: F401, I001
+# ruff: noqa: F401
 from noul import registry as _registry
 from noul.api.common import EVIDENCE, STANCE_ALIASES
 from noul.api.search import (

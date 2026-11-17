@@ -381,10 +381,9 @@ class AgentTestSuite(unittest.TestCase):
         self.assertEqual(_net_cache.cache_get("close-test", max_age=0), {"committed": True})
         with self.assertRaises(sqlite3.ProgrammingError):
             conn.execute("SELECT 1")
-        with self.assertRaisesRegex(RuntimeError, "rollback"):
-            with _net_cache._conn() as failed:
-                failed.execute("DELETE FROM kv WHERE k = 'close-test'")
-                raise RuntimeError("rollback")
+        with self.assertRaisesRegex(RuntimeError, "rollback"), _net_cache._conn() as failed:
+            failed.execute("DELETE FROM kv WHERE k = 'close-test'")
+            raise RuntimeError("rollback")
         with self.assertRaises(sqlite3.ProgrammingError):
             failed.execute("SELECT 1")
         self.assertEqual(_net_cache.cache_get("close-test", max_age=0), {"committed": True})

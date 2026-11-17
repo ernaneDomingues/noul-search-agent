@@ -236,7 +236,7 @@ def _resolve_arxiv(ax):
     for attempt in attempts:
         try:
             paper = attempt()
-        except Exception as e:  # noqa: PERF203 - one failure per source is expected
+        except Exception as e:  # one failure per source is expected
             _log.logger.info("arXiv %s: source failed (%s), trying the next one", ax, type(e).__name__)
             continue
         if paper:

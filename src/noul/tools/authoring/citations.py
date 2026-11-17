@@ -215,10 +215,7 @@ def recommend_citations(
         if marker_m:
             new_sent = _EXPLICIT_CITE_MARKER_RE.sub(cite_tag.replace("\\", "\\\\"), sent)
         else:
-            if sent.endswith((".", "!", "?")):
-                new_sent = f"{sent[:-1]} {cite_tag}{sent[-1]}"
-            else:
-                new_sent = f"{sent} {cite_tag}"
+            new_sent = f"{sent[:-1]} {cite_tag}{sent[-1]}" if sent.endswith((".", "!", "?")) else f"{sent} {cite_tag}"
 
         replacements.append((sent, new_sent))
         recommendations.append(

@@ -1148,7 +1148,7 @@ def _build_hypothesis(idx, pair, rows, failures_by_id, topic_label):
     extracted_metrics = [
         k
         for d in (d_a, d_b)
-        for k in d.primary_metrics.keys()
+        for k in d.primary_metrics
         if k not in ("headline_finding", "percentages", "p_values", "confidence_intervals")
     ]
     default_metrics = _DEFAULT_METRICS_BY_DOMAIN.get(dom, _DEFAULT_METRICS_BY_DOMAIN["general_stem"])

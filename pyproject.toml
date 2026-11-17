@@ -65,9 +65,11 @@ extend-exclude = ["site"]
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "B", "UP"]
+select = ["E", "F", "W", "I", "B", "UP", "RUF100", "SIM"]
 # E501: the formatter owns line length; long regex/prompt literals are allowed.
-ignore = ["E501"]
+# SIM105: `contextlib.suppress` only hides a broad `except`; such handlers are reviewed case by case instead.
+# SIM905: `"word word ...".split()` keeps long vocabulary lists (stopwords, classifier terms) readable.
+ignore = ["E501", "SIM105", "SIM905"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E402"]

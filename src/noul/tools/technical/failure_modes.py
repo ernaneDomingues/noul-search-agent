@@ -208,9 +208,8 @@ def _extract_operational_limits(text):
 
     langs = []
     for lang in ("English", "Chinese", "Spanish", "Portuguese", "French", "German", "Japanese", "Arabic"):
-        if re.search(rf"\b{lang}(?:[-\s]only)?\b", text or "", re.I):
-            if lang not in langs:
-                langs.append(lang)
+        if re.search(rf"\b{lang}(?:[-\s]only)?\b", text or "", re.I) and lang not in langs:
+            langs.append(lang)
     if langs:
         limits["supported_languages"] = langs
     return limits
