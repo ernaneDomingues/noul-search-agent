@@ -3,6 +3,7 @@
 import urllib.parse
 import xml.etree.ElementTree as ET
 
+from noul import errors as _errors
 from noul import ids as _ids
 from noul.net import http as _nhttp
 from noul.providers import assemble as _assemble
@@ -32,7 +33,10 @@ def fetch_by_ids(arxiv_ids):
 
 
 def _parse_feed(xml_txt, year_min=None):
-    root = ET.fromstring(xml_txt)
+    try:
+        root = ET.fromstring(xml_txt)
+    except ET.ParseError as e:  # an empty body or an HTML error page with status 200
+        raise _errors.HTTPError(502, f"Invalid XML from arXiv API: {e}") from e
     ns = {"a": "http://www.w3.org/2005/Atom", "arxiv": "http://arxiv.org/schemas/atom"}
     out = []
     for entry in root.findall("a:entry", ns):

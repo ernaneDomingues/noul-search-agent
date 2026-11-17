@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 from typing import Any
 
 from noul import config as _config
+from noul import errors as _errors
 from noul import ids as _ids
 from noul.evidence import integrity as _integrity
 from noul.net import http as _nhttp
@@ -41,7 +42,10 @@ def _search_pubmed(query, limit=20, year_min=None):
 
 def _parse_pubmed_xml(xml_txt):
     out = []
-    root = ET.fromstring(xml_txt)
+    try:
+        root = ET.fromstring(xml_txt)
+    except ET.ParseError as e:  # an empty body or an HTML error page with status 200
+        raise _errors.HTTPError(502, f"Invalid XML from PubMed E-utilities: {e}") from e
     for art in root.findall(".//PubmedArticle"):
         pmid = art.findtext(".//MedlineCitation/PMID")
         title_el = art.find(".//ArticleTitle")

@@ -239,3 +239,41 @@ class OpenAlexSearchTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class InvalidXmlTests(unittest.TestCase):
+    """A 200 answer that is not XML (empty body, HTML error page) is an unavailable source, not a crash."""
+
+    def setUp(self):
+        _support.block_http(self)
+
+    def test_the_parsers_raise_an_http_error(self):
+        from noul.errors import HTTPError
+        from noul.providers import arxiv_search, pubmed
+
+        for parse in (arxiv_search._parse_feed, pubmed._parse_pubmed_xml):
+            for body in ("", "<html><body>Rate exceeded.</body></html"):
+                with self.subTest(parser=parse.__module__, body=body), self.assertRaises(HTTPError) as caught:
+                    parse(body)
+                self.assertEqual(caught.exception.code, 502)
+
+    def test_an_arxiv_lookup_ends_in_not_found(self):
+        from noul import registry
+        from noul.errors import HTTPError
+
+        def fake_json(url, *args, **kwargs):
+            if "semanticscholar" in url:
+                raise HTTPError(429, "HTTP Error 429: Too Many Requests")
+            raise HTTPError(404, "HTTP Error 404: Not Found")
+
+        def fake_get(url, *args, **kwargs):
+            if "export.arxiv.org" in url:
+                return "<html><body>Rate exceeded.</body></html"
+            raise HTTPError(404, "HTTP Error 404: Not Found")
+
+        with (
+            mock.patch("noul.net.http._http_json", side_effect=fake_json),
+            mock.patch("noul.net.http._http_get", side_effect=fake_get),
+            self.assertRaises(HTTPError),
+        ):
+            registry.call("get_paper", {"id": "arXiv:2401.01234"})

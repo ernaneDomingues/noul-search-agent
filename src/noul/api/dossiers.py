@@ -191,7 +191,7 @@ def get_research_dossier(slug, output_dir=None):
             for p in papers:
                 if p.get("id"):
                     _cache.put_paper(p["id"], p)
-        except (OSError, ValueError) as e:
+        except (OSError, ValueError, AttributeError, TypeError) as e:  # also a hand-edited file of another shape
             _log.logger.debug("dossier papers.json unreadable: %s", type(e).__name__)
     return {
         "slug": match["slug"],
