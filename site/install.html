@@ -30,7 +30,16 @@
             <span class="card-tag">Recommended • nothing to install</span>
             <h3>Claude.ai, Claude Desktop or ChatGPT</h3>
             <p>Paste the address of the public connector (paper search and reading, read-only).</p>
-          <p class="connector-pending">The public connector is not live yet. Until then, use one of the options below.</p>
+          <div class="code-box"><div class="code-box-header"><span>Connector URL</span>
+            <button class="copy-btn" type="button" data-copy-target="connector-url">Copy</button></div>
+            <pre id="connector-url" class="mono">https://noul-search-agent-88855752516.us-central1.run.app/mcp</pre></div>
+          <ol>
+            <li><strong>Claude.ai or Claude Desktop:</strong> Settings → Connectors → <em>Add custom connector</em> → paste the URL → Add.
+              <span class="install-note">Free plans limit the number of custom connectors; on Team/Enterprise an administrator adds it.</span></li>
+            <li><strong>ChatGPT:</strong> Settings → Apps &amp; Connectors → Advanced settings → turn on <em>Developer mode</em> → Create → paste the URL → <em>No authentication</em>.
+              <span class="install-note">Developer mode is only available on paid plans.</span></li>
+            <li>Ask, for example: <em>"What does the literature say about creatine and memory?"</em></li>
+          </ol>
           </article>
           <article class="card install-card" id="claude-desktop">
             <span class="card-tag">Claude Desktop • full version</span>
@@ -47,7 +56,9 @@
           <article class="card install-card" id="editors">
             <span class="card-tag">VS Code • Cursor</span>
             <h3>In your editor</h3>
-          <p class="connector-pending">The one-click buttons will appear here once the public connector is live.</p>
+          <p>One click adds the public connector to your editor (nothing to install):</p>
+          <a class="btn btn-primary" href="vscode:mcp/install?%7B%22name%22%3A%22noul%22%2C%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Fnoul-search-agent-88855752516.us-central1.run.app%2Fmcp%22%7D">Add to VS Code</a>
+          <a class="btn btn-secondary" href="cursor://anysphere.cursor-deeplink/mcp/install?name=noul&amp;config=eyJ1cmwiOiJodHRwczovL25vdWwtc2VhcmNoLWFnZW50LTg4ODU1NzUyNTE2LnVzLWNlbnRyYWwxLnJ1bi5hcHAvbWNwIn0%3D">Add to Cursor</a>
             <p class="install-note">Full version in the editor: download the program below and open it; a wizard detects your apps and asks where to install.</p>
           </article>
           <article class="card install-card" id="executables">
