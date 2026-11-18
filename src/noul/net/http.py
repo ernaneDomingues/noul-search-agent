@@ -1,7 +1,9 @@
 """Outbound HTTP: User-Agent/mailto, SSRF guard (public addresses only), size-capped GETs with retries,
 Retry-After, per-host rate limits and optional API keys (OPENALEX_API_KEY, S2_API_KEY, NCBI_API_KEY)."""
 
+import contextvars
 import email.utils
+import http.client
 import http.cookiejar
 import ipaddress
 import json
@@ -11,10 +13,13 @@ import random
 import socket
 import threading
 import time
+import typing
 import urllib.error
 import urllib.parse
 import urllib.request
+import zlib
 
+import httpcore
 import httpx
 
 from noul import __version__
@@ -68,21 +73,13 @@ def _ip_is_public(ip):
     )
 
 
-def _validate_public_url(url):
-    """Reject non-http(s) URLs and hosts resolving to private/loopback/link-local/reserved IPs (SSRF guard)."""
-    parsed = urllib.parse.urlparse(str(url or ""))
-    if parsed.scheme not in ("http", "https"):
-        raise _errors.HTTPError(400, f"Blocked URL scheme: {parsed.scheme or '(none)'}")
-    host = parsed.hostname
-    if not host:
-        raise _errors.HTTPError(400, "Blocked URL without host")
+def _public_addresses(host, port):
+    """The addresses `host` resolves to, all of them public; any non-public one refuses the host."""
     try:
-        addrs = [ipaddress.ip_address(host)]
+        addrs = [ipaddress.ip_address(host.strip("[]"))]
     except ValueError:
         try:
-            infos = socket.getaddrinfo(
-                host, parsed.port or (443 if parsed.scheme == "https" else 80), proto=socket.IPPROTO_TCP
-            )
+            infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
         except socket.gaierror as e:
             raise _errors.HTTPError(400, f"Cannot resolve host {host}: {e}") from e
         addrs = [ipaddress.ip_address(str(info[4][0]).split("%", 1)[0]) for info in infos]
@@ -90,8 +87,61 @@ def _validate_public_url(url):
         raise _errors.HTTPError(400, f"Cannot resolve host {host}")
     for ip in addrs:
         if not _ip_is_public(ip):
-            raise _errors.HTTPError(400, f"Blocked non-public address {ip} for host {host}")
+            raise _errors.HTTPError(400, f"Blocked non-public address for host {host}")
+    return addrs
+
+
+def _validate_public_url(url):
+    """Reject non-http(s) URLs and hosts resolving to private/loopback/link-local/reserved IPs (SSRF guard).
+
+    This early check gives a clean error before any request; the connection itself is checked again at connect
+    time (`_PublicOnlyBackend`, `_public_create_connection`), on the address actually used, so a name that
+    resolves differently the second time (DNS rebinding) cannot reach a private address."""
+    parsed = urllib.parse.urlparse(str(url or ""))
+    if parsed.scheme not in ("http", "https"):
+        raise _errors.HTTPError(400, f"Blocked URL scheme: {parsed.scheme or '(none)'}")
+    host = parsed.hostname
+    if not host:
+        raise _errors.HTTPError(400, "Blocked URL without host")
+    _public_addresses(host, parsed.port or (443 if parsed.scheme == "https" else 80))
     return url
+
+
+_DEFAULT_TIMEOUT = getattr(socket, "_GLOBAL_DEFAULT_TIMEOUT", None)
+
+
+def _public_create_connection(address, timeout=_DEFAULT_TIMEOUT, source_address=None, *args, **kwargs):
+    """socket.create_connection that resolves once, refuses non-public addresses and connects to the checked one."""
+    host, port = address[0], address[1]
+    last_error: OSError | None = None
+    for ip in _public_addresses(host, port):
+        try:
+            return socket.create_connection((str(ip), port), timeout, source_address, *args, **kwargs)
+        except OSError as e:
+            last_error = e
+    raise last_error or OSError(f"cannot connect to {host}")
+
+
+# True while a `public_only` request is being sent: its connections must go to public addresses only.
+_PUBLIC_ONLY = contextvars.ContextVar("noul_public_only", default=False)
+
+
+class _PublicOnlyBackend(httpcore.SyncBackend):
+    """httpcore network backend that, for `public_only` requests, connects to an address it has just checked.
+
+    TLS keeps using the URL's host name (SNI and certificate check), because httpcore takes it from the origin,
+    not from the address the TCP connection went to."""
+
+    def connect_tcp(self, host, port, timeout=None, local_address=None, socket_options=None):
+        if not _PUBLIC_ONLY.get():
+            return super().connect_tcp(host, port, timeout, local_address, socket_options)
+        last_error: Exception | None = None
+        for ip in _public_addresses(host, port):
+            try:
+                return super().connect_tcp(str(ip), port, timeout, local_address, socket_options)
+            except httpcore.ConnectError as e:
+                last_error = e
+        raise last_error or httpcore.ConnectError(f"cannot connect to {host}")
 
 
 # urllib opener kept for artifact_radar's HEAD/Range liveness probes; it re-validates every redirect target.
@@ -101,7 +151,34 @@ class _PublicRedirectHandler(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
-_PUBLIC_OPENER = urllib.request.build_opener(_PublicRedirectHandler)
+class _PublicHTTPConnection(http.client.HTTPConnection):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._create_connection = _public_create_connection
+
+
+class _PublicHTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._create_connection = _public_create_connection  # TLS still uses self.host for SNI
+
+
+class _PublicHTTPHandler(urllib.request.HTTPHandler):
+    def http_open(self, req):
+        return self.do_open(_PublicHTTPConnection, req)
+
+
+class _PublicHTTPSHandler(urllib.request.HTTPSHandler):
+    def https_open(self, req):
+        return self.do_open(_PublicHTTPSConnection, req, context=getattr(self, "_context", None))
+
+
+# With a proxy the TCP connection goes to the proxy (often a private address), so only redirects are checked.
+_PUBLIC_OPENER = (
+    urllib.request.build_opener(_PublicRedirectHandler)
+    if urllib.request.getproxies()
+    else urllib.request.build_opener(_PublicRedirectHandler, _PublicHTTPHandler, _PublicHTTPSHandler)
+)
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -154,6 +231,9 @@ def _client() -> httpx.Client:
             _client_instance = httpx.Client(
                 follow_redirects=False, transport=_transport, http2=False, cookies=no_cookies
             )
+            if _transport is None:
+                # Direct connections only (a proxy mount connects to the proxy, which may be a private address).
+                _client_instance._transport._pool._network_backend = _PublicOnlyBackend()  # type: ignore[attr-defined]
         return _client_instance
 
 
@@ -206,6 +286,8 @@ def _apply_api_keys(url: str, headers: dict[str, str]) -> str:
     parts = urllib.parse.urlsplit(url)
     host = (parts.hostname or "").lower()
     param = None
+    if parts.scheme != "https" or parts.port not in (None, 443):
+        return url  # never in cleartext, nor to another service on the same host
     if host == "api.openalex.org" and os.environ.get("OPENALEX_API_KEY"):
         param = ("api_key", os.environ["OPENALEX_API_KEY"])
     elif host == "eutils.ncbi.nlm.nih.gov" and os.environ.get("NCBI_API_KEY"):
@@ -244,13 +326,57 @@ def _where(url: str) -> str:
     return f"{parts.hostname}{parts.path}"
 
 
-def _read_capped(response: httpx.Response, max_bytes: int) -> bytes:
+# Total seconds one GET may take, all attempts, redirects and body included: the per-phase timeout alone lets a
+# server that sends one byte just before each read deadline hold a worker for hours.
+FETCH_DEADLINE = 60.0
+
+_DECODERS = {"gzip": 47, "x-gzip": 47, "deflate": 15}  # zlib wbits: 47 = gzip/zlib auto-detect
+
+
+def _check_deadline(deadline: float | None, url: str) -> None:
+    if deadline is not None and _monotonic() > deadline:
+        raise _errors.HTTPError(504, f"Download took too long (> {FETCH_DEADLINE:.0f} s) for {_where(url)}")
+
+
+def _read_capped(response: httpx.Response, max_bytes: int, deadline: float | None = None) -> bytes:
+    """The body, at most `max_bytes` after decoding, within `deadline`.
+
+    We ask for `Accept-Encoding: identity`; a server that compresses anyway gets one layer of gzip/deflate,
+    decoded here with a bound on the output (httpx would inflate a whole chunk before any size check, and stacked
+    encodings multiply the ratio). Anything else is refused."""
     length = response.headers.get("Content-Length")
-    if length and length.isdigit() and int(length) > max_bytes:
+    if length and length.isascii() and length.isdigit() and int(length) > max_bytes:
         raise _errors.HTTPError(413, f"Response too large ({length} bytes > {max_bytes})")
+    encodings = [e.strip().lower() for e in response.headers.get("Content-Encoding", "").split(",") if e.strip()]
+    encodings = [e for e in encodings if e != "identity"]
+    if len(encodings) > 1 or (encodings and encodings[0] not in _DECODERS):
+        raise _errors.HTTPError(502, f"Refused a response with Content-Encoding {', '.join(encodings)}")
+    if response.is_stream_consumed:  # an in-memory response (tests' MockTransport): httpx already decoded it
+        chunks: typing.Iterable[bytes] = [response.content]
+        decoder = None
+    else:
+        chunks = response.iter_raw()  # as received: a chunk size would wait to fill a buffer first
+        decoder = zlib.decompressobj(_DECODERS[encodings[0]]) if encodings else None
     buf = bytearray()
-    for chunk in response.iter_bytes(65536):
-        buf.extend(chunk)
+    for chunk in chunks:
+        _check_deadline(deadline, str(response.request.url))
+        if decoder is None:
+            buf.extend(chunk)
+        else:
+            data = chunk
+            while data:
+                try:
+                    out = decoder.decompress(data, max_bytes + 1 - len(buf))
+                except zlib.error as e:
+                    raise _errors.HTTPError(502, f"Invalid compressed response ({e})") from None
+                buf.extend(out)
+                if len(buf) > max_bytes:
+                    break
+                data = decoder.unconsumed_tail
+        if len(buf) > max_bytes:
+            raise _errors.HTTPError(413, f"Response exceeded {max_bytes} bytes")
+    if decoder is not None:
+        buf.extend(decoder.flush(max_bytes + 1 - len(buf)))
         if len(buf) > max_bytes:
             raise _errors.HTTPError(413, f"Response exceeded {max_bytes} bytes")
     return bytes(buf)
@@ -262,9 +388,18 @@ def _origin(url: str) -> tuple[str, str | None, int | None]:
     return parts.scheme, parts.hostname, parts.port or default
 
 
-def _fetch_once(url, headers, timeout, max_bytes, public_only):
+def _fetch_once(url, headers, timeout, max_bytes, public_only, deadline=None):
     """One logical GET following up to MAX_REDIRECTS redirects (each re-validated when `public_only`)."""
+    token = _PUBLIC_ONLY.set(bool(public_only))
+    try:
+        return _fetch_hops(url, headers, timeout, max_bytes, public_only, deadline)
+    finally:
+        _PUBLIC_ONLY.reset(token)
+
+
+def _fetch_hops(url, headers, timeout, max_bytes, public_only, deadline):
     for _ in range(MAX_REDIRECTS + 1):
+        _check_deadline(deadline, url)
         if public_only:
             _validate_public_url(url)
         _limiter.wait((urllib.parse.urlsplit(url).hostname or "").lower())
@@ -286,7 +421,7 @@ def _fetch_once(url, headers, timeout, max_bytes, public_only):
                 if wait is not None and public_only:
                     wait = min(wait, PUBLIC_RETRY_AFTER_CAP)
                 return response.status_code, response.reason_phrase, wait, None
-            return response.status_code, response.reason_phrase, None, _read_capped(response, max_bytes)
+            return response.status_code, response.reason_phrase, None, _read_capped(response, max_bytes, deadline)
         finally:
             response.close()
     raise _errors.HTTPError(502, f"Too many redirects (> {MAX_REDIRECTS})")
@@ -305,9 +440,11 @@ def _http_get(url, headers=None, timeout=15, binary=False, max_bytes=None, publi
     if headers:
         hdrs.update(headers)
     slept = 0.0
+    deadline = _monotonic() + FETCH_DEADLINE
     for attempt in range(1, MAX_ATTEMPTS + 1):
+        _check_deadline(deadline, url)
         try:
-            status, reason, retry_after, data = _fetch_once(url, hdrs, timeout, max_bytes, public_only)
+            status, reason, retry_after, data = _fetch_once(url, hdrs, timeout, max_bytes, public_only, deadline)
         except _TRANSIENT as exc:
             wait = _backoff(attempt)
             if attempt == MAX_ATTEMPTS or slept + wait > RETRY_BUDGET:
@@ -319,7 +456,7 @@ def _http_get(url, headers=None, timeout=15, binary=False, max_bytes=None, publi
             _sleep(wait)
             slept += wait
             continue
-        except (httpx.HTTPError, ValueError) as exc:
+        except (httpx.HTTPError, httpx.InvalidURL, ValueError) as exc:
             # Corrupt encodings, invalid redirect URLs, unsupported schemes...: fail closed with a clean error.
             raise _errors.HTTPError(502, f"Invalid response ({type(exc).__name__}) from {_where(url)}") from exc
         if data is not None:

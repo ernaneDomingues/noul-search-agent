@@ -226,9 +226,7 @@ def _resolve_arxiv(ax):
     rate-limited source (S2 answers 429 often without a key) must not make the paper unresolvable."""
     base = re.sub(r"v\d+$", "", ax)
     attempts = (
-        lambda: _s2._parse_s2_paper(
-            _nhttp._http_json(_endpoints.s2_paper(ax, _s2.S2_PAPER_FIELDS, prefix="ARXIV:", safe="/."))
-        ),
+        lambda: _s2._parse_s2_paper(_nhttp._http_json(_endpoints.s2_paper(ax, _s2.S2_PAPER_FIELDS, prefix="ARXIV:"))),
         lambda: _openalex._parse_openalex_work(
             _nhttp._http_json(_endpoints.openalex_work(doi="10.48550/arXiv." + base))
         ),
