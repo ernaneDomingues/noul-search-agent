@@ -8,6 +8,7 @@ from noul import errors as _errors
 from noul import ids as _ids
 from noul import workspace as _workspace
 from noul.evidence import integrity as _integrity
+from noul.library import export as _export
 from noul.providers import arxiv_client
 from noul.schemas.authoring import (
     BibtexEntryUpdate,
@@ -47,9 +48,10 @@ def _format_bibtex_entry_from_paper(paper: dict, key: str) -> str:
     venue = str(paper.get("journal") or paper.get("venue") or "arXiv").strip()
     is_conf = arxiv_client.is_conference_venue(venue)
     etype = "inproceedings" if is_conf else "article"
-    authors_bib = " and ".join(paper.get("authors") or ["Anonymous"])
-    title = paper.get("title") or ""
-    year = paper.get("year") or ""
+    # Every value comes from paper metadata (third-party text): escaped so that it cannot close its field.
+    authors_bib = " and ".join(_export.bib_value(a) for a in paper.get("authors") or ["Anonymous"])
+    title = _export.bib_value(paper.get("title") or "")
+    year = _export.bib_value(paper.get("year") or "")
     lines = [
         f"@{etype}{{{key},",
         f"  title = {{{title}}},",
@@ -57,13 +59,13 @@ def _format_bibtex_entry_from_paper(paper: dict, key: str) -> str:
         f"  year = {{{year}}},",
     ]
     if is_conf:
-        lines.append(f"  booktitle = {{{venue}}},")
+        lines.append(f"  booktitle = {{{_export.bib_value(venue)}}},")
     else:
-        lines.append(f"  journal = {{{venue}}},")
+        lines.append(f"  journal = {{{_export.bib_value(venue)}}},")
     if paper.get("doi"):
-        lines.append(f"  doi = {{{paper['doi']}}},")
+        lines.append(f"  doi = {{{_export.bib_doi(paper['doi'])}}},")
     elif paper.get("arxiv_id"):
-        lines.append(f"  eprint = {{{paper['arxiv_id']}}},")
+        lines.append(f"  eprint = {{{_export.bib_doi(paper['arxiv_id'])}}},")
     lines.append("}")
     return "\n".join(lines)
 
@@ -361,14 +363,14 @@ def _apply_published_version(entry: dict, run: _SanitizeRun, notes: list[str]) -
     if not is_preprint:
         if not resolved.get("doi"):
             return None
-        fields["doi"] = resolved["doi"]
+        fields["doi"] = _export.bib_doi(resolved["doi"])
         run.dois_completed += 1
         notes.append(f"Completed missing DOI: {resolved['doi']}.")
         return "doi_completed"
 
     run.preprints_upgraded += 1
     etype = entry["entry_type"] = resolved["entry_type"]
-    venue_name = resolved["venue"]
+    venue_name = _export.bib_value(resolved["venue"])  # from an API: escaped
     if etype == "inproceedings":
         fields["booktitle"] = venue_name
         if arxiv_client._PREPRINT_VENUE_RE.search(str(fields.get("journal") or "")):
@@ -376,13 +378,13 @@ def _apply_published_version(entry: dict, run: _SanitizeRun, notes: list[str]) -
     else:
         fields["journal"] = venue_name
     if resolved.get("year"):
-        fields["year"] = str(resolved["year"])
+        fields["year"] = _export.bib_value(resolved["year"])
     if resolved.get("doi"):
-        fields["doi"] = resolved["doi"]
+        fields["doi"] = _export.bib_doi(resolved["doi"])
         if not had_doi:
             run.dois_completed += 1
     if resolved.get("arxiv_id") and not fields.get("eprint"):
-        fields["eprint"] = str(resolved["arxiv_id"])
+        fields["eprint"] = _export.bib_doi(resolved["arxiv_id"])
     notes.append(f"Upgraded arXiv preprint to {etype} in '{venue_name}'.")
     return "upgraded_preprint"
 

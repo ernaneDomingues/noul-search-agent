@@ -52,6 +52,49 @@ def _is_retracted(paper):
     return bool((paper.get("retraction") or {}).get("is_retracted"))
 
 
+_LINE_BREAKS = re.compile(r"[\r\n\v\f\x85\u2028\u2029]+")
+# LaTeX/BibTeX specials. Metadata from the APIs is plain Unicode text, so every special is literal: escaping them all
+# keeps a "}" from closing the field early (and adding fields or entries) and a "\\" from reaching LaTeX as a
+# command such as \\input or \\write18.
+_BIB_ESCAPES = {
+    "\\": r"\textbackslash{}",
+    "{": r"\{",
+    "}": r"\}",
+    "#": r"\#",
+    "%": r"\%",
+    "&": r"\&",
+    "_": r"\_",
+    "$": r"\$",
+    "^": r"\^{}",
+    "~": r"\~{}",
+}
+_BIB_SPECIAL = re.compile(r"[\\{}#%&_$^~]")
+# Spreadsheets run a cell that starts with one of these as a formula (CSV injection).
+_FORMULA_START = ("=", "+", "-", "@", "\t", "\r")
+
+
+def one_line(value):
+    """The value on one line: a line break inside a field could start a new RIS tag or record."""
+    return _LINE_BREAKS.sub(" ", str(value if value is not None else "")).strip()
+
+
+def bib_value(value):
+    """A BibTeX field value from third-party metadata: on one line, every special character escaped."""
+    return _BIB_SPECIAL.sub(lambda m: _BIB_ESCAPES[m.group(0)], one_line(value))
+
+
+def bib_doi(value):
+    """A DOI as a BibTeX field: no braces or line breaks (the doi field is read verbatim, not as LaTeX)."""
+    return re.sub(r"[{}\s\\]", "", str(value or ""))
+
+
+def csv_cell(value):
+    """A spreadsheet-safe cell: text that would start a formula gets a leading apostrophe."""
+    if isinstance(value, str) and value.startswith(_FORMULA_START):
+        return "'" + value
+    return value
+
+
 def _cite_key(paper, idx):
     first = ((paper.get("authors") or ["anon"])[0]).split()[-1].lower()
     first = re.sub(r"[^a-z0-9]", "", first) or "ref"
@@ -93,16 +136,16 @@ def export(papers, format="bibtex"):
         entries = []
         for idx, p in enumerate(papers, 1):
             key = _cite_key(p, idx)
-            authors_bib = " and ".join(p.get("authors") or [])
+            authors_bib = " and ".join(bib_value(a) for a in p.get("authors") or [])
             lines = [
                 f"@article{{{key},",
-                f"  title = {{{p.get('title') or ''}}},",
+                f"  title = {{{bib_value(p.get('title') or '')}}},",
                 f"  author = {{{authors_bib}}},",
-                f"  year = {{{p.get('year') or ''}}},",
-                f"  journal = {{{p.get('journal') or ''}}},",
+                f"  year = {{{bib_value(p.get('year') or '')}}},",
+                f"  journal = {{{bib_value(p.get('journal') or '')}}},",
             ]
             if p.get("doi"):
-                lines.append(f"  doi = {{{p['doi']}}},")
+                lines.append(f"  doi = {{{bib_doi(p['doi'])}}},")
             if _is_retracted(p):
                 lines.append("  note = {RETRACTED},")
             lines.append("}")
@@ -112,15 +155,15 @@ def export(papers, format="bibtex"):
     if fmt == "ris":
         entries = []
         for p in papers:
-            lines = ["TY  - JOUR", f"TI  - {p.get('title') or ''}"]
+            lines = ["TY  - JOUR", f"TI  - {one_line(p.get('title') or '')}"]
             for a in p.get("authors") or []:
-                lines.append(f"AU  - {a}")
+                lines.append(f"AU  - {one_line(a)}")
             if p.get("year"):
-                lines.append(f"PY  - {p['year']}")
+                lines.append(f"PY  - {one_line(p['year'])}")
             if p.get("journal"):
-                lines.append(f"JO  - {p['journal']}")
+                lines.append(f"JO  - {one_line(p['journal'])}")
             if p.get("doi"):
-                lines.append(f"DO  - {p['doi']}")
+                lines.append(f"DO  - {one_line(p['doi'])}")
             if _is_retracted(p):
                 lines.append("N1  - RETRACTED")
             lines.append("ER  - ")
@@ -136,16 +179,19 @@ def export(papers, format="bibtex"):
         for p in papers:
             writer.writerow(
                 [
-                    p.get("id") or "",
-                    p.get("title") or "",
-                    "; ".join(p.get("authors") or []),
-                    p.get("year") or "",
-                    p.get("journal") or "",
-                    p.get("doi") or "",
-                    p.get("citations") or 0,
-                    p.get("evidence") or "",
-                    bool(p.get("open_access")),
-                    _is_retracted(p),
+                    csv_cell(x)
+                    for x in (
+                        p.get("id") or "",
+                        p.get("title") or "",
+                        "; ".join(p.get("authors") or []),
+                        p.get("year") or "",
+                        p.get("journal") or "",
+                        p.get("doi") or "",
+                        p.get("citations") or 0,
+                        p.get("evidence") or "",
+                        bool(p.get("open_access")),
+                        _is_retracted(p),
+                    )
                 ]
             )
         return buf.getvalue(), "text/csv"
