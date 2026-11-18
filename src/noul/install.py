@@ -159,7 +159,7 @@ def _toml_str(s):
     s = str(s)
     if "'" not in s and "\n" not in s and "\r" not in s:
         return f"'{s}'"
-    return json.dumps(s)
+    return json.dumps(s, ensure_ascii=False)  # \ud83d-style surrogate escapes are not valid TOML
 
 
 def _app_config_dir(app):
@@ -235,6 +235,8 @@ class Install:
                 shutil.copy2(path, bak)
 
     def write(self, dst, text, keep_backup=False):
+        # A config file that is a symlink (dotfiles managed elsewhere) is updated where it points, not replaced.
+        dst = Path(os.path.realpath(dst))
         if dst.is_file() and dst.read_text(encoding="utf-8", errors="replace") == text:
             return self.log(f"unchanged {dst}")
         if keep_backup:
@@ -345,9 +347,23 @@ def _codex(run):
     run.skill(HOME / ".codex/skills")
     snippet = run.render(run.assets / "agents/AGENTS.snippet.md", HOME / ".codex/skills/noul-search/SKILL.md")
     run.patch_block(HOME / ".codex/AGENTS.md", snippet, *MARK)
+    config = HOME / ".codex/config.toml"
+    if not run.uninstall and _declares_noul_table_outside_markers(config):
+        return run.fail(f"{config} already declares [mcp_servers.noul] outside Noul's block; left untouched.")
     cmd, args = run.mcp_command()
     toml = f"[mcp_servers.noul]\ncommand = {_toml_str(cmd)}\nargs = [{', '.join(_toml_str(a) for a in args)}]"
     run.patch_block(HOME / ".codex/config.toml", toml, *TOML_MARK)
+
+
+def _declares_noul_table_outside_markers(path):
+    """True when the user's Codex config already has its own [mcp_servers.noul] table (a second one is invalid TOML
+    and would break Codex)."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+    outside = re.sub(re.escape(TOML_MARK[0]) + r".*?" + re.escape(TOML_MARK[1]), "", text, flags=re.S)
+    return re.search(r"^\s*\[\s*mcp_servers\.noul\s*\]", outside, re.M) is not None
 
 
 def _gemini(run):

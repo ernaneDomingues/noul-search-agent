@@ -54,7 +54,7 @@ class SlugTests(unittest.TestCase):
         research = Path(config.get_config()["workspace"]) / "research"
         old = research / "caf-e-sa-de"  # what versions before 2.1.1 called "Café e saúde"
         old.mkdir(parents=True)
-        (old / "papers.json").write_text("{}", encoding="utf-8")
+        (old / "papers.json").write_text('{"slug": "caf-e-sa-de", "papers": []}', encoding="utf-8")
         saved = registry.call("save_research_dossier", {"topic": "Café e saúde", "synthesis_markdown": "v2"})
         self.assertEqual(saved["slug"], "caf-e-sa-de")
         self.assertFalse((research / "cafe-e-saude").exists())
