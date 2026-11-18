@@ -29,18 +29,71 @@ _TRUSTED_ORIGINS = frozenset({"user"})
 UNTRUSTED_KEYS = frozenset({"untrusted_fields"})
 
 
+_KEPT_CONTROLS = frozenset("\n\t")
+# Dash and bracket look-alikes NFKC does not fold, mapped before searching for delimiters.
+_LOOKALIKES = str.maketrans(
+    {
+        "\u2010": "-",
+        "\u2011": "-",
+        "\u2012": "-",
+        "\u2013": "-",
+        "\u2014": "-",
+        "\u2212": "-",
+        "\u3008": "<",
+        "\u2329": "<",
+        "\u27e8": "<",
+        "\u2039": "<",
+        "\u0455": "s",
+        "\u00b7": "_",
+    }
+)
+
+
+def _strip_invisible(text: str) -> str:
+    """Without control characters (terminal escapes, NUL; newline and tab kept) and invisible format characters
+    (zero-width spaces, bidi overrides, Unicode tag characters that smuggle hidden instructions)."""
+    return "".join(ch for ch in text if ch in _KEPT_CONTROLS or unicodedata.category(ch) not in ("Cc", "Cf"))
+
+
 def _clean(text: str) -> str:
-    """Canonical form used before searching for delimiters: HTML entities decoded, compatibility characters folded
-    (fullwidth brackets, ligatures), invisible format characters (zero-width spaces, soft hyphens) removed."""
-    text = html.unescape(text)
-    text = unicodedata.normalize("NFKC", text)
-    return "".join(ch for ch in text if unicodedata.category(ch) != "Cf")
+    """Canonical form: compatibility characters folded (fullwidth brackets, ligatures), invisible and control
+    characters removed. HTML entities stay as they are, so encoded markup never turns into live markup."""
+    return _strip_invisible(unicodedata.normalize("NFKC", text))
+
+
+def _has_delimiter(text: str) -> bool:
+    """Whether the text hides a delimiter, even entity-encoded or written with look-alike characters."""
+    view = _strip_invisible(unicodedata.normalize("NFKC", html.unescape(text))).translate(_LOOKALIKES)
+    return bool(_DELIMITER.search(view))
 
 
 def neutralize(text: object) -> str:
     """The text in canonical form with every `<untrusted_source` / `</untrusted_source` opener defused
-    (`<` -> `‹`)."""
-    return _DELIMITER.sub(lambda m: f"‹{m.group(1)}{TAG}", _clean("" if text is None else str(text)))
+    (`<` -> `‹`), including entity-encoded and look-alike spellings (then the decoded form is returned, which is
+    rare and only for text that tries to forge a delimiter)."""
+    clean = _clean("" if text is None else str(text))
+    if not _has_delimiter(clean):
+        return clean
+    view = _strip_invisible(unicodedata.normalize("NFKC", html.unescape(clean))).translate(_LOOKALIKES)
+    return _DELIMITER.sub(lambda m: f"‹{m.group(1)}{TAG}", view)
+
+
+def scrub(payload: Any) -> Any:
+    """A tool result with control and invisible characters removed from every string (terminal escapes, bidi
+    overrides, Unicode tag characters that smuggle hidden instructions; newline and tab kept). Text is otherwise
+    unchanged: no NFKC folding (equations keep symbols such as ℝ) and Noul's own delimiters are left alone (a forged
+    one cannot close a real block, whose nonce is random). Applied by `registry.call` to every result."""
+    if isinstance(payload, UntrustedText):
+        return UntrustedText(_strip_invisible(str(payload)), payload.warnings)
+    if isinstance(payload, str):
+        return _strip_invisible(payload)
+    if isinstance(payload, dict):
+        return {k: scrub(v) for k, v in payload.items()}
+    if isinstance(payload, list):
+        return [scrub(v) for v in payload]
+    if isinstance(payload, tuple):
+        return tuple(scrub(v) for v in payload)
+    return payload
 
 
 def label(text: object, limit: int = 60) -> str:

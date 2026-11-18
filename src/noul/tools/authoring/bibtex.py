@@ -68,7 +68,9 @@ def _format_bibtex_entry_from_paper(paper: dict, key: str) -> str:
     return "\n".join(lines)
 
 
-_BIB_ENTRY_START_RE = re.compile(r"@([a-zA-Z]+)\s*\{\s*([^,\s]+)\s*,", re.M)
+# The key cannot contain braces, "@" or commas and is bounded, so a run of "@a{@a{..." without commas does not make
+# each attempt scan to the end of the input (quadratic time).
+_BIB_ENTRY_START_RE = re.compile(r"@([a-zA-Z]{1,40})\s*\{\s*([^,\s{}@]{1,300})\s*,", re.M)
 
 
 _PROTECTED_ACRONYMS = (

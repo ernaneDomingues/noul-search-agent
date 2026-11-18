@@ -17,3 +17,5 @@ class CodeScaffold(BaseModel):
     dependencies: list[str] = Field(default_factory=list)
     requirements_txt: str = ""
     execution_notes: str = ""
+    # Generated from a third-party paper: review it before running it.
+    untrusted_fields: list[str] = Field(default_factory=lambda: ["title", "source_code", "unit_tests"])

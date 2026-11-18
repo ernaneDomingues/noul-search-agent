@@ -3111,6 +3111,13 @@
           "default": "",
           "title": "Execution Notes",
           "type": "string"
+        },
+        "untrusted_fields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Untrusted Fields",
+          "type": "array"
         }
       },
       "required": [

@@ -21,10 +21,12 @@ VERIFY_TIMEOUT = 5
 MAX_VERIFY_URLS = 20
 _TRAILING = ".,;:!?)]}>'\"*"
 
+# Starts only at a word boundary and bounds the subdomain label: on long runs of letters or dashes (untrusted
+# full text) an unanchored, unbounded prefix rescans the rest of the text at every position (quadratic time).
 _URL_RX = re.compile(
-    r"(?:https?://)?(?:www\.)?"
+    r"(?<![\w.-])(?:https?://)?(?:www\.)?"
     r"(?:github\.com|gitlab\.com|bitbucket\.org|codeberg\.org|huggingface\.co|civitai\.com|kaggle\.com|"
-    r"pytorch\.org|zenodo\.org|(?:dx\.)?doi\.org|(?:[\w-]+\.)?figshare\.com|osf\.io|dataverse\.harvard\.edu)"
+    r"pytorch\.org|zenodo\.org|(?:dx\.)?doi\.org|(?:[\w-]{1,63}\.)?figshare\.com|osf\.io|dataverse\.harvard\.edu)"
     r"/[^\s<>\"'`]+",
     re.I,
 )

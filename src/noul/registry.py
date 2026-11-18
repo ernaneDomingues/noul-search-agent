@@ -22,6 +22,7 @@ from pydantic import BaseModel, ValidationError
 from noul import errors as _errors
 from noul import log as _log
 from noul import workspace as _workspace
+from noul.evidence import untrusted as _untrusted
 
 _JSON_TYPES: dict[Any, str] = {str: "string", int: "integer", float: "number", bool: "boolean", dict: "object"}
 
@@ -396,6 +397,9 @@ def call(name: str, args: Any = None, caps: Mapping[str, int | None] | None = No
     _log.logger.debug(
         "tool done name=%s trace_id=%s duration_ms=%.0f", name, trace_id, (time.perf_counter() - started) * 1000
     )
+    # Every string a tool returns may hold third-party text: no control or invisible characters (terminal escapes,
+    # bidi overrides, hidden Unicode tag text) and no forged delimiters reach the model, the CLI or a file.
+    result = _untrusted.scrub(result)
     if notices and isinstance(result, dict):
         result = {**result, "notice": "; ".join(notices)}
     return result

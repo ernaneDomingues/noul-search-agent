@@ -6,6 +6,7 @@ into executable, syntax-verified Python/PyTorch, Statsmodels/R, or Clinical Prot
 import ast
 import keyword
 import re
+import unicodedata
 
 from noul import errors as _errors
 from noul.prompts import scaffolding
@@ -60,13 +61,25 @@ def _resolve_target(target: str | None, dom: ScientificDomain) -> str:
     return norm
 
 
+_CODE_UNSAFE = frozenset("\"'`\\\u2028\u2029")
+
+
+def _inert(text: object, limit: int = 160) -> str:
+    """Paper-derived text made inert inside generated code: it goes into docstrings, comments and string literals,
+    so quotes, backslashes, backticks, control and invisible characters (line breaks included) are dropped. What is
+    left cannot close the literal it sits in, in Python or in R."""
+    out = "".join(ch for ch in str(text or "") if ch not in _CODE_UNSAFE and unicodedata.category(ch)[0] != "C")
+    out = re.sub(r"\s+", " ", out).strip()
+    return out if len(out) <= limit else out[: limit - 1].rstrip() + "…"
+
+
 def _extract_paper_variables(math_res: dict, text: str) -> tuple[list[str], list[str]]:
     vars_found: list[str] = []
     eq_summaries: list[str] = []
     for item in math_res.get("items") or []:
         if item.get("latex"):
             clean_eq = re.sub(r"\s+", " ", item["latex"]).strip()
-            eq_summaries.append(f"{item['label']}: {clean_eq[:140]}")
+            eq_summaries.append(f"{_inert(item.get('label'), 40)}: {_inert(clean_eq, 140)}")
         for v in item.get("variables") or []:
             ident = _py_ident(v)
             if ident not in vars_found and len(ident) <= 28:
@@ -84,8 +97,8 @@ def _extract_paper_variables(math_res: dict, text: str) -> tuple[list[str], list
 
 
 def _build_pytorch_scaffold(paper: dict, corpus: dict, math_res: dict, hw_res: dict, bench_res: dict) -> CodeScaffold:
-    pid = str(paper.get("id") or "unknown")
-    title = (paper.get("title") or pid).replace('"""', "'''").replace("\n", " ").strip()
+    pid = _inert(paper.get("id") or "unknown", 120)
+    title = _inert(paper.get("title") or pid, 200)
     cls_name = _class_ident(title)
     vars_list, eq_summaries = _extract_paper_variables(math_res, corpus["text"])
 
@@ -98,7 +111,8 @@ def _build_pytorch_scaffold(paper: dict, corpus: dict, math_res: dict, hw_res: d
         d_model, num_heads, num_layers = 256, 8, 6
 
     ctx_len = min(int(hw_res.get("context_length") or 8192), 2048)
-    metrics_list = (bench_res.get("normalized_summary") or {}).get("metrics") or ["Loss", "Accuracy"]
+    raw_metrics = (bench_res.get("normalized_summary") or {}).get("metrics") or ["Loss", "Accuracy"]
+    metrics_list = [_inert(m, 60) for m in raw_metrics]
 
     var_fields = "\n".join(f"    {v}: float = {round(0.1 * (i + 1), 2)}" for i, v in enumerate(vars_list))
     eq_doc_lines = (
@@ -301,8 +315,8 @@ def _detect_econ_design(text: str) -> str:
 
 
 def _build_statsmodels_scaffold(paper: dict, corpus: dict, math_res: dict) -> CodeScaffold:
-    pid = str(paper.get("id") or "unknown")
-    title = (paper.get("title") or pid).replace('"""', "'''").replace("\n", " ").strip()
+    pid = _inert(paper.get("id") or "unknown", 120)
+    title = _inert(paper.get("title") or pid, 200)
     design = _detect_econ_design(corpus["text"])
     vars_list, eq_summaries = _extract_paper_variables(math_res, corpus["text"])
     control_var = vars_list[0] if vars_list else "firm_scale"
@@ -492,8 +506,8 @@ if __name__ == "__main__":
 
 
 def _build_r_scaffold(paper: dict, corpus: dict, math_res: dict) -> CodeScaffold:
-    pid = str(paper.get("id") or "unknown")
-    title = (paper.get("title") or pid).replace("\n", " ").strip()
+    pid = _inert(paper.get("id") or "unknown", 120)
+    title = _inert(paper.get("title") or pid, 200)
     design = _detect_econ_design(corpus["text"])
     vars_list, _ = _extract_paper_variables(math_res, corpus["text"])
     control_var = vars_list[0] if vars_list else "firm_scale"
@@ -556,9 +570,9 @@ stopifnot(length(models) == 3)
 
 
 def _build_clinical_protocol_scaffold(paper: dict, corpus: dict, dom: ScientificDomain) -> CodeScaffold:
-    pid = str(paper.get("id") or "unknown")
-    title = (paper.get("title") or pid).replace('"""', "'''").replace("\n", " ").strip()
-    evidence_lvl = paper.get("evidence") or "clinical_study"
+    pid = _inert(paper.get("id") or "unknown", 120)
+    title = _inert(paper.get("title") or pid, 200)
+    evidence_lvl = _inert(paper.get("evidence") or "clinical_study", 40)
     m_n = re.search(r"\b[nN]\s*=\s*(\d[\d,]*)", corpus["text"])
     default_n = int(m_n.group(1).replace(",", "")) if m_n else 120
     default_n = max(20, min(default_n, 2000))
