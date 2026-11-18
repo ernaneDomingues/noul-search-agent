@@ -22,12 +22,18 @@ class EvidenceMeterItemsItem(_StrictModel):
     evidence: str | None = Field(None, description="Optional study design if the paper is not cached")
 
 
+# Free text a tool classifies or sends upstream is bounded: its cost grows with its length.
+MAX_QUERY_CHARS = 2000
+
+
 class SearchPapersInput(_ToolInput):
     """Arguments of `search_papers`."""
 
-    query: str
+    query: str = Field(..., max_length=MAX_QUERY_CHARS)
     sources: list[Literal["openalex", "pubmed", "s2", "crossref", "arxiv", "europepmc"]] | None = Field(
-        None, json_schema_extra={"enum_order": ["openalex", "pubmed", "s2", "crossref", "arxiv", "europepmc"]}
+        None,
+        max_length=6,
+        json_schema_extra={"enum_order": ["openalex", "pubmed", "s2", "crossref", "arxiv", "europepmc"]},
     )
     year_min: int | None = None
     study_types: (
@@ -39,6 +45,7 @@ class SearchPapersInput(_ToolInput):
         | None
     ) = Field(
         None,
+        max_length=8,
         json_schema_extra={
             "enum_order": [
                 "meta-analysis",
@@ -78,7 +85,7 @@ class SearchPapersInput(_ToolInput):
 class ClarifySearchScopeInput(_ToolInput):
     """Arguments of `clarify_search_scope`."""
 
-    query: str
+    query: str = Field(..., max_length=MAX_QUERY_CHARS)
     answers: dict[str, Any] | None = None
     domain: str | None = Field(
         None,
@@ -163,7 +170,7 @@ class ExportObsidianNotesInput(_ToolInput):
 class SuggestBooleanQueriesInput(_ToolInput):
     """Arguments of `suggest_boolean_queries`."""
 
-    query: str | None = None
+    query: str | None = Field(None, max_length=MAX_QUERY_CHARS)
     paper_ids: list[str] | None = None
 
 
@@ -347,14 +354,20 @@ class GetFulltextInput(_ToolInput):
     """Arguments of `get_fulltext`."""
 
     id: str
-    question: str | None = None
+    question: str | None = Field(None, max_length=MAX_QUERY_CHARS)
 
 
 class QueryFulltextsInput(_ToolInput):
     """Arguments of `query_fulltexts`."""
 
     ids: list[str] = Field(..., min_length=1, max_length=20, description="Paper ids (1-20)")
-    question: str = Field(..., min_length=1, pattern=r"\S", description="The question to answer from the papers")
+    question: str = Field(
+        ...,
+        min_length=1,
+        max_length=MAX_QUERY_CHARS,
+        pattern=r"\S",
+        description="The question to answer from the papers",
+    )
     max_chunks_per_paper: int | None = Field(4, ge=1, le=10, description="Passages per paper (1-10)")
 
 
