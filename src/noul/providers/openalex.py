@@ -38,10 +38,10 @@ def _parse_openalex_work(w):
     year = w.get("publication_year")
     loc = w.get("primary_location") or {}
     src = loc.get("source") or {}
-    journal = src.get("display_name") or ""
+    journal = _ids._clean_text(src.get("display_name") or "")
     authors = []
     for a in (w.get("authorships") or [])[: _assemble.MAX_AUTHORS]:
-        name = (a.get("author") or {}).get("display_name")
+        name = _ids._clean_text((a.get("author") or {}).get("display_name") or "")
         if name:
             authors.append(name)
     citations = int(w.get("cited_by_count") or 0)

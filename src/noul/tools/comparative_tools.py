@@ -4,6 +4,7 @@ Deterministic, stdlib-only extraction over title/abstract (and optionally cached
 The host agent's LLM remains responsible for nuanced interpretation; these tools structure the evidence."""
 
 import re
+import unicodedata
 from collections import Counter
 from typing import Any
 
@@ -782,7 +783,9 @@ _FS_UNSAFE = re.compile(r'[\\/:*?"<>|\[\]#^\x00-\x1f]')
 
 
 def _safe_filename_part(text, max_len):
-    text = re.sub(r"\s+", " ", _FS_UNSAFE.sub(" ", str(text or ""))).strip().strip(".")
+    # Control and format characters (U+202E reverses the displayed name) never reach a file name.
+    text = "".join(ch for ch in str(text or "") if unicodedata.category(ch)[0] != "C")
+    text = re.sub(r"\s+", " ", _FS_UNSAFE.sub(" ", text)).strip().strip(".")
     return (text[:max_len].rstrip(" .") if len(text) > max_len else text) or "Untitled"
 
 
@@ -839,11 +842,22 @@ def _frontmatter(p, dim, arts):
     return "\n".join(lines + ["---"])
 
 
+# Markdown/HTML syntax in paper text: escaped so that it renders as text (an image link would be fetched when the note
+# is previewed, revealing the reader; raw HTML could embed content).
+_MD_SPECIAL = re.compile(r"([\\`*_\[\]!<>|~$#])")
+
+
+def _md(text):
+    """Third-party text as inert Markdown: one line, every Markdown/HTML special escaped."""
+    return _MD_SPECIAL.sub(r"\\\1", re.sub(r"\s+", " ", str(text or "")).strip())
+
+
 def _note_markdown(p, dim, arts, related, bibtex):
-    head = dim.primary_metrics.get("headline_finding") or ""
-    tldr = dim.core_hypothesis + ("" if not head or head == dim.core_hypothesis else f" **Key finding:** {head}")
+    head = _md(dim.primary_metrics.get("headline_finding") or "")
+    hypothesis = _md(dim.core_hypothesis)
+    tldr = hypothesis + ("" if not head or head == hypothesis else f" **Key finding:** {head}")
     metrics = "; ".join(
-        f"{k}: {', '.join(v) if isinstance(v, list) else v}"
+        _md(f"{k}: {', '.join(v) if isinstance(v, list) else v}")
         for k, v in dim.primary_metrics.items()
         if k != "headline_finding"
     )
@@ -851,19 +865,19 @@ def _note_markdown(p, dim, arts, related, bibtex):
         [
             _frontmatter(p, dim, arts),
             "",
-            f"# {dim.paper_title}",
+            f"# {_md(dim.paper_title)}",
             "",
             "## TL;DR",
             tldr,
             "",
             "## Key Findings & Methodology",
-            f"- **Core problem:** {dim.core_hypothesis}",
-            f"- **Methodology:** {dim.methodology}",
-            f"- **Datasets / Population:** {'; '.join(dim.benchmarks_used)}",
+            f"- **Core problem:** {hypothesis}",
+            f"- **Methodology:** {_md(dim.methodology)}",
+            f"- **Datasets / Population:** {'; '.join(_md(b) for b in dim.benchmarks_used)}",
             f"- **Key results:** {head}" + (f" ({metrics})" if metrics else ""),
             "- **Declared limitations:**",
         ]
-        + [f"  - {x}" for x in dim.reported_limitations]
+        + [f"  - {_md(x)}" for x in dim.reported_limitations]
         + ["", "## Open Artifacts"]
     )
     found = False
