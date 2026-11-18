@@ -14,9 +14,25 @@ PAPER = "paper:"  # key prefix of a cached paper record
 _write_failure_reported = False
 
 
+_private_paths: set[str] = set()
+
+
+def _make_private(path: str) -> None:
+    """Owner-only permissions on the cache (searches and full texts reveal the user's research), once per file."""
+    if path in _private_paths or path == ":memory:":
+        return
+    _private_paths.add(path)
+    try:
+        os.chmod(path, 0o600)
+    except OSError as exc:
+        _log.logger.debug("could not restrict the cache permissions: %s", type(exc).__name__)
+
+
 @contextmanager
 def _conn():
-    conn = sqlite3.connect(_config._db_path(), timeout=15)
+    path = _config._db_path()
+    conn = sqlite3.connect(path, timeout=15)
+    _make_private(path)
     try:
         try:
             conn.execute("PRAGMA journal_mode=WAL")

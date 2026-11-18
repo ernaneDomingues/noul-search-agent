@@ -113,6 +113,6 @@ def _load_text_or_workspace_file(raw_input: str) -> tuple[str, str, Path | None]
         raise _errors.HTTPError(400, "Input text or file path must be a non-empty string.")
     s = raw_input.strip()
     if _workspace.looks_like_filepath(s):
-        path = _workspace.validate_path(s, must_exist=True)
+        path = _workspace.validate_path(s, must_exist=True, readable=True)
         return path.read_text(encoding="utf-8", errors="replace"), path.name, path
     return raw_input, "inline_draft", None

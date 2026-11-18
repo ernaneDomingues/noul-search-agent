@@ -15,6 +15,32 @@ from noul import errors as _errors
 
 _FILE_EXT_RE = re.compile(r"\.(?:md|markdown|tex|txt|bib|pdf)$", re.I)
 
+# The files the reading tools accept (drafts, reviews, bibliographies, manuscripts): any other file in the workspace,
+# such as a configuration file with credentials, is refused even when a prompt-injected model asks for it.
+READABLE_SUFFIXES = frozenset({".md", ".markdown", ".tex", ".txt", ".text", ".rst", ".bib", ".pdf"})
+MAX_READ_BYTES = 20 * 1024 * 1024
+
+
+def _refuse_remote_path(raw) -> None:
+    """Refuse UNC and device paths before any filesystem call: on Windows, merely checking such a path opens an SMB
+    connection to the named host, which sends the user's NTLM credentials to it."""
+    s = str(raw or "").strip()
+    if s.startswith(("\\\\", "//")) or s.startswith(("\\\\?\\", "\\\\.\\")):
+        raise _errors.HTTPError(403, "Refusing a network or device path: use a path inside the workspace.")
+    if os.name == "nt":
+        from pathlib import PureWindowsPath
+
+        drive = PureWindowsPath(s).drive
+        if drive and drive.lower() != PureWindowsPath(str(workspace_root())).drive.lower():
+            raise _errors.HTTPError(403, "Refusing a path on another drive: use a path inside the workspace.")
+
+
+def _lexically_inside(path: Path, root: Path) -> bool:
+    try:
+        return os.path.commonpath([os.path.abspath(path), os.path.abspath(root)]) == os.path.abspath(root)
+    except ValueError:  # different drives
+        return False
+
 
 def safe_output_dir(requested_dir=None, default_subdir="papers") -> Path:
     """Resolve an output directory confined to the configured workspace (relative paths are workspace-relative)."""
@@ -22,6 +48,7 @@ def safe_output_dir(requested_dir=None, default_subdir="papers") -> Path:
     workspace = Path(cfg["workspace"]).resolve()
     cfg_key = {"papers": "download_dir", "research": "research_dir"}.get(default_subdir, f"{default_subdir}_dir")
     raw = requested_dir or cfg.get(cfg_key) or f"./{default_subdir}"
+    _refuse_remote_path(raw)
     p = Path(str(raw)).expanduser()
     target = p.resolve() if p.is_absolute() else (workspace / p).resolve()
     if os.environ.get("NOUL_ALLOW_ANY_PATH") != "1":
@@ -62,11 +89,23 @@ def workspace_root() -> Path:
     return Path(_config.get_config()["workspace"]).expanduser().resolve()
 
 
-def validate_path(raw_path: str, must_exist: bool = True) -> Path:
+def validate_path(raw_path: str, must_exist: bool = True, readable: bool = False) -> Path:
+    """A path confined to the workspace (403 otherwise). `readable=True` is for tools that read a file and return
+    its text: only document types (READABLE_SUFFIXES) up to MAX_READ_BYTES."""
+    _refuse_remote_path(raw_path)
     ws = workspace_root()
     raw_str = str(raw_path).strip()
     p = Path(raw_str).expanduser()
     candidate_abs = Path(os.path.abspath(p if p.is_absolute() else ws / p))
+    if os.environ.get("NOUL_ALLOW_ANY_PATH") != "1" and not _lexically_inside(candidate_abs, ws):
+        # Decided on the text of the path, before touching the filesystem.
+        raise _errors.HTTPError(403, f"Path '{candidate_abs}' is outside the allowed workspace '{ws}'.")
+    if readable and candidate_abs.suffix.lower() not in READABLE_SUFFIXES:
+        raise _errors.HTTPError(
+            403,
+            f"Refusing to read '{raw_str}': only {', '.join(sorted(READABLE_SUFFIXES))} files can be read. "
+            "Paste the text instead.",
+        )
 
     # Reject symlinks anywhere along the path inside or escaping workspace
     roots = {Path(os.path.abspath(ws)), ws}
@@ -95,6 +134,8 @@ def validate_path(raw_path: str, must_exist: bool = True) -> Path:
         raise _errors.HTTPError(403, f"Refusing to access symbolic link '{resolved}'.")
     if must_exist and not resolved.is_file():
         raise _errors.HTTPError(404, f"File not found in workspace: '{raw_str}'")
+    if readable and resolved.stat().st_size > MAX_READ_BYTES:
+        raise _errors.HTTPError(413, f"File too large to read (over {MAX_READ_BYTES // (1024 * 1024)} MB): '{raw_str}'")
     return resolved
 
 
@@ -102,8 +143,8 @@ def looks_like_filepath(raw_input: str) -> bool:
     s = (raw_input or "").strip()
     if not s or "\n" in s or "\r" in s or len(s) > 260:
         return False
-    if s.startswith(("../", "./", "/", "~/", "..\\")):
-        return True
+    if s.startswith(("../", "./", "/", "~/", "..\\", "\\\\")):
+        return True  # including UNC paths, so they are refused by validate_path and never probed below
     if _FILE_EXT_RE.search(s) and len(s.split()) <= 4:
         return True
     ws = workspace_root()

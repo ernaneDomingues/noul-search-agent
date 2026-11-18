@@ -1,6 +1,7 @@
 """Research dossiers: the Markdown/JSON/BibTeX export of a research project in the workspace."""
 
 import json
+import os
 import re
 import time
 from typing import Any
@@ -19,6 +20,35 @@ from noul.schemas import tool_inputs as _inputs
 def _slugify(text):
     # The same slug names the project (store.create_project), so both go through one function.
     return _store.slugify(text or "research", fallback="research-session")
+
+
+MAX_DOSSIER_CHARS = 5 * 1024 * 1024  # a dossier read back into the cache or a reply
+
+
+def _write_file(path, text):
+    """Create or replace one dossier file without following a symlink planted at its path."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(str(path), flags, 0o644)
+    with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(text)
+
+
+def _check_dossier_folder(base, slug):
+    """Refuse to write into a folder that already holds files but is not this dossier: a model steered by text in
+    a paper could otherwise point the dossier at another project's folder and replace its README.md."""
+    if not base.exists() or not any(base.iterdir()):
+        return
+    papers_json = base / "papers.json"
+    try:
+        same = papers_json.is_file() and json.loads(papers_json.read_text(encoding="utf-8")).get("slug") == slug
+    except (OSError, ValueError, AttributeError):
+        same = False
+    if not same:
+        raise _errors.HTTPError(
+            409,
+            f"'{base}' already exists and is not the dossier '{slug}': choose another topic or output_dir "
+            "(existing files are never replaced).",
+        )
 
 
 def _dossier_slug(topic, parent):
@@ -54,6 +84,7 @@ def save_research_dossier(topic, synthesis_markdown, paper_ids=None, output_dir=
     parent = _workspace.safe_output_dir(output_dir, "research")
     slug = _dossier_slug(topic, parent)
     base, md_path, json_path, bib_path = _common._dossier_paths(parent / slug)
+    _check_dossier_folder(base, slug)
     base.mkdir(parents=True, exist_ok=True)
 
     papers, left_out = [], []
@@ -70,7 +101,7 @@ def save_research_dossier(topic, synthesis_markdown, paper_ids=None, output_dir=
         f"- **Papers Indexed:** {len(papers)}\n\n"
     )
     full_md = header + synthesis_markdown.strip() + "\n"
-    md_path.write_text(full_md, encoding="utf-8")
+    _write_file(md_path, full_md)
 
     dossier_data = {
         "slug": slug,
@@ -78,11 +109,11 @@ def save_research_dossier(topic, synthesis_markdown, paper_ids=None, output_dir=
         "updated_at": int(time.time()),
         "papers": [_common._slim(p, i + 1, abstract_chars=10000) for i, p in enumerate(papers)],
     }
-    json_path.write_text(json.dumps(dossier_data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    _write_file(json_path, json.dumps(dossier_data, ensure_ascii=False, indent=2) + "\n")
 
     if papers:
         bib_txt = _exporting.export(papers, "bibtex")[0]
-        bib_path.write_text(bib_txt + "\n", encoding="utf-8")
+        _write_file(bib_path, bib_txt + "\n")
 
     # Also register dossier in SQLite cache for MCP resource discovery
     index = _cache.cache_get("dossiers:index", max_age=0) or {}
@@ -182,14 +213,18 @@ def get_research_dossier(slug, output_dir=None):
     if not match:
         raise _errors.HTTPError(404, f"Research dossier '{slug}' not found")
     sub, readme, papers_path, _ = _common._dossier_paths(match["path"])
-    md_text = readme.read_text(encoding="utf-8") if readme.exists() else ""
+    md_text = readme.read_text(encoding="utf-8")[:MAX_DOSSIER_CHARS] if readme.exists() else ""
     papers: list[Any] = []
     if papers_path.exists():
         try:
+            if papers_path.stat().st_size > MAX_DOSSIER_CHARS:
+                raise ValueError("papers.json too large")
             data = json.loads(papers_path.read_text(encoding="utf-8"))
             papers = data.get("papers") or []
             for p in papers:
-                if p.get("id"):
+                # Seed the cache only with papers it does not know: a planted papers.json must not replace a
+                # real record (e.g. hide a retraction).
+                if p.get("id") and _cache.get_paper(p["id"]) is None:
                     _cache.put_paper(p["id"], p)
         except (OSError, ValueError, AttributeError, TypeError) as e:  # also a hand-edited file of another shape
             _log.logger.debug("dossier papers.json unreadable: %s", type(e).__name__)

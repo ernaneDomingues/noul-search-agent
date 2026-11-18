@@ -464,6 +464,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--version", action="version", version=f"noul-mcp {__version__}")
     a = ap.parse_args(argv)
     _log.configure()
+    if os.environ.get("NOUL_ALLOW_ANY_PATH") == "1":
+        _log.logger.warning("NOUL_ALLOW_ANY_PATH=1: tools may read and write outside the workspace (testing only)")
     if a.http is not None:
         from noul.server import http as http_server
 

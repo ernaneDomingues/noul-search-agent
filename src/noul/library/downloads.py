@@ -11,9 +11,9 @@ from noul.search import engine as _engine
 
 
 def _safe_filename(p):
-    year = re.sub(r"[^A-Za-z0-9]", "", str(p.get("year") or "")) or "nd"
-    first_author = ((p.get("authors") or ["Unknown"])[0]).split()[-1]
-    first_author = re.sub(r"[^A-Za-z0-9_-]", "", first_author) or "Author"
+    year = re.sub(r"[^A-Za-z0-9]", "", str(p.get("year") or ""))[:8] or "nd"
+    words = str((p.get("authors") or ["Unknown"])[0] or "").split()
+    first_author = re.sub(r"[^A-Za-z0-9_-]", "", words[-1] if words else "")[:40] or "Author"
     title_short = re.sub(r"[^A-Za-z0-9]+", "_", (p.get("title") or "paper")).strip("_")[:55]
     short_id = re.sub(r"[^A-Za-z0-9._-]", "_", p.get("id") or "id")[:25]
     return f"{year}_{first_author}_{title_short}_{short_id}.pdf"

@@ -108,7 +108,7 @@ def _load_manuscript_text(draft_path: str) -> tuple[str, str]:
         raise _errors.HTTPError(400, "draft_path must be a non-empty file path or manuscript text.")
     s = draft_path.strip()
     if _workspace.looks_like_filepath(s):
-        path = _workspace.validate_path(s, must_exist=True)
+        path = _workspace.validate_path(s, must_exist=True, readable=True)
         if path.suffix.lower() == ".pdf":
             raw = path.read_bytes()
             return _extract_pdf_fallback_bytes(raw), path.name

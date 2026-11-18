@@ -16,7 +16,8 @@ ZOTERO_USER_RE = re.compile(r"^[0-9]{1,20}$")
 
 def _cache_dir() -> Path:
     d = Path(os.environ.get("NOUL_HOME") or Path.home() / ".cache" / "noul-search-agent")
-    d.mkdir(parents=True, exist_ok=True)
+    if not d.exists():
+        d.mkdir(parents=True, exist_ok=True, mode=0o700)  # cached searches and full texts are the user's own
     return d
 
 
@@ -105,13 +106,26 @@ def _write_private(path: Path, text: str) -> None:
         raise
 
 
+def _too_broad(path: Path) -> bool:
+    """A filesystem root, the home folder or a folder above it (/home, C:\\Users): as a workspace it would expose
+    other applications' settings and other users' files to the tools."""
+    resolved = path.resolve()
+    if resolved == Path(resolved.anchor):
+        return True
+    try:
+        home = Path.home().resolve()
+    except RuntimeError:
+        return False
+    return resolved == home or resolved in home.parents
+
+
 def _default_workspace() -> str:
     cwd = Path(os.getcwd())
     try:
         home = Path.home()
     except RuntimeError:  # a container user without a home folder
         return str(Path(tempfile.gettempdir()) / "noul-workspace") if cwd == Path(cwd.anchor) else str(cwd)
-    if cwd == Path(cwd.anchor) or cwd.resolve() == home.resolve():
+    if _too_broad(cwd):
         return str(home / "Documents" / "Noul")
     return str(cwd)
 
@@ -126,6 +140,11 @@ def get_config() -> dict:
     env_workspace = os.environ.get("NOUL_WORKSPACE")
     confirmed = cfg.get("workspace") is not None and cfg.get("workspace") == cfg.get("workspace_confirmed")
     stored = cfg.get("workspace") if confirmed else None
+    if env_workspace and _too_broad(Path(env_workspace).expanduser()):
+        _log.logger.warning("NOUL_WORKSPACE is a root, home or parent folder: ignored, using the default instead")
+        env_workspace = None
+    if stored and _too_broad(Path(stored)):
+        stored = None
     workspace = env_workspace or stored or _default_workspace()
     return {
         "email": email,
@@ -183,6 +202,10 @@ def set_config(
             ws_path = Path(ws).expanduser().resolve()
             if not ws_path.is_dir():
                 raise _errors.HTTPError(400, f"Workspace directory does not exist: {ws_path}")
+            if _too_broad(ws_path):
+                raise _errors.HTTPError(
+                    400, f"Choose a dedicated folder: '{ws_path}' is a root, your home folder or a folder above it."
+                )
             cfg["workspace"] = str(ws_path)
             cfg["workspace_confirmed"] = str(ws_path)  # an older version rewriting `workspace` no longer matches
         else:

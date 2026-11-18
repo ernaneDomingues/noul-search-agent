@@ -215,11 +215,18 @@ def _now() -> int:
 _SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
+_WINDOWS_RESERVED = frozenset(
+    {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)), *(f"lpt{i}" for i in range(1, 10))}
+)
+
+
 def slugify(text: str, fallback: str = "project") -> str:
     """ASCII slug of a title: accents transliterated ("Café" -> "cafe"), at most 60 characters."""
     ascii_text = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode()
     slug = re.sub(r"[^a-z0-9]+", "-", ascii_text.lower()).strip("-")
-    return slug[:60].strip("-") or fallback
+    slug = slug[:60].strip("-") or fallback
+    # A folder named after a Windows device ("con", "nul", "com1"...) cannot be created or opened there.
+    return f"{slug}-topic" if slug in _WINDOWS_RESERVED else slug
 
 
 def _same_title(a: str, b: str) -> bool:
