@@ -12,6 +12,7 @@ import os
 import sys
 from typing import Any
 
+import anyio
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
@@ -46,7 +47,11 @@ def _json(status: int, payload: Any, headers: dict[str, str] | None = None) -> l
 HEALTH_PATHS = frozenset({"/health", "/healthz"})
 
 _CLIENT_GONE = object()  # what Guard._buffered_body returns when the client disconnected mid-body
-_TOO_LARGE = object()  # ... and when the body exceeded MAX_BODY_BYTES
+_TOO_LARGE = object()  # ... when the body exceeded MAX_BODY_BYTES
+_TOO_SLOW = object()  # ... and when it did not arrive within BODY_TIMEOUT
+# Seconds a client has to send its whole request body: a client that trickles bytes would otherwise hold one of
+# the container's request slots until the platform's request timeout.
+BODY_TIMEOUT = 10.0
 
 
 class Guard:
@@ -61,8 +66,10 @@ class Guard:
         rate_limiter: _limits.RateLimiter | None = None,
         trusted_proxy_hops: int = 0,
         public: bool = False,
+        client_tool_limiter: _limits.RateLimiter | None = None,
     ):
         self.app = app
+        self.client_tool_limiter = client_tool_limiter
         self.token = token or None
         self.cors_origins = frozenset(o.rstrip("/") for o in cors_origins)
         self.allowed_hosts = allowed_hosts  # None: not bound to loopback (e.g. Cloud Run behind a proxy)
@@ -85,25 +92,39 @@ class Guard:
 
     @staticmethod
     async def _buffered_body(receive: Any) -> Any:
-        """A body without Content-Length (chunked), read up to the cap before the app runs: a `receive` that replays
-        it, or `_CLIENT_GONE` / `_TOO_LARGE`."""
-        chunks, size = [], 0
-        while True:
-            message = await receive()
-            if message["type"] != "http.request":
-                return _CLIENT_GONE
-            chunks.append(message.get("body", b""))
-            size += len(chunks[-1])
-            if size > _common.MAX_BODY_BYTES:
-                return _TOO_LARGE
-            if not message.get("more_body"):
-                break
-        buffered: list[Any] = [{"type": "http.request", "body": b"".join(chunks), "more_body": False}]
+        """The request body, read up to the cap and within BODY_TIMEOUT before the app runs: `(receive, body)` with
+        a `receive` that replays it, or `_CLIENT_GONE` / `_TOO_LARGE` / `_TOO_SLOW`."""
+        chunks: list[bytes] = []
+        size = 0
+        with anyio.move_on_after(BODY_TIMEOUT) as scope:
+            while True:
+                message = await receive()
+                if message["type"] != "http.request":
+                    return _CLIENT_GONE
+                chunks.append(message.get("body", b""))
+                size += len(chunks[-1])
+                if size > _common.MAX_BODY_BYTES:
+                    return _TOO_LARGE
+                if not message.get("more_body"):
+                    break
+        if scope.cancelled_caught:
+            return _TOO_SLOW
+        body = b"".join(chunks)
+        buffered: list[Any] = [{"type": "http.request", "body": body, "more_body": False}]
 
         async def replay() -> Any:
             return buffered.pop() if buffered else await receive()
 
-        return replay
+        return replay, body
+
+    def _over_client_tool_limit(self, scope: Any, headers: dict[str, str], path: str, body: bytes) -> float:
+        """Seconds to wait when this request is a tool call and its client used up its own tool budget, else 0."""
+        if self.client_tool_limiter is None:
+            return 0.0
+        if not (path.startswith("/tools/") or (path == "/mcp" and b'"tools/call"' in body)):
+            return 0.0
+        key = _limits.client_key(_limits.client_ip(scope, headers, self.trusted_proxy_hops))
+        return self.client_tool_limiter.check(key)
 
     async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
         if scope["type"] == "lifespan":
@@ -154,16 +175,26 @@ class Guard:
             ):
                 return await reply(401, {"error": "Unauthorized"}, {"WWW-Authenticate": "Bearer"})
         length = headers.get("content-length")
-        if length and (not length.isdigit() or int(length) > _common.MAX_BODY_BYTES):
+        if length and (not (length.isascii() and length.isdigit()) or int(length) > _common.MAX_BODY_BYTES):
             return await reply(413, {"error": f"Request body exceeds {_common.MAX_BODY_BYTES} bytes"})
 
         app_receive: Any = receive
-        if not length and scope.get("method", "GET") in ("POST", "PUT", "PATCH", "DELETE"):
-            app_receive = await self._buffered_body(receive)
-            if app_receive is _CLIENT_GONE:
+        if scope.get("method", "GET") in ("POST", "PUT", "PATCH", "DELETE"):
+            buffered = await self._buffered_body(receive)
+            if buffered is _CLIENT_GONE:
                 return
-            if app_receive is _TOO_LARGE:
+            if buffered is _TOO_LARGE:
                 return await reply(413, {"error": f"Request body exceeds {_common.MAX_BODY_BYTES} bytes"})
+            if buffered is _TOO_SLOW:
+                return await reply(408, {"error": f"Request body not received within {BODY_TIMEOUT:.0f} s"})
+            app_receive, body = buffered
+            if (wait := self._over_client_tool_limit(scope, headers, path, body)) > 0:
+                retry = str(max(1, int(wait + 0.999)))
+                return await reply(
+                    429,
+                    {"error": "RateLimited: too many tool calls from this client; slow down."},
+                    {"Retry-After": retry},
+                )
 
         async def send_with_cors(message: Any) -> None:
             if message["type"] == "http.response.start" and cors:
@@ -187,6 +218,7 @@ def build_app(
     trusted_proxy_hops: int = 0,
     max_concurrency: int | None = None,
     tool_limiter: _limits.RateLimiter | None = None,
+    client_tool_limiter: _limits.RateLimiter | None = None,
 ) -> Any:
     """Starlette app (wrapped in Guard). Writes are only possible with a token *and* allow_write, never in `public`
     mode (the hosted read-only connector: no token, request-size caps, no server dossiers)."""
@@ -263,7 +295,16 @@ def build_app(
         json_response=public,
     )
     # The public connector is open by design: a configured token would only lock its intended users out.
-    return Guard(app, None if public else token, cors_origins, allowed_hosts, rate_limiter, trusted_proxy_hops, public)
+    return Guard(
+        app,
+        None if public else token,
+        cors_origins,
+        allowed_hosts,
+        rate_limiter,
+        trusted_proxy_hops,
+        public,
+        client_tool_limiter=client_tool_limiter,
+    )
 
 
 def loopback_hosts(port: int) -> frozenset[str]:
@@ -280,6 +321,7 @@ def serve(
     loopback = _common.is_loopback_host(host)
     if public:  # hosted defaults: bounded cache (instance RAM) and smaller downloads (memory per call)
         os.environ.setdefault("NOUL_CACHE_MAX_ROWS", "2000")
+        os.environ.setdefault("NOUL_CACHE_MAX_BYTES", str(150 * 1024 * 1024))  # /tmp is the instance's RAM
         os.environ.setdefault("NOUL_MAX_DOWNLOAD_MB", "15")
     app = build_app(
         profile=profile,
@@ -292,6 +334,7 @@ def serve(
         trusted_proxy_hops=_limits.env_trusted_proxy_hops(),
         max_concurrency=_limits.env_max_concurrency(public),
         tool_limiter=_limits.env_tool_rate_limiter(public),
+        client_tool_limiter=_limits.env_client_tool_rate_limiter(public),
     )
     shown = f"[{host}]" if ":" in host else host
     print(

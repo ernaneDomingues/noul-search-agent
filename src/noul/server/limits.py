@@ -44,7 +44,8 @@ class RateLimiter:
 
 
 def client_key(ip: str) -> str:
-    """Rate-limit key: IPv6 addresses are grouped by /64 (one subscriber usually owns a whole /64)."""
+    """Rate-limit key: IPv6 addresses are grouped by /56 (a subscriber is often given a /56 or a /48, so a /64 key
+    would let one client rotate through thousands of keys)."""
     try:
         addr = ipaddress.ip_address(ip)
     except ValueError:
@@ -52,7 +53,7 @@ def client_key(ip: str) -> str:
     if isinstance(addr, ipaddress.IPv6Address):
         if addr.ipv4_mapped:
             return str(addr.ipv4_mapped)
-        return str(ipaddress.ip_network(f"{addr}/64", strict=False))
+        return str(ipaddress.ip_network(f"{addr}/56", strict=False))
     return str(addr)
 
 
@@ -73,14 +74,27 @@ def client_ip(scope: dict[str, Any], headers: dict[str, str], trusted_proxy_hops
 
 def env_rate_limiter(public: bool) -> RateLimiter | None:
     """Per-client flood guard from NOUL_RATE_LIMIT (requests/minute, 0 disables) and NOUL_RATE_BURST; on by
-    default in public mode (600/min, burst 120 - hosted clients share egress IPs), off otherwise."""
+    default in public mode (600/min, burst 40 - hosted clients share egress IPs; the burst stays below the
+    container's 80 concurrent requests so one client cannot hold them all), off otherwise."""
     raw = os.environ.get("NOUL_RATE_LIMIT")
     if raw is None and not public:
         return None
     rate = float(raw) if raw not in (None, "") else 600.0
     if rate <= 0:
         return None
-    return RateLimiter(rate, int(os.environ.get("NOUL_RATE_BURST") or 120))
+    return RateLimiter(rate, int(os.environ.get("NOUL_RATE_BURST") or 40))
+
+
+def env_client_tool_rate_limiter(public: bool) -> RateLimiter | None:
+    """Tool calls per client (NOUL_CLIENT_TOOL_RATE_LIMIT per minute, NOUL_CLIENT_TOOL_RATE_BURST; public default
+    60/min, burst 20): below the per-instance ceiling, so one client cannot use up everyone's budget."""
+    raw = os.environ.get("NOUL_CLIENT_TOOL_RATE_LIMIT")
+    if raw is None and not public:
+        return None
+    rate = float(raw) if raw not in (None, "") else 60.0
+    if rate <= 0:
+        return None
+    return RateLimiter(rate, int(os.environ.get("NOUL_CLIENT_TOOL_RATE_BURST") or 20))
 
 
 def env_tool_rate_limiter(public: bool) -> RateLimiter | None:

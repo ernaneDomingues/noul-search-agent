@@ -363,6 +363,12 @@ def dispatch(name: str, args: Any, policy: Policy) -> Call | Refusal:
     refusal = refusal_for(name, args, policy)
     if refusal is not None:
         return refusal
+    if policy.tool_limiter is not None:
+        try:
+            _registry.check_args(name, args)  # malformed calls are refused before they use the shared budget
+        except _errors.HTTPError as e:
+            label = "InvalidArguments" if e.code == 400 else "NotFound"
+            return Refusal(label, str(e), e.code)
     if policy.tool_limiter is not None and (wait := policy.tool_limiter.check("tools")) > 0:
         seconds = max(1, int(wait + 0.999))
         return Refusal(

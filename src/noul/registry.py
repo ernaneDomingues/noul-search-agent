@@ -328,9 +328,14 @@ def _fold_enum_case(annotation: Any, value: Any) -> Any:
     return fold(value)
 
 
-def call(name: str, args: Any = None, caps: Mapping[str, int | None] | None = None) -> Any:
-    """Validate `args` against the tool's input model and run it. Errors are `HTTPError` (400/404, or 429/503
-    when a source a lookup needs is rate limited or down)."""
+def check_args(name: str, args: Any = None) -> None:
+    """Validate `args` without running the tool (HTTPError 400/404): servers do it before charging a rate limit,
+    so malformed calls cost nothing upstream and nothing from the shared budget."""
+    _validated(name, args)
+
+
+def _validated(name: str, args: Any) -> tuple[Any, dict[str, Any], Any]:
+    """(tool, the arguments as sent with enum case folded, the validated model)."""
     if name not in _loaded():
         raise _errors.HTTPError(404, f"Unknown tool {name}")
     if args is None:
@@ -351,6 +356,14 @@ def call(name: str, args: Any = None, caps: Mapping[str, int | None] | None = No
     except ValidationError as exc:
         _log.logger.debug("tool rejected name=%s fields=%s", name, sorted({str(e["loc"][0]) for e in exc.errors()}))
         raise _errors.HTTPError(400, _validation_message(name, exc)) from None
+    return t, args, model
+
+
+def call(name: str, args: Any = None, caps: Mapping[str, int | None] | None = None) -> Any:
+    """Validate `args` against the tool's input model and run it. Errors are `HTTPError` (400/404, or 429/503
+    when a source a lookup needs is rate limited or down)."""
+    t, args, model = _validated(name, args)
+    fields = t.input.model_fields
     # Only the arguments the caller sent are passed, so the function's own defaults still apply. An explicit null
     # for a field with a non-null default means "use the default" (the value the schema advertises).
     kwargs = {
