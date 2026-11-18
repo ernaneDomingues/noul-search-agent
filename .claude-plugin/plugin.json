@@ -1,7 +1,7 @@
 {
   "name": "noul-search-agent",
   "displayName": "Noul Search",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "Scientific research co-assistant for any discipline: 50 MCP tools for literature search across six open sources, an Evidence Meter weighted by study design, persistent research projects, full-text passages with section and page, technical extraction, peer-review evidence, academic writing support, BibTeX clean-up, rebuttal and pre-submission checks. Tools return evidence; your model gives the verdicts.",
   "author": {
     "name": "Ernane Domingues",
