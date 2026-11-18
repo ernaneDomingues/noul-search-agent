@@ -4,11 +4,13 @@ Scientific research co-assistant exposed as an MCP server, HTTP/OpenAPI server, 
 **Noul has no LLM of its own**: tools retrieve and structure evidence; the client's LLM (Claude, ChatGPT,
 Copilot, Cursor…) reasons and writes the verdicts. Keep it that way.
 
-## Status: v2.2.0
+## Status: v2.2.1
 
 The v2 refactor is complete: Phases 0–3 shipped as 2.0.0 and Phase 4 (retractions, preprint↔published links,
 CSL-JSON/Zotero, project archive/delete and search history) as 2.1.0. 2.2.0 is the clean-up release (#47–#54:
-packages per journey, one MCP/REST dispatch, stricter lint/type/except gates) and the first on PyPI. MCP sampling
+packages per journey, one MCP/REST dispatch, stricter lint/type/except gates) and the first on PyPI; 2.2.1 is the
+security-audit release (#60–#66: connect-time SSRF checks, inert third-party text, export escaping, workspace and
+public-connector limits, CI least privilege). MCP sampling
 was decided against. Release notes live on the GitHub releases page; there is no CHANGELOG file. New work gets its
 own branch and PR.
 
