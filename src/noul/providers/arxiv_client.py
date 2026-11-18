@@ -714,7 +714,7 @@ def resolve_published_venue_for_preprint(entry: dict, failures: list[str] | None
     # 2. If not found in cache, query external APIs (all guarded by try/except for offline determinism)
     if not candidates and arxiv_id:
         try:
-            url = _endpoints.s2_paper(arxiv_id, _s2.S2_PAPER_FIELDS, prefix="ARXIV:", safe="/.")
+            url = _endpoints.s2_paper(arxiv_id, _s2.S2_PAPER_FIELDS, prefix="ARXIV:")
             p_s2 = _s2._parse_s2_paper(_nhttp._http_json(url))
             if p_s2 and _is_formal_published_record(p_s2):
                 candidates.append(p_s2)
