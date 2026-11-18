@@ -25,3 +25,33 @@ updates:
         patterns: ["*"]
     commit-message:
       prefix: build
+
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      python:
+        patterns: ["*"]
+    commit-message:
+      prefix: build
+
+  - package-ecosystem: pip
+    directories: [/packaging, /packaging/pyinstaller]
+    schedule:
+      interval: weekly
+    groups:
+      build-tools:
+        patterns: ["*"]
+    commit-message:
+      prefix: build
+
+  - package-ecosystem: npm
+    directory: /packaging/mcpb
+    schedule:
+      interval: weekly
+    groups:
+      packer:
+        patterns: ["*"]
+    commit-message:
+      prefix: build
