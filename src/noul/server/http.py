@@ -238,7 +238,10 @@ def build_app(
         payload = result if isinstance(result, dict) else {"result": result}
         if getattr(result, "warnings", None):
             payload["warnings"] = list(result.warnings)
-        return Response(json.dumps(payload, ensure_ascii=False, default=str), media_type="application/json")
+        headers = {"X-Noul-Untrusted": "third-party-text"} if _common.carries_third_party_text(name, result) else None
+        return Response(
+            json.dumps(payload, ensure_ascii=False, default=str), media_type="application/json", headers=headers
+        )
 
     routes = [
         Route("/health", healthz, methods=["GET"]),

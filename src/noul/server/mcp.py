@@ -158,7 +158,9 @@ def _annotations(item: dict[str, Any]) -> types.ToolAnnotations:
     )
 
 
-def _text_result(payload: Any, is_error: bool = False, output: Any = None) -> types.CallToolResult:
+def _text_result(
+    payload: Any, is_error: bool = False, output: Any = None, third_party: bool = False
+) -> types.CallToolResult:
     if isinstance(payload, dict) and not is_error and "rendered_markdown" in payload and output is not None:
         # Analytic results: the Markdown view is for the CLI (--pretty); over MCP it would double the payload.
         payload = {k: v for k, v in payload.items() if k != "rendered_markdown"}
@@ -182,7 +184,7 @@ def _text_result(payload: Any, is_error: bool = False, output: Any = None) -> ty
     content: list[types.ContentBlock] = [types.TextContent(type="text", text=text)]
     for warning in getattr(payload, "warnings", ()) if not is_error else ():
         content.append(types.TextContent(type="text", text=f"Warning: {warning}"))
-    if not is_error and _untrusted.has_untrusted(payload):
+    if not is_error and (third_party or _untrusted.has_untrusted(payload)):
         # Separate block after the data: content[0] stays an exact serialisation of structuredContent.
         content.append(types.TextContent(type="text", text=_untrusted.NOTICE))
     return types.CallToolResult(content=content, structured_content=structured, is_error=is_error)
@@ -379,7 +381,9 @@ def build_server(
             return _text_result(_common.error_text(e, policy.public), is_error=True)
         finally:
             call.release()  # also when cancelled before the worker thread started
-        return _text_result(result, output=_registry.REGISTRY[name].output)
+        return _text_result(
+            result, output=_registry.REGISTRY[name].output, third_party=_common.carries_third_party_text(name, result)
+        )
 
     async def list_resources(ctx: Any, params: Any) -> types.ListResourcesResult:
         if public:  # the hosted connector never exposes dossiers saved on the server

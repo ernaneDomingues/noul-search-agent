@@ -179,5 +179,48 @@ class ScaffolderTests(unittest.TestCase):
         self.assertIn("# Code & Protocol Scaffold:", buf.getvalue())
 
 
+class HostilePaperTests(unittest.TestCase):
+    """Text from a paper ends up in generated code only as inert text: it can never close the literal it sits in."""
+
+    PAYLOAD = '"""+__import__("os").system("id")+r"""\\\n\u2028`x`'
+
+    def setUp(self):
+        self.pid = "arxiv:2502.66001"
+        _net_cache.cache_set(
+            "paper:" + self.pid,
+            {
+                "id": self.pid,
+                "title": "Hostile " + self.PAYLOAD,
+                "authors": ["A B"],
+                "year": 2025,
+                "arxiv_id": "2502.66001",
+                "primary_category": "cs.LG",
+                "evidence": "empirical " + self.PAYLOAD,
+                "abstract": "A 1.5B parameter transformer. It achieves 81.2% on GSM8K.",
+            },
+        )
+        _net_cache.cache_set(
+            "ft:" + self.pid,
+            {"text": "# Method\nThe gate is:\n$$ y = W x " + self.PAYLOAD + " $$\n"},
+        )
+
+    def test_no_target_lets_paper_text_become_code(self):
+        for target in ("pytorch", "statsmodels", "r", "protocol"):
+            with self.subTest(target=target):
+                res = api.call("scaffold_implementation", {"paper_id": self.pid, "target": target})
+                self.assertIn("source_code", res["untrusted_fields"])
+                for field in ("source_code", "unit_tests"):
+                    code = res[field]
+                    self.assertNotIn('"""+', code)
+                    self.assertNotIn("\u2028", code)
+                    if res["language"] == "python":
+                        calls = [
+                            n.func.attr
+                            for n in ast.walk(ast.parse(code))
+                            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                        ]
+                        self.assertNotIn("system", calls)
+
+
 if __name__ == "__main__":
     unittest.main()

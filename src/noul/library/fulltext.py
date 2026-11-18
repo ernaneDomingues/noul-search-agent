@@ -194,7 +194,9 @@ def _jats_text(xml_bytes):
     if main is not None:
         lines += ["", "Abstract", flat(main)]
 
-    def walk(el, depth):
+    def walk(el, depth, nest=0):
+        if nest > 200:  # deeper nesting is not a real article: stop instead of exhausting the stack
+            return
         for child in el:
             tag = local(child.tag)
             if tag == "sec":
@@ -202,7 +204,7 @@ def _jats_text(xml_bytes):
                 head = next((flat(c) for c in child if local(c.tag) == "title"), "")
                 if head:
                     lines.extend(["", "#" * min(depth + 1, 4) + " " + " ".join(x for x in (label, head) if x)])
-                walk(child, depth + 1)
+                walk(child, depth + 1, nest + 1)
             elif tag == "p":
                 lines.append(flat(child))
             elif tag == "table-wrap":
@@ -215,7 +217,7 @@ def _jats_text(xml_bytes):
                     if cells:
                         lines.append(" ".join(cells))
             elif tag not in ("label", "title"):
-                walk(child, depth)
+                walk(child, depth, nest + 1)
 
     for body in (el for el in root.iter() if local(el.tag) == "body"):
         walk(body, 1)
@@ -223,11 +225,32 @@ def _jats_text(xml_bytes):
     return "\n".join(lines).strip()
 
 
-_HTML_BOILERPLATE_RE = re.compile(r"<(script|style|nav|header|footer|noscript)\b[^>]*>.*?</\1\s*>", re.I | re.S)
+_BOILERPLATE_OPEN = re.compile(r"<(script|style|nav|header|footer|noscript)\b", re.I)
+
+
+def _strip_boilerplate(raw_html):
+    """The page without script/style/navigation blocks, in one pass: each opening tag is matched to the next
+    closing tag of the same name with str.find (a lazy `.*?` regex rescans the rest of the page for every
+    unclosed tag, which is quadratic on hostile pages). An unclosed block drops the rest of the page."""
+    lower = raw_html.lower()
+    out, pos = [], 0
+    while True:
+        m = _BOILERPLATE_OPEN.search(raw_html, pos)
+        if not m:
+            out.append(raw_html[pos:])
+            break
+        out.append(raw_html[pos : m.start()])
+        close = lower.find("</" + m.group(1).lower(), m.end())
+        if close == -1:
+            break
+        end = lower.find(">", close)
+        pos = len(raw_html) if end == -1 else end + 1
+        out.append(" ")
+    return "".join(out)
 
 
 def _html_to_text(raw_html):
-    return _ids._clean_text(_HTML_BOILERPLATE_RE.sub(" ", raw_html or ""))
+    return _ids._clean_text(_strip_boilerplate(raw_html or ""))
 
 
 def fulltext(id):

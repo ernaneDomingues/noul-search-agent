@@ -15,7 +15,8 @@ ARXIV_RE = re.compile(r"^\d{4}\.\d{4,5}(v\d+)?$")
 def _clean_text(s):
     if not s:
         return ""
-    s = re.sub(r"<[^>]+>", " ", html.unescape(str(s)))
+    # A tag ends before the next "<": an unclosed "<" cannot make the scan run to the end of the text each time.
+    s = re.sub(r"<[^<>]{0,2000}>", " ", html.unescape(str(s)))
     return re.sub(r"\s+", " ", s).strip()
 
 
