@@ -136,7 +136,8 @@ def _remember_paper(p):
 
 def search(query, filters=None, sources=None):
     filters = filters or {}
-    chosen = [s for s in (sources or DEFAULT_SOURCES) if s in SOURCES]
+    # Each source is one thread and one upstream request: a repeated name must not multiply them.
+    chosen = list(dict.fromkeys(s for s in (sources or DEFAULT_SOURCES) if s in SOURCES))
     if not chosen:
         chosen = ["openalex", "pubmed", "s2"]
     year_min = filters.get("year_min")

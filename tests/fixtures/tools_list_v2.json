@@ -7,7 +7,8 @@
       "type": "object",
       "properties": {
         "query": {
-          "type": "string"
+          "type": "string",
+          "maxLength": 2000
         },
         "sources": {
           "type": "array",
@@ -21,7 +22,8 @@
               "arxiv",
               "europepmc"
             ]
-          }
+          },
+          "maxItems": 6
         },
         "year_min": {
           "type": "integer"
@@ -40,7 +42,8 @@
               "preclinical",
               "other"
             ]
-          }
+          },
+          "maxItems": 8
         },
         "min_citations": {
           "type": "integer"
@@ -117,7 +120,8 @@
       "type": "object",
       "properties": {
         "query": {
-          "type": "string"
+          "type": "string",
+          "maxLength": 2000
         },
         "answers": {
           "type": "object"
@@ -452,7 +456,8 @@
       "type": "object",
       "properties": {
         "query": {
-          "type": "string"
+          "type": "string",
+          "maxLength": 2000
         },
         "paper_ids": {
           "type": "array",
@@ -5364,7 +5369,8 @@
           "type": "string"
         },
         "question": {
-          "type": "string"
+          "type": "string",
+          "maxLength": 2000
         }
       },
       "required": [
@@ -5618,6 +5624,7 @@
           "type": "string",
           "description": "The question to answer from the papers",
           "minLength": 1,
+          "maxLength": 2000,
           "pattern": "\\S"
         },
         "max_chunks_per_paper": {
