@@ -59,14 +59,26 @@ class SupplyChainTests(unittest.TestCase):
 
     def test_dependabot_keeps_the_pins_current(self):
         config = (_support.ROOT / ".github/dependabot.yml").read_text(encoding="utf-8")
-        for ecosystem in ("github-actions", "docker"):
+        for ecosystem in ("github-actions", "docker", "uv", "npm"):
             with self.subTest(ecosystem=ecosystem):
-                self.assertRegex(config, rf"package-ecosystem: {ecosystem}\n\s+directory: /\n\s+schedule:")
+                self.assertRegex(config, rf"package-ecosystem: {ecosystem}\n\s+director(?:y|ies): ")
 
     def test_the_container_installs_the_locked_dependencies(self):
         dockerfile = (_support.ROOT / "Dockerfile").read_text(encoding="utf-8")
         self.assertIn("uv.lock", dockerfile)
         self.assertIn("export --frozen --no-dev", dockerfile)
         self.assertIn("--require-hashes", dockerfile)
-        self.assertIn("pip install --no-cache-dir --no-deps .", dockerfile)
+        self.assertIn("--require-hashes -r /tmp/build-backend.txt", dockerfile)  # the build backend is pinned too
+        self.assertIn("pip install --no-cache-dir --no-deps --no-build-isolation .", dockerfile)
         self.assertRegex(dockerfile, r"astral-sh/uv:[\d.]+@sha256:[0-9a-f]{64}")
+
+    def test_workflows_keep_least_privilege(self):
+        workflows = _support.ROOT / ".github/workflows"
+        for path in sorted(workflows.glob("*.yml")):
+            text = path.read_text(encoding="utf-8")
+            top = text.split("\njobs:", 1)[0]
+            with self.subTest(workflow=path.name):
+                self.assertNotIn("id-token: write", top, "grant id-token only to the job that needs it")
+                self.assertNotIn("pages: write", top)
+                for checkout in re.finditer(r"uses: actions/checkout@\S+.*\n((?:\s{8,}.*\n){0,4})", text):
+                    self.assertIn("persist-credentials: false", checkout.group(1), "checkout keeps no token")

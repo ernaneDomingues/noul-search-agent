@@ -19,6 +19,8 @@ COPY --from=ghcr.io/astral-sh/uv:0.12.22@sha256:f513a91fc62fe7c17567eee97230dd19
 
 WORKDIR /src
 COPY pyproject.toml uv.lock README.md LICENSE ./
+# The build backend (setuptools), pinned with its hash like everything else installed in the image.
+COPY packaging/build-backend.txt /tmp/build-backend.txt
 COPY src ./src
 # Templates installed as data-files by the wheel (used by noul-install).
 COPY skills ./skills
@@ -28,8 +30,10 @@ COPY commands ./commands
 # then the project itself without resolving anything again.
 RUN /tmp/uv export --frozen --no-dev --no-emit-project --no-header -o /tmp/requirements.txt \
     && pip install --no-cache-dir --require-hashes -r /tmp/requirements.txt \
-    && pip install --no-cache-dir --no-deps . \
-    && rm /tmp/uv /tmp/requirements.txt \
+    && pip install --no-cache-dir --require-hashes -r /tmp/build-backend.txt \
+    && pip install --no-cache-dir --no-deps --no-build-isolation . \
+    && pip uninstall -y setuptools \
+    && rm /tmp/uv /tmp/requirements.txt /tmp/build-backend.txt \
     && useradd --create-home --uid 10001 noul \
     && mkdir -p /tmp/noul-cache /tmp/noul-workspace \
     && chown noul:noul /tmp/noul-cache /tmp/noul-workspace \
