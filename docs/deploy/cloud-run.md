@@ -11,13 +11,17 @@ with nothing to install.
 - **Limits:**
   - **tool calls per instance:** 300/min, with a burst of 60. This is the cost control for the upstream APIs; when
     it is exceeded, the model receives `RateLimited: …` and knows to wait;
+  - **tool calls per client:** 60/min, with a burst of 20, so one client cannot use up the instance budget.
+    Malformed calls are refused before they count against either budget;
   - **concurrent calls:** at most 8 per instance;
-  - **per-client flooding:** a guard of 600 requests/min per IP (IPv6 grouped by /64). Hosted clients (Claude.ai,
-    ChatGPT) share egress IPs, so this is not the main limit;
+  - **per-client flooding:** a guard of 600 requests/min per IP, with a burst of 40 (IPv6 grouped by /56). Hosted
+    clients (Claude.ai, ChatGPT) share egress IPs, so this is not the main limit;
+  - **request bodies:** at most 1 MB, received within 10 s;
   - **per-call caps, announced in the schema:** 25 results per search and 5 full texts per question. Lists above
     the cap are refused, and numbers above it are reduced with a `notice`.
 - **Memory:** the SQLite cache lives in `/tmp`, which on Cloud Run uses the instance's RAM. It is therefore limited
-  to 2,000 entries (`NOUL_CACHE_MAX_ROWS`), and downloads are limited to 15 MB (`NOUL_MAX_DOWNLOAD_MB`).
+  to 2,000 entries (`NOUL_CACHE_MAX_ROWS`) and 150 MB (`NOUL_CACHE_MAX_BYTES`), and downloads are limited to 15 MB
+  (`NOUL_MAX_DOWNLOAD_MB`) and 60 s each.
 - **Cost:** it scales to zero (`--min-instances 0`), so with no traffic the cost is close to nothing.
   `--max-instances` caps the maximum spend.
 - **Data:** the server stores no user data.
@@ -190,8 +194,9 @@ curl -s -o /dev/null -w '%{http_code}\n' "$URL/mcp"                             
 - **Tuning** (service variables; the deploy uses `--update-env-vars` and keeps what you set):
   - `NOUL_TOOL_RATE_LIMIT` and `NOUL_TOOL_RATE_BURST`: tool calls per instance;
   - `NOUL_MAX_CONCURRENCY`;
+  - `NOUL_CLIENT_TOOL_RATE_LIMIT` and `NOUL_CLIENT_TOOL_RATE_BURST`: tool calls per client;
   - `NOUL_RATE_LIMIT` and `NOUL_RATE_BURST`: per-client flood guard;
-  - `NOUL_CACHE_MAX_ROWS` and `NOUL_MAX_DOWNLOAD_MB`.
+  - `NOUL_CACHE_MAX_ROWS`, `NOUL_CACHE_MAX_BYTES` and `NOUL_MAX_DOWNLOAD_MB`.
 
   Example: `gcloud run services update noul-connector --region "$REGION" --update-env-vars NOUL_TOOL_RATE_LIMIT=120`.
 - **Shut the connector down:** `gcloud run services delete noul-connector --region "$REGION"`.

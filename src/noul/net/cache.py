@@ -45,6 +45,15 @@ def cache_get(key, max_age=86400 * 14):
         return None
 
 
+def _max_bytes():
+    """NOUL_CACHE_MAX_BYTES caps the stored values' total size (oldest pruned on write); unset = unbounded. A row cap
+    alone does not bound memory: one full-text row can hold 120,000 characters."""
+    try:
+        return max(int(os.environ.get("NOUL_CACHE_MAX_BYTES") or 0), 0)
+    except ValueError:
+        return 0
+
+
 def _max_rows():
     """NOUL_CACHE_MAX_ROWS caps the cache (oldest entries pruned on write); unset = unbounded (local use)."""
     try:
@@ -60,6 +69,18 @@ def cache_set(key, val):
                 "INSERT OR REPLACE INTO kv (k, v, ts) VALUES (?, ?, ?)",
                 (key, json.dumps(val, ensure_ascii=False), int(time.time())),
             )
+            budget = _max_bytes()
+            if budget:
+                # Oldest rows first, until the total fits (one indexed pass over the table per write).
+                total = c.execute("SELECT COALESCE(SUM(LENGTH(v)), 0) FROM kv").fetchone()[0]
+                if total > budget:
+                    freed, doomed = 0, []
+                    for k, size in c.execute("SELECT k, LENGTH(v) FROM kv ORDER BY ts ASC, rowid ASC"):
+                        if total - freed <= budget or k == key:
+                            break
+                        doomed.append((k,))
+                        freed += size or 0
+                    c.executemany("DELETE FROM kv WHERE k = ?", doomed)
             limit = _max_rows()
             if limit:
                 # On hosted instances /tmp lives in RAM: keep the cache bounded (oldest rows first).

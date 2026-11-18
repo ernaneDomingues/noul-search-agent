@@ -183,7 +183,13 @@ def search(query, filters=None, sources=None):
                 raw_papers.extend(fut.result())
                 active_sources.append(src)
             except Exception as e:  # noqa: BLE001 - one source failing in any way is one warning, not a failed search
-                warnings.append(f"{src}: {type(e).__name__}: {e}")
+                # An HTTPError message is ours (status and host, never a query or key); anything else may carry
+                # internal detail (paths, SQL), so only its type is shown, and the message goes to the debug log.
+                if isinstance(e, _errors.HTTPError):
+                    warnings.append(f"{src}: {type(e).__name__}: {e}")
+                else:
+                    _log.logger.debug("source %s failed: %s: %s", src, type(e).__name__, e)
+                    warnings.append(f"{src}: {type(e).__name__}")
         else:
             fut.cancel()
             warnings.append(f"{src}: TimeoutError: source exceeded {SEARCH_TIMEOUT}s limit")

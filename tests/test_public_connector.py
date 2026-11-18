@@ -80,16 +80,26 @@ class RateLimiterTests(unittest.TestCase):
 
         from noul.server import limits
 
-        keys = ("NOUL_RATE_LIMIT", "NOUL_TOOL_RATE_LIMIT", "NOUL_MAX_CONCURRENCY", "NOUL_TRUSTED_PROXY")
+        keys = (
+            "NOUL_RATE_LIMIT",
+            "NOUL_TOOL_RATE_LIMIT",
+            "NOUL_CLIENT_TOOL_RATE_LIMIT",
+            "NOUL_MAX_CONCURRENCY",
+            "NOUL_TRUSTED_PROXY",
+        )
         with mock.patch.dict(os.environ, {}, clear=False):
             for key in keys:
                 os.environ.pop(key, None)
             flood = limits.env_rate_limiter(public=True)
-            self.assertEqual((flood.rate * 60, flood.burst), (600.0, 120))
+            self.assertEqual((flood.rate * 60, flood.burst), (600.0, 40))  # below the 80 concurrent requests
             tools = limits.env_tool_rate_limiter(public=True)
             self.assertEqual((tools.rate * 60, tools.burst), (300.0, 60))
+            per_client = limits.env_client_tool_rate_limiter(public=True)
+            self.assertEqual((per_client.rate * 60, per_client.burst), (60.0, 20))
+            self.assertLess(per_client.rate, tools.rate)
             self.assertIsNone(limits.env_rate_limiter(public=False))
             self.assertIsNone(limits.env_tool_rate_limiter(public=False))
+            self.assertIsNone(limits.env_client_tool_rate_limiter(public=False))
             self.assertEqual(limits.env_max_concurrency(public=True), 8)
             self.assertEqual(limits.env_trusted_proxy_hops(), 0)
 
@@ -218,11 +228,12 @@ class PublicAppTests(unittest.TestCase):
         self.assertEqual(tools["query_fulltexts"]["inputSchema"]["properties"]["ids"]["maxItems"], 5)
         self.assertEqual(tools["get_paper_references"]["inputSchema"]["properties"]["limit"]["maximum"], 25)
 
-    def test_ipv6_clients_share_a_bucket_per_64_and_xff_headers_are_joined(self):
+    def test_ipv6_clients_share_a_bucket_per_56_and_xff_headers_are_joined(self):
         from noul.server.limits import RateLimiter, client_key
 
         self.assertEqual(client_key("2001:db8::1"), client_key("2001:db8::ffff"))
-        self.assertNotEqual(client_key("2001:db8::1"), client_key("2001:db8:0:1::1"))
+        self.assertEqual(client_key("2001:db8::1"), client_key("2001:db8:0:ff::1"))  # same /56
+        self.assertNotEqual(client_key("2001:db8::1"), client_key("2001:db8:0:100::1"))
         self.assertEqual(client_key("::ffff:203.0.113.5"), "203.0.113.5")
         limiter = RateLimiter(rate_per_minute=60, burst=2, clock=FakeClock())
         with public_client(rate_limiter=limiter, trusted_proxy_hops=1) as c:
