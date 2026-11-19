@@ -85,6 +85,7 @@ class ExtractionTests(unittest.TestCase):
             "https://pytorch.org/hub/pytorch_vision_resnet": "weights",
             "https://kaggle.com/datasets/u/d": "dataset",
             "https://figshare.com/articles/dataset/x/1": "dataset",
+            "https://plos.figshare.com/articles/dataset/x/1": "dataset",
             "https://osf.io/abcd2": "dataset",
             "https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/X": "dataset",
         }
@@ -98,6 +99,7 @@ class ExtractionTests(unittest.TestCase):
             "https://huggingface.co/docs/x",
             "https://doi.org/10.1000/xyz",
             "https://example.com/a/b",
+            "https://evilfigshare.com/articles/dataset/x/1",  # a look-alike domain, not a figshare subdomain
         ):
             with self.subTest(url=url):
                 self.assertEqual(ar.classify_url(url), (None, None))
