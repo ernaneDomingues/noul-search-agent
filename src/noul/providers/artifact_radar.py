@@ -126,7 +126,7 @@ def classify_url(url):
         return "dataset", url
     if host in ("doi.org", "dx.doi.org") and "/".join(low).startswith("10.5281/zenodo"):
         return "dataset", f"https://doi.org/{'/'.join(segs)}"
-    if host.endswith("figshare.com") and segs:
+    if (host == "figshare.com" or host.endswith(".figshare.com")) and segs:  # not "evilfigshare.com"
         return "dataset", url
     if host == "osf.io" and segs:
         return "dataset", url
